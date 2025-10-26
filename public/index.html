@@ -1,0 +1,2422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jewelry Estimation Software - Complete</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-amber-50 to-orange-50 min-h-screen">
+    <div id="app" class="max-w-7xl mx-auto p-4">
+        <!-- Header -->
+        <div class="bg-white rounded-2xl shadow-2xl overflow-hidden mb-6">
+            <div class="bg-gradient-to-r from-amber-600 to-orange-600 text-white p-6">
+                <div class="flex justify-between items-center flex-wrap gap-4">
+                    <div>
+                        <h1 class="text-3xl font-bold mb-2">💎 Jewelry Estimation Software</h1>
+                        <p class="text-amber-100" id="quotationNo">Quotation No: Q0001</p>
+                    </div>
+                    <div class="flex gap-3 flex-wrap">
+                        <button onclick="showTab('billing')" id="btnBilling"
+                            class="px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition">📋
+                            Billing</button>
+                        <button onclick="showTab('products')" id="btnProducts"
+                            class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">📦
+                            Products</button>
+                        <button onclick="showTab('customers')" id="btnCustomers"
+                            class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">👥
+                            Customers</button>
+                        <button onclick="showTab('rol')" id="btnROL"
+                            class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">📊 ROL</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Billing Tab -->
+        <div id="billingTab" class="space-y-6">
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold text-gray-800">Customer Details</h3>
+                    <button onclick="showNewCustomerModal()"
+                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">➕ New Customer</button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Customer</label>
+                        <select id="customerSelect" onchange="loadCustomerDetails()"
+                            class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500">
+                            <option value="">-- Select Customer --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Mobile Number</label>
+                        <input type="text" id="customerMobile" readonly class="w-full px-4 py-2 bg-gray-100 border rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Rate Slab *</label>
+                        <select id="rateSlab" onchange="updateRateSlabInfo()"
+                            class="w-full px-4 py-2 border-2 border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-semibold">
+                            <option value="R">R </option>
+                            <option value="R1">R1</option>
+                            <option value="R2">R2</option>
+                            <option value="R3">R3</option>
+                            <option value="R4">R4</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="customerDetailsDisplay" class="mt-4 hidden">
+                    <div class="bg-amber-50 p-4 rounded-lg border-l-4 border-amber-500">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="font-semibold text-gray-800 text-lg" id="custName"></p>
+                                <p class="text-sm text-gray-600" id="custAddress"></p>
+                            </div>
+                            <div class="bg-amber-600 text-white px-4 py-2 rounded-lg text-center">
+                                <p class="text-xs">Rate Slab</p>
+                                <p class="text-xl font-bold" id="rateSlabDisplay">R</p>
+                                <p class="text-xs" id="rateSlabDesc">Standard MC</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border-2 border-blue-200">
+            <div class="flex items-center gap-3 mb-3">
+                <span class="text-2xl">📷</span>
+                <h2 class="text-xl font-semibold text-gray-800">Barcode Scanner</h2>
+                <span class="ml-auto text-sm text-gray-600 bg-white px-3 py-1 rounded-full">Auto-detect mode</span>
+            </div>
+            <input id="barcodeInput" type="text" placeholder="Scan barcode or type and press Enter..."
+                class="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-lg" autofocus>
+            <p class="text-sm text-gray-600 mt-2">🔍 Scanner ready - Scan any product barcode</p>
+        </div>
+
+            <div class="bg-amber-50 p-4 rounded-xl border border-amber-200">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="font-semibold text-gray-800">Current Rates</h3>
+                    <button onclick="showRatesModal()" class="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-medium">Update Rates</button>
+                </div>
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="bg-white p-3 rounded-lg shadow">
+                        <p class="text-xs text-gray-500">Gold</p>
+                        <p class="text-lg font-bold text-yellow-600" id="goldRate">₹7500/gm</p>
+                    </div>
+                    <div class="bg-white p-3 rounded-lg shadow">
+                        <p class="text-xs text-gray-500">Silver</p>
+                        <p class="text-lg font-bold text-gray-600" id="silverRate">₹156/gm</p>
+                    </div>
+                    <div class="bg-white p-3 rounded-lg shadow">
+                        <p class="text-xs text-gray-500">Platinum</p>
+                        <p class="text-lg font-bold text-gray-800" id="platinumRate">₹3500/gm</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">Item Details</h3>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <input type="text" id="itemSku" placeholder="SKU" class="px-3 py-2 border rounded-lg">
+                    <input type="text" id="itemStyleCode" placeholder="Style Code" class="px-3 py-2 border rounded-lg">
+                    <input type="text" id="itemName" placeholder="Item Name" class="col-span-2 px-3 py-2 border rounded-lg">
+                    <input type="text" id="itemSize" placeholder="Size" class="px-3 py-2 border rounded-lg">
+                    <input type="number" step="0.01" id="itemWeight" placeholder="Weight (gm)" class="px-3 py-2 border rounded-lg">
+                    <input type="number" step="0.1" id="itemPurity" placeholder="Purity %" value="100" class="px-3 py-2 border rounded-lg">
+                    <input type="number" step="0.01" id="itemRate" placeholder="Rate/gm" class="px-3 py-2 border rounded-lg">
+                    <input type="number" step="0.01" id="itemMcRate" placeholder="MC Rate/gm" class="px-3 py-2 border rounded-lg">
+                    <input type="hidden" id="itemMetalType">
+                    <div class="col-span-2">
+                        <div class="px-3 py-2 bg-amber-50 border-2 border-amber-300 rounded-lg font-bold text-amber-800 text-lg" id="itemAmount">₹0.00</div>
+                    </div>
+                    <button onclick="addItem()" class="col-span-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">➕ Add Item</button>
+                </div>
+            </div>
+
+            <div id="itemsTableContainer" class="bg-white rounded-xl border shadow-lg hidden">
+                <div class="bg-gray-100 px-6 py-3 border-b">
+                    <h3 class="text-lg font-semibold text-gray-800">Added Items</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">#</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Item</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500">Wt(gm)</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500">Rate</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500">MC</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500">Amount</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="itemsTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="bg-gradient-to-br from-amber-100 to-orange-100 p-6 rounded-xl border-2 border-amber-300">
+                <div class="space-y-3">
+                    <div class="flex justify-between text-lg">
+                        <span class="font-medium">TOTAL:</span>
+                        <span class="font-bold" id="summaryTotal">₹0.00</span>
+                    </div>
+                    <div class="flex justify-between text-lg">
+                        <span class="font-medium">GST (3%):</span>
+                        <span class="font-bold" id="summaryGst">₹0.00</span>
+                    </div>
+                    <div class="border-t-2 border-amber-400 pt-3">
+                        <div class="flex justify-between text-2xl">
+                            <span class="font-bold">NET TOTAL:</span>
+                            <span class="font-bold text-amber-700" id="summaryNetTotal">₹0.00</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <button onclick="generateQuote()" class="px-6 py-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-bold text-lg shadow-lg">📄 Generate Quote</button>
+                <button onclick="clearAll()" class="px-6 py-4 bg-gray-600 text-white rounded-xl hover:bg-gray-700 font-bold text-lg shadow-lg">🗑️ Clear All</button>
+            </div>
+        </div>
+
+<!-- Products Tab -->   
+<div id="productsTab" class="space-y-6 hidden">
+    <div class="bg-white p-6 rounded-xl shadow-lg">
+        <div class="flex justify-between items-center mb-6 flex-wrap gap-3">
+            <h2 class="text-2xl font-bold text-gray-800">📦 Product Management</h2>
+            <div class="flex gap-2 flex-wrap">
+                <button onclick="downloadStockReport()"
+                    class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-bold text-sm">📊 Stock
+                    Report</button>
+                <button onclick="downloadAllProducts()"
+                    class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-sm">📥
+                    Download All</button>
+                <button onclick="downloadSampleExcel()"
+                    class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-bold text-sm">📋
+                    Sample</button>
+                <button onclick="showBulkUploadModal()"
+                    class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-sm">📤 Bulk
+                    Upload</button>
+                <button onclick="showAddProductModal()"
+                    class="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-bold text-sm">➕ Add
+                    Product</button>
+            </div>
+        </div>
+
+        <!-- Barcode Scanner for Product Management -->
+        <div class="bg-gradient-to-r from-purple-50 to-pink-50 p-4 rounded-xl border-2 border-purple-200 mb-4">
+            <div class="flex items-center gap-3 mb-2">
+                <span class="text-xl">📷</span>
+                <h3 class="font-semibold text-gray-800">Quick Add by Barcode</h3>
+            </div>
+            <input id="productBarcodeInput" type="text" placeholder="Scan barcode to quickly add new product..."
+                class="w-full px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+            <p class="text-xs text-gray-600 mt-1">Scan a new barcode to auto-fill product form</p>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="mb-4">
+            <input type="text" id="productSearch"
+                placeholder="🔍 Search by Barcode, SKU, Style Code, or Product Name..."
+                class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 text-base"
+                oninput="filterProducts()">
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-100">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-sm font-semibold">Barcode</th>
+                        <th class="px-4 py-3 text-left text-sm font-semibold">SKU</th>
+                        <th class="px-4 py-3 text-left text-sm font-semibold">Style Code</th>
+                        <th class="px-4 py-3 text-left text-sm font-semibold">Name</th>
+                        <th class="px-4 py-3 text-left text-sm font-semibold">Size</th>
+                        <th class="px-4 py-3 text-left text-sm font-semibold">Avg Wt</th>
+                        <th class="px-4 py-3 text-left text-sm font-semibold">Metal</th>
+                        <th class="px-4 py-3 text-left text-sm font-semibold">Purity%</th>
+                        <th class="px-4 py-3 text-left text-sm font-semibold">MC Rate</th>
+                        <th class="px-4 py-3 text-center text-sm font-semibold">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="productsTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+        <!-- Customers Tab -->
+        <div id="customersTab" class="space-y-6 hidden">
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+                <div class="flex justify-between items-center mb-6 flex-wrap gap-3">
+                    <h2 class="text-2xl font-bold text-gray-800">👥 Customer Management</h2>
+                    <div class="flex gap-2 flex-wrap">
+                        <button onclick="downloadAllCustomers()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-sm">📥 Download All</button>
+                        <button onclick="downloadSampleCustomerExcel()" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-bold text-sm">📋 Sample</button>
+                        <button onclick="showBulkUploadCustomerModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-sm">📤 Bulk Upload</button>
+                        <button onclick="showNewCustomerModal()" class="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-bold text-sm">➕ Add Customer</button>
+                    </div>
+                </div>
+                <div id="customersList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+            </div>
+        </div>
+
+        <!-- ROL Tab -->
+        <div id="rolTab" class="space-y-6 hidden">
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+                <div class="flex justify-between items-center mb-6 flex-wrap gap-3">
+                    <h2 class="text-2xl font-bold text-gray-800">📊 Reorder Level (ROL) Management</h2>
+                    <div class="flex gap-2 flex-wrap">
+                        <button onclick="downloadROLReport()"
+                            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-sm">📥
+                            Download ROL Report</button>
+                        <button onclick="downloadROLSample()"
+                            class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-bold text-sm">📋
+                            Download Sample</button>
+                        <button onclick="showROLUploadModal()"
+                            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-sm">📤 Upload
+                            ROL Data</button>
+                    </div>
+                </div>
+        
+                <!-- Filter Section -->
+                <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border-2 border-blue-200 mb-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Style Code</label>
+                            <select id="rolStyleCodeFilter" onchange="updateROLDisplay()"
+                                class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                <option value="all">All Style Codes</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Filter View</label>
+                            <select id="rolViewFilter" onchange="updateROLDisplay()"
+                                class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                <option value="all">Show All Items</option>
+                                <option value="reorder">Show Only Reorder Required</option>
+                            </select>
+                        </div>
+                        <div class="flex items-end">
+                            <button onclick="updateROLDisplay()"
+                                class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">🔄
+                                Refresh</button>
+                        </div>
+                    </div>
+                </div>
+        
+                <!-- ROL Statistics -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-4 rounded-lg shadow">
+                        <p class="text-sm opacity-90">Total Items</p>
+                        <p class="text-3xl font-bold" id="rolTotalItems">0</p>
+                    </div>
+                    <div class="bg-gradient-to-br from-red-500 to-red-600 text-white p-4 rounded-lg shadow">
+                        <p class="text-sm opacity-90">Reorder Required</p>
+                        <p class="text-3xl font-bold" id="rolReorderCount">0</p>
+                    </div>
+                    <div class="bg-gradient-to-br from-green-500 to-green-600 text-white p-4 rounded-lg shadow">
+                        <p class="text-sm opacity-90">Stock OK</p>
+                        <p class="text-3xl font-bold" id="rolStockOK">0</p>
+                    </div>
+                    <div class="bg-gradient-to-br from-yellow-500 to-yellow-600 text-white p-4 rounded-lg shadow">
+                        <p class="text-sm opacity-90">Total Required</p>
+                        <p class="text-3xl font-bold" id="rolTotalRequired">0</p>
+                    </div>
+                </div>
+        
+                <!-- ROL Table -->
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-sm font-semibold">Barcode</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold">Style Code</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold">Product Name</th>
+                                <th class="px-4 py-3 text-center text-sm font-semibold">ROL Set</th>
+                                <th class="px-4 py-3 text-center text-sm font-semibold">Available</th>
+                                <th class="px-4 py-3 text-center text-sm font-semibold">Required</th>
+                                <th class="px-4 py-3 text-center text-sm font-semibold">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rolTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Overlay -->
+    <div id="modalOverlay" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4"
+        onclick="event.target === this && closeModals()"></div>
+    
+    <!-- Rates Modal -->
+    <div id="ratesModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full pointer-events-auto"
+            onclick="event.stopPropagation()">
+            <h3 class="text-xl font-bold mb-4">Update Metal Rates</h3>
+            <div class="bg-yellow-50 border-l-4 border-yellow-500 p-3 mb-4">
+                <p class="text-sm text-yellow-800">⚠️ Updating rates will automatically recalculate all items in current
+                    bill</p>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Gold Rate (per gram)</label>
+                    <input type="number" id="rateGold" class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Silver Rate (per gram)</label>
+                    <input type="number" id="rateSilver" class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Platinum Rate (per gram)</label>
+                    <input type="number" id="ratePlatinum" class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="saveRates()"
+                        class="flex-1 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-medium">Save
+                        Rates</button>
+                    <button onclick="closeModals()"
+                        class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Add/Edit Product Modal -->
+    <div id="addProductModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-2xl w-full pointer-events-auto max-h-[90vh] overflow-y-auto"
+            onclick="event.stopPropagation()">
+            <h3 class="text-xl font-bold mb-4" id="productModalTitle">Add New Product</h3>
+            <input type="hidden" id="editProductIndex" value="">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Barcode *</label>
+                    <input type="text" id="newBarcode" class="w-full px-3 py-2 border rounded-lg" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">SKU</label>
+                    <input type="text" id="newSku" class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Style Code</label>
+                    <input type="text" id="newStyleCode" class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Metal Type *</label>
+                    <select id="newMetalType" class="w-full px-3 py-2 border rounded-lg">
+                        <option value="gold">Gold</option>
+                        <option value="silver">Silver</option>
+                        <option value="platinum">Platinum</option>
+                    </select>
+                </div>
+                <div class="col-span-2">
+                    <label class="block text-sm font-medium mb-1">Product Name *</label>
+                    <input type="text" id="newShortName" class="w-full px-3 py-2 border rounded-lg" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Size</label>
+                    <input type="text" id="newSize" class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Average Weight (gm)</label>
+                    <input type="number" step="0.01" id="newAvgWt" class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Purity (%) *</label>
+                    <input type="number" step="0.1" id="newPurity" value="100" class="w-full px-3 py-2 border rounded-lg"
+                        required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">MC Rate (per gram) *</label>
+                    <input type="number" step="0.01" id="newMcRate" class="w-full px-3 py-2 border rounded-lg" required>
+                </div>
+                <div class="col-span-2 flex gap-3">
+                    <button onclick="saveProduct()"
+                        class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">💾 Save
+                        Product</button>
+                    <button onclick="closeModals()"
+                        class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bulk Upload Products Modal -->
+    <div id="bulkUploadModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-3xl w-full pointer-events-auto max-h-[90vh] overflow-y-auto"
+            onclick="event.stopPropagation()">
+            <h3 class="text-xl font-bold mb-4">📤 Bulk Upload Products from Excel</h3>
+            <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
+                <h4 class="font-bold text-blue-800 mb-2">📋 Required Excel Columns:</h4>
+                <p class="text-sm text-blue-700 font-mono">Barcode | SKU | StyleCode | ProductName | Size | AvgWeight |
+                    Purity | MCRate | MetalType</p>
+                <p class="text-sm text-blue-700 mt-2"><strong>MetalType:</strong> Must be "gold", "silver", or "platinum"
+                </p>
+            </div>
+            <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-4 bg-gray-50">
+                <input type="file" id="excelFileInput" accept=".xlsx,.xls" class="hidden"
+                    onchange="handleExcelUpload(event)">
+                <button onclick="document.getElementById('excelFileInput').click()"
+                    class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-lg">
+                    📁 Choose Excel File
+                </button>
+                <p class="text-sm text-gray-500 mt-2">Click "Sample" button first to download template</p>
+            </div>
+            <div id="uploadPreview" class="hidden">
+                <h4 class="font-bold text-gray-800 mb-2">Preview (First 5 rows):</h4>
+                <div class="overflow-x-auto max-h-60 border rounded-lg mb-4">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-100 sticky top-0">
+                            <tr>
+                                <th class="px-2 py-2 text-left">Barcode</th>
+                                <th class="px-2 py-2 text-left">Name</th>
+                                <th class="px-2 py-2 text-left">Metal</th>
+                                <th class="px-2 py-2 text-left">Purity</th>
+                                <th class="px-2 py-2 text-left">MC Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody id="previewTableBody"></tbody>
+                    </table>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="confirmBulkUpload()"
+                        class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">
+                        ✅ Upload <span id="uploadCount"></span> Products
+                    </button>
+                    <button onclick="closeModals()"
+                        class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Add/Edit Customer Modal -->
+    <div id="addCustomerModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full pointer-events-auto"
+            onclick="event.stopPropagation()">
+            <h3 class="text-xl font-bold mb-4" id="customerModalTitle">Add New Customer</h3>
+            <input type="hidden" id="editCustomerIndex" value="">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Customer Name *</label>
+                    <input type="text" id="newCustName" class="w-full px-3 py-2 border rounded-lg" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Address Line 1</label>
+                    <input type="text" id="newCustAddress1" class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Address Line 2</label>
+                    <input type="text" id="newCustAddress2" class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">City & Pincode</label>
+                    <input type="text" id="newCustCity" class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Mobile Number *</label>
+                    <input type="tel" id="newCustMobile" class="w-full px-3 py-2 border rounded-lg" maxlength="10" required>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="saveCustomer()"
+                        class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">💾 Save
+                        Customer</button>
+                    <button onclick="closeModals()"
+                        class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bulk Upload Customers Modal -->
+    <div id="bulkUploadCustomerModal"
+        class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-3xl w-full pointer-events-auto max-h-[90vh] overflow-y-auto"
+            onclick="event.stopPropagation()">
+            <h3 class="text-xl font-bold mb-4">📤 Bulk Upload Customers from Excel</h3>
+            <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
+                <h4 class="font-bold text-blue-800 mb-2">📋 Required Excel Columns:</h4>
+                <p class="text-sm text-blue-700 font-mono">Name | Address1 | Address2 | City | Mobile</p>
+            </div>
+            <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-4 bg-gray-50">
+                <input type="file" id="excelCustomerFileInput" accept=".xlsx,.xls" class="hidden"
+                    onchange="handleCustomerExcelUpload(event)">
+                <button onclick="document.getElementById('excelCustomerFileInput').click()"
+                    class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-lg">
+                    📁 Choose Excel File
+                </button>
+                <p class="text-sm text-gray-500 mt-2">Click "Sample" button first to download template</p>
+            </div>
+            <div id="uploadCustomerPreview" class="hidden">
+                <h4 class="font-bold text-gray-800 mb-2">Preview (First 5 rows):</h4>
+                <div class="overflow-x-auto max-h-60 border rounded-lg mb-4">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-100 sticky top-0">
+                            <tr>
+                                <th class="px-2 py-2 text-left">Name</th>
+                                <th class="px-2 py-2 text-left">Address</th>
+                                <th class="px-2 py-2 text-left">City</th>
+                                <th class="px-2 py-2 text-left">Mobile</th>
+                            </tr>
+                        </thead>
+                        <tbody id="previewCustomerTableBody"></tbody>
+                    </table>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="confirmBulkUploadCustomer()"
+                        class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">
+                        ✅ Upload <span id="uploadCustomerCount"></span> Customers
+                    </button>
+                    <button onclick="closeModals()"
+                        class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quotation Format Selection Modal -->
+    <div id="quotationFormatModal"
+        class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full pointer-events-auto"
+            onclick="event.stopPropagation()">
+            <h3 class="text-xl font-bold mb-4">📄 Choose Quotation Format</h3>
+            <div class="space-y-3">
+                <button onclick="generateQuotePDF()"
+                    class="w-full px-6 py-4 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold text-lg flex items-center justify-center gap-2">
+                    <span>📕</span> Download as PDF
+                </button>
+                <button onclick="generateQuoteExcel()"
+                    class="w-full px-6 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-lg flex items-center justify-center gap-2">
+                    <span>📗</span> Download as Excel
+                </button>
+                <button onclick="closeModals()"
+                    class="w-full px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+<!-- Stock Report Format Selection Modal -->
+<div id="stockReportModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
+    <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full pointer-events-auto"
+        onclick="event.stopPropagation()">
+        <h3 class="text-xl font-bold mb-4">📊 Stock Report Options</h3>
+
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Report Type</label>
+            <select id="stockReportType"
+                class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                <option value="detailed">Detailed Report (All Fields)</option>
+                <option value="summary">Summary Report (Key Info Only)</option>
+            </select>
+        </div>
+
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Metal Type</label>
+            <select id="stockMetalFilter"
+                class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                <option value="all">All Metals</option>
+                <option value="gold">Gold Only</option>
+                <option value="silver">Silver Only</option>
+                <option value="platinum">Platinum Only</option>
+            </select>
+        </div>
+
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Style Code</label>
+            <select id="stockStyleCodeFilter"
+                class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                <option value="all">All Style Codes</option>
+            </select>
+        </div>
+
+        <h4 class="text-sm font-semibold text-gray-700 mb-2">Choose Format:</h4>
+        <div class="space-y-3">
+            <button onclick="downloadStockReportPDF()"
+                class="w-full px-6 py-4 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold text-lg flex items-center justify-center gap-2">
+                <span>📕</span> Download as PDF
+            </button>
+            <button onclick="downloadStockReportExcel()"
+                class="w-full px-6 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-lg flex items-center justify-center gap-2">
+                <span>📗</span> Download as Excel
+            </button>
+            <button onclick="closeModals()"
+                class="w-full px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                Cancel
+            </button>
+                </div>
+            </div>
+        </div>
+
+    <!-- ROL Upload Modal -->
+    <div id="rolUploadModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-3xl w-full pointer-events-auto max-h-[90vh] overflow-y-auto"
+            onclick="event.stopPropagation()">
+            <h3 class="text-xl font-bold mb-4">📤 Upload ROL Data from Excel</h3>
+            <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
+                <h4 class="font-bold text-blue-800 mb-2">📋 Required Excel Columns:</h4>
+                <p class="text-sm text-blue-700 font-mono">Barcode | StyleCode | ProductName | ROL</p>
+                <p class="text-sm text-blue-700 mt-2"><strong>Note:</strong> Barcode must match existing products</p>
+            </div>
+            <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-4 bg-gray-50">
+                <input type="file" id="rolExcelFileInput" accept=".xlsx,.xls" class="hidden"
+                    onchange="handleROLExcelUpload(event)">
+                <button onclick="document.getElementById('rolExcelFileInput').click()"
+                    class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-lg">
+                    📁 Choose Excel File
+                </button>
+                <p class="text-sm text-gray-500 mt-2">Click "Download Sample" first to see the format</p>
+            </div>
+            <div id="rolUploadPreview" class="hidden">
+                <h4 class="font-bold text-gray-800 mb-2">Preview (First 5 rows):</h4>
+                <div class="overflow-x-auto max-h-60 border rounded-lg mb-4">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-100 sticky top-0">
+                            <tr>
+                                <th class="px-2 py-2 text-left">Barcode</th>
+                                <th class="px-2 py-2 text-left">Style Code</th>
+                                <th class="px-2 py-2 text-left">Product Name</th>
+                                <th class="px-2 py-2 text-center">ROL</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rolPreviewTableBody"></tbody>
+                    </table>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="confirmROLUpload()"
+                        class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">
+                        ✅ Upload <span id="rolUploadCount"></span> ROL Items
+                    </button>
+                    <button onclick="closeModals()"
+                        class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let items = [];
+        let rates = JSON.parse(localStorage.getItem('rates') || '{"gold":7500,"silver":156,"platinum":3500}');
+        let customers = JSON.parse(localStorage.getItem('customers') || '[]');
+        let products = JSON.parse(localStorage.getItem('products') || '[]');
+        let currentCustomer = null;
+        let quotationCounter = parseInt(localStorage.getItem('quotationCounter') || '1');
+        let bulkUploadData = [];
+        let bulkUploadCustomerData = [];
+        let currentRateSlab = 'R'; 
+        const rateSlabDiscounts = {  
+                'R': 0,
+                'R1': 2,
+                'R2': 5,
+                'R3': 10,
+                'R4': 15
+            };
+        let rolData = JSON.parse(localStorage.getItem('rolData') || '[]');
+        let bulkUploadROLData = [];
+
+        if (products.length === 0) {
+            products = [
+                { id: 1, barcode: '1001', sku: 'RING-22K-001', styleCode: '4001', shortName: 'Gold Ring 22K', size: '18', avgWt: 4.5, purity: 91.6, mcRate: 250, metalType: 'gold' },
+                { id: 2, barcode: '1002', sku: 'CHAIN-22K-002', styleCode: '4002', shortName: 'Gold Chain 22K', size: '20', avgWt: 15.3, purity: 91.6, mcRate: 200, metalType: 'gold' },
+                { id: 3, barcode: '1003', sku: 'IDOL-SF-001', styleCode: '4265', shortName: 'Silver Idol', size: '270', avgWt: 17.47, purity: 100, mcRate: 173.69, metalType: 'silver' }
+            ];
+            localStorage.setItem('products', JSON.stringify(products));
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+                updateRatesDisplay();
+                updateCustomerDropdown();
+                updateProductsTable();
+
+                // Billing barcode scanner
+                document.getElementById('barcodeInput').addEventListener('keypress', function (e) {
+                    if (e.key === 'Enter') {
+                        handleBarcodeScan(this.value.trim());
+                        this.value = '';
+                    }
+                });
+
+                // Product Management barcode scanner - ADD THIS
+                const productBarcodeInput = document.getElementById('productBarcodeInput');
+                if (productBarcodeInput) {
+                    productBarcodeInput.addEventListener('keypress', function (e) {
+                        if (e.key === 'Enter') {
+                            handleProductBarcodeScan(this.value.trim());
+                            this.value = '';
+                        }
+                    });
+                }
+
+                ['itemWeight', 'itemRate', 'itemMcRate', 'itemPurity'].forEach(id => {
+                    document.getElementById(id).addEventListener('input', updateItemAmount);
+                });
+            });
+
+        function showTab(tab) {
+                document.getElementById('billingTab').classList.add('hidden');
+                document.getElementById('productsTab').classList.add('hidden');
+                document.getElementById('customersTab').classList.add('hidden');
+                document.getElementById('rolTab').classList.add('hidden');  // ADD THIS LINE
+                document.getElementById('btnBilling').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
+                document.getElementById('btnProducts').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
+                document.getElementById('btnCustomers').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
+                document.getElementById('btnROL').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';  // ADD THIS LINE
+
+                if (tab === 'billing') {
+                    document.getElementById('billingTab').classList.remove('hidden');
+                    document.getElementById('btnBilling').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
+                } else if (tab === 'products') {
+                    document.getElementById('productsTab').classList.remove('hidden');
+                    document.getElementById('btnProducts').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
+                    updateProductsTable();
+                } else if (tab === 'customers') {
+                    document.getElementById('customersTab').classList.remove('hidden');
+                    document.getElementById('btnCustomers').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
+                    loadCustomersDisplay();
+                } else if (tab === 'rol') {  // ADD THIS BLOCK
+                    document.getElementById('rolTab').classList.remove('hidden');
+                    document.getElementById('btnROL').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
+                    initializeROL();
+                    updateROLDisplay();
+                }
+            }
+
+        function updateRatesDisplay() {
+            document.getElementById('goldRate').textContent = `₹${rates.gold}/gm`;
+            document.getElementById('silverRate').textContent = `₹${rates.silver}/gm`;
+            document.getElementById('platinumRate').textContent = `₹${rates.platinum}/gm`;
+        }
+
+        function showRatesModal() {
+            document.getElementById('rateGold').value = rates.gold;
+            document.getElementById('rateSilver').value = rates.silver;
+            document.getElementById('ratePlatinum').value = rates.platinum;
+            document.getElementById('modalOverlay').classList.remove('hidden');
+            document.getElementById('modalOverlay').classList.add('flex');
+            document.getElementById('ratesModal').classList.remove('hidden');
+        }
+
+        function saveRates() {
+            rates.gold = parseFloat(document.getElementById('rateGold').value) || 0;
+            rates.silver = parseFloat(document.getElementById('rateSilver').value) || 0;
+            rates.platinum = parseFloat(document.getElementById('ratePlatinum').value) || 0;
+            localStorage.setItem('rates', JSON.stringify(rates));
+            updateRatesDisplay();
+            let updatedCount = 0;
+            items.forEach(item => {
+                if (item.metalType) {
+                    const newRate = rates[item.metalType];
+                    if (newRate) {
+                        item.rate = newRate;
+                        const metalValue = (item.weight * item.rate * item.purity) / 100;
+                        const mcCharges = item.weight * item.mcRate;
+                        item.amount = metalValue + mcCharges;
+                        updatedCount++;
+                    }
+                }
+            });
+            if (updatedCount > 0) {
+                updateItemsTable();
+                updateSummary();
+            }
+            closeModals();
+            alert(`Rates updated!${updatedCount > 0 ? ` ${updatedCount} items recalculated.` : ''}`);
+        }
+
+        function updateCustomerDropdown() {
+            const select = document.getElementById('customerSelect');
+            select.innerHTML = '<option value="">-- Select Customer --</option>';
+            customers.forEach((customer, idx) => {
+                const option = document.createElement('option');
+                option.value = idx;
+                option.textContent = customer.name;
+                select.appendChild(option);
+            });
+        }
+
+        function loadCustomerDetails() {
+                const idx = document.getElementById('customerSelect').value;
+                if (idx === '') {
+                    document.getElementById('customerDetailsDisplay').classList.add('hidden');
+                    document.getElementById('customerMobile').value = '';
+                    currentCustomer = null;
+                    return;
+                }
+                currentCustomer = customers[idx];
+                document.getElementById('custName').textContent = currentCustomer.name;
+                document.getElementById('custAddress').textContent = `${currentCustomer.address1}, ${currentCustomer.address2}, ${currentCustomer.city}`;
+                document.getElementById('customerMobile').value = currentCustomer.mobile;
+                document.getElementById('customerDetailsDisplay').classList.remove('hidden');
+
+                // Update rate slab display
+                updateRateSlabInfo();
+
+                // Recalculate all items with new rate slab
+                if (items.length > 0) {
+                    recalculateAllItems();
+                }
+            }
+            
+            function updateRateSlabInfo() {
+                    currentRateSlab = document.getElementById('rateSlab').value;
+                    const discount = rateSlabDiscounts[currentRateSlab];
+
+                    document.getElementById('rateSlabDisplay').textContent = currentRateSlab;
+
+                    const descriptions = {
+                        'R': 'Standard MC',
+                        'R1': 'MC - ₹2/gm',
+                        'R2': 'MC - ₹5/gm',
+                        'R3': 'MC - ₹10/gm',
+                        'R4': 'MC - ₹15/gm'
+                    };
+
+                    document.getElementById('rateSlabDesc').textContent = descriptions[currentRateSlab];
+
+                    // Recalculate all items if any exist
+                    if (items.length > 0) {
+                        recalculateAllItems();
+                    }
+
+                    // Update current item amount if form is filled
+                    updateItemAmount();
+                }
+
+                function getAdjustedMCRate(originalMCRate) {
+                    const discount = rateSlabDiscounts[currentRateSlab];
+                    const adjustedRate = Math.max(0, originalMCRate - discount);
+                    return adjustedRate;
+                }
+
+                function recalculateAllItems() {
+                    items.forEach(item => {
+                        // Get original MC rate (stored separately)
+                        const originalMCRate = item.originalMcRate || item.mcRate;
+                        const adjustedMCRate = getAdjustedMCRate(originalMCRate);
+
+                        const metalValue = (item.weight * item.rate * item.purity) / 100;
+                        const mcCharges = item.weight * adjustedMCRate;
+                        item.amount = metalValue + mcCharges;
+                        item.mcRate = adjustedMCRate;
+                        item.originalMcRate = originalMCRate; // Store original for future recalculations
+                    });
+                     updateItemsTable();
+                    updateSummary();
+                }
+
+        function showNewCustomerModal() {
+            document.getElementById('customerModalTitle').textContent = 'Add New Customer';
+            document.getElementById('editCustomerIndex').value = '';
+            document.getElementById('newCustName').value = '';
+            document.getElementById('newCustAddress1').value = '';
+            document.getElementById('newCustAddress2').value = '';
+            document.getElementById('newCustCity').value = '';
+            document.getElementById('newCustMobile').value = '';
+            document.getElementById('modalOverlay').classList.remove('hidden');
+            document.getElementById('modalOverlay').classList.add('flex');
+            document.getElementById('addCustomerModal').classList.remove('hidden');
+        }
+
+        function editCustomer(idx) {
+            const customer = customers[idx];
+            document.getElementById('customerModalTitle').textContent = 'Edit Customer';
+            document.getElementById('editCustomerIndex').value = idx;
+            document.getElementById('newCustName').value = customer.name;
+            document.getElementById('newCustAddress1').value = customer.address1 || '';
+            document.getElementById('newCustAddress2').value = customer.address2 || '';
+            document.getElementById('newCustCity').value = customer.city || '';
+            document.getElementById('newCustMobile').value = customer.mobile;
+            document.getElementById('modalOverlay').classList.remove('hidden');
+            document.getElementById('modalOverlay').classList.add('flex');
+            document.getElementById('addCustomerModal').classList.remove('hidden');
+        }
+
+        function saveCustomer() {
+            const customer = {
+                name: document.getElementById('newCustName').value.trim(),
+                address1: document.getElementById('newCustAddress1').value.trim(),
+                address2: document.getElementById('newCustAddress2').value.trim(),
+                city: document.getElementById('newCustCity').value.trim(),
+                mobile: document.getElementById('newCustMobile').value.trim()
+            };
+            if (!customer.name || !customer.mobile) {
+                alert('Please fill Name and Mobile Number');
+                return;
+            }
+            const editIndex = document.getElementById('editCustomerIndex').value;
+            if (editIndex !== '') {
+                customers[editIndex] = customer;
+                alert('Customer updated!');
+            } else {
+                customers.push(customer);
+                alert('Customer added!');
+            }
+            localStorage.setItem('customers', JSON.stringify(customers));
+            updateCustomerDropdown();
+            loadCustomersDisplay();
+            closeModals();
+        }
+
+        function deleteCustomer(idx) {
+            if (!confirm('Delete this customer?')) return;
+            customers.splice(idx, 1);
+            localStorage.setItem('customers', JSON.stringify(customers));
+            updateCustomerDropdown();
+            loadCustomersDisplay();
+            alert('Customer deleted!');
+        }
+
+        function loadCustomersDisplay() {
+            const container = document.getElementById('customersList');
+            container.innerHTML = '';
+            if (customers.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 col-span-3 text-center py-8">No customers yet.</p>';
+                return;
+            }
+            customers.forEach((customer, idx) => {
+                const card = document.createElement('div');
+                card.className = 'bg-white p-4 rounded-lg border hover:shadow-lg transition';
+                card.innerHTML = `
+                        <div class="flex justify-between items-start mb-2">
+                            <h3 class="font-bold text-lg text-gray-800">${customer.name}</h3>
+                            <div class="flex gap-2">
+                                <button onclick="editCustomer(${idx})" class="text-blue-600 hover:text-blue-800 text-sm font-medium">✏️</button>
+                                <button onclick="deleteCustomer(${idx})" class="text-red-600 hover:text-red-800 text-sm font-medium">🗑️</button>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-600">${customer.address1}</p>
+                        <p class="text-sm text-gray-600">${customer.address2}</p>
+                        <p class="text-sm text-gray-600">${customer.city}</p>
+                        <p class="text-sm text-blue-600 font-medium mt-2">📱 ${customer.mobile}</p>
+                    `;
+                container.appendChild(card);
+            });
+        }
+
+    function updateProductsTable() {
+        const searchTerm = document.getElementById('productSearch') ? document.getElementById('productSearch').value.toLowerCase().trim() : '';
+        const tbody = document.getElementById('productsTableBody');
+        tbody.innerHTML = '';
+
+        let displayProducts = products;
+
+        // Apply search filter if search term exists
+        if (searchTerm) {
+            displayProducts = products.filter(product => {
+                return (
+                    (product.barcode && product.barcode.toLowerCase().includes(searchTerm)) ||
+                    (product.sku && product.sku.toLowerCase().includes(searchTerm)) ||
+                    (product.styleCode && product.styleCode.toLowerCase().includes(searchTerm)) ||
+                    (product.shortName && product.shortName.toLowerCase().includes(searchTerm)) ||
+                    (product.metalType && product.metalType.toLowerCase().includes(searchTerm))
+                );
+            });
+        }
+
+        if (displayProducts.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="10" class="text-center py-8 text-gray-500">No products found.</td></tr>';
+            return;
+        }
+
+        displayProducts.forEach((product) => {
+            const originalIdx = products.findIndex(p => p.id === product.id);
+            const row = document.createElement('tr');
+            row.className = 'border-b hover:bg-gray-50';
+            row.innerHTML = `
+            <td class="px-4 py-3 font-mono text-sm">${product.barcode}</td>
+            <td class="px-4 py-3 text-sm">${product.sku || '-'}</td>
+            <td class="px-4 py-3 text-sm font-semibold text-blue-600">${product.styleCode || '-'}</td>
+            <td class="px-4 py-3 font-medium">${product.shortName}</td>
+            <td class="px-4 py-3 text-sm">${product.size || '-'}</td>
+            <td class="px-4 py-3 text-sm">${(product.avgWt || 0).toFixed(2)}g</td>
+            <td class="px-4 py-3 capitalize text-sm">${product.metalType}</td>
+            <td class="px-4 py-3 text-sm">${product.purity}%</td>
+            <td class="px-4 py-3 text-sm">₹${product.mcRate}</td>
+            <td class="px-4 py-3 text-center">
+                <button onclick="editProduct(${originalIdx})" class="text-blue-600 hover:text-blue-800 font-medium mr-2">✏️</button>
+                <button onclick="deleteProduct(${originalIdx})" class="text-red-600 hover:text-red-800 font-medium">🗑️</button>
+            </td>
+        `;
+            tbody.appendChild(row);
+        });
+    }
+
+    function filterProducts() {
+            const searchTerm = document.getElementById('productSearch').value.toLowerCase().trim();
+            const tbody = document.getElementById('productsTableBody');
+            tbody.innerHTML = '';
+
+            const filteredProducts = products.filter(product => {
+                return (
+                    (product.barcode && product.barcode.toLowerCase().includes(searchTerm)) ||
+                    (product.sku && product.sku.toLowerCase().includes(searchTerm)) ||
+                    (product.styleCode && product.styleCode.toLowerCase().includes(searchTerm)) ||
+                    (product.shortName && product.shortName.toLowerCase().includes(searchTerm)) ||
+                    (product.metalType && product.metalType.toLowerCase().includes(searchTerm)) ||
+                    (product.size && product.size.toLowerCase().includes(searchTerm))
+                );
+            });
+
+            if (filteredProducts.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="10" class="text-center py-8 text-gray-500">No products found matching your search.</td></tr>';
+                return;
+            }
+
+            filteredProducts.forEach((product) => {
+                const originalIdx = products.findIndex(p => p.id === product.id);
+                const row = document.createElement('tr');
+                row.className = 'border-b hover:bg-gray-50';
+                row.innerHTML = `
+            <td class="px-4 py-3 font-mono text-sm">${product.barcode}</td>
+            <td class="px-4 py-3 text-sm">${product.sku || '-'}</td>
+            <td class="px-4 py-3 text-sm font-semibold text-blue-600">${product.styleCode || '-'}</td>
+            <td class="px-4 py-3 font-medium">${product.shortName}</td>
+            <td class="px-4 py-3 text-sm">${product.size || '-'}</td>
+            <td class="px-4 py-3 text-sm">${(product.avgWt || 0).toFixed(2)}g</td>
+            <td class="px-4 py-3 capitalize text-sm">${product.metalType}</td>
+            <td class="px-4 py-3 text-sm">${product.purity}%</td>
+            <td class="px-4 py-3 text-sm">₹${product.mcRate}</td>
+            <td class="px-4 py-3 text-center">
+                <button onclick="editProduct(${originalIdx})" class="text-blue-600 hover:text-blue-800 font-medium mr-2">✏️</button>
+                <button onclick="deleteProduct(${originalIdx})" class="text-red-600 hover:text-red-800 font-medium">🗑️</button>
+            </td>
+        `;
+                tbody.appendChild(row);
+            });
+        }
+
+    function downloadStockReport() {
+            if (products.length === 0) {
+                alert('No products in inventory to generate report!');
+                return;
+            }
+
+            // Populate style code filter
+            const styleCodeFilter = document.getElementById('stockStyleCodeFilter');
+            styleCodeFilter.innerHTML = '<option value="all">All Style Codes</option>';
+
+            const uniqueStyleCodes = [...new Set(products.map(p => p.styleCode).filter(s => s))];
+            uniqueStyleCodes.sort().forEach(styleCode => {
+                const option = document.createElement('option');
+                option.value = styleCode;
+                option.textContent = styleCode;
+                styleCodeFilter.appendChild(option);
+            });
+
+            // Show format selection modal
+            document.getElementById('modalOverlay').classList.remove('hidden');
+            document.getElementById('modalOverlay').classList.add('flex');
+            document.getElementById('stockReportModal').classList.remove('hidden');
+        }
+
+        function getFilteredProducts() {
+                const metalFilter = document.getElementById('stockMetalFilter').value;
+                const styleCodeFilter = document.getElementById('stockStyleCodeFilter').value;
+
+                let filtered = products;
+
+                // Apply metal filter
+                if (metalFilter !== 'all') {
+                    filtered = filtered.filter(p => p.metalType === metalFilter);
+                }
+
+                // Apply style code filter
+                if (styleCodeFilter !== 'all') {
+                    filtered = filtered.filter(p => p.styleCode === styleCodeFilter);
+                }
+
+                return filtered;
+            }
+
+        function downloadStockReportPDF() {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF('landscape'); // Landscape for better table fit
+
+                const reportType = document.getElementById('stockReportType').value;
+                const metalFilter = document.getElementById('stockMetalFilter').value;
+                const filteredProducts = getFilteredProducts();
+
+                if (filteredProducts.length === 0) {
+                    alert('No products found for selected filter!');
+                    return;
+                }
+
+                const date = new Date().toLocaleDateString('en-GB');
+
+                // Header
+                doc.setFontSize(18);
+                doc.setFont(undefined, 'bold');
+                doc.text('STOCK INVENTORY REPORT', 148, 15, { align: 'center' });
+
+                doc.setFontSize(10);
+                doc.setFont(undefined, 'normal');
+                doc.text(`Generated: ${date}`, 148, 22, { align: 'center' });
+            doc.text(`Total Items: ${filteredProducts.length}`, 148, 28, { align: 'center' });
+
+            let yPosFilter = 34;
+            if (metalFilter !== 'all') {
+                doc.text(`Metal Filter: ${metalFilter.toUpperCase()}`, 148, yPosFilter, { align: 'center' });
+                yPosFilter += 5;
+            }
+
+            const styleCodeFilter = document.getElementById('stockStyleCodeFilter').value;
+            if (styleCodeFilter !== 'all') {
+                doc.text(`Style Code: ${styleCodeFilter}`, 148, yPosFilter, { align: 'center' });
+                yPosFilter += 5;
+            }
+
+                // Calculate totals
+                const totalsByMetal = {};
+                filteredProducts.forEach(p => {
+                    if (!totalsByMetal[p.metalType]) {
+                        totalsByMetal[p.metalType] = { count: 0, weight: 0 };
+                    }
+                    totalsByMetal[p.metalType].count++;
+                    totalsByMetal[p.metalType].weight += (p.avgWt || 0);
+                });
+
+                let tableData, tableHeaders;
+
+                if (reportType === 'detailed') {
+                    tableHeaders = [['#', 'Barcode', 'SKU', 'Style Code', 'Product Name', 'Size', 'Avg Wt (gm)', 'Purity %', 'MC Rate', 'Metal Type']];
+                    tableData = filteredProducts.map((p, idx) => [
+                        idx + 1,
+                        p.barcode,
+                        p.sku || '-',
+                        p.styleCode || '-',
+                        p.shortName,
+                        p.size || '-',
+                        (p.avgWt || 0).toFixed(2),
+                        p.purity.toFixed(1),
+                        p.mcRate.toFixed(2),
+                        p.metalType.toUpperCase()
+                    ]);
+                } else {
+                    tableHeaders = [['#', 'Barcode', 'Product Name', 'Metal Type', 'Purity %', 'Avg Wt (gm)', 'MC Rate']];
+                    tableData = filteredProducts.map((p, idx) => [
+                        idx + 1,
+                        p.barcode,
+                        p.shortName,
+                        p.metalType.toUpperCase(),
+                        p.purity.toFixed(1),
+                        (p.avgWt || 0).toFixed(2),
+                        p.mcRate.toFixed(2)
+                    ]);
+                }
+
+            const tableStartY = (metalFilter !== 'all' || styleCodeFilter !== 'all') ? 42 : 35;
+            doc.autoTable({
+                startY: tableStartY,
+                    head: tableHeaders,
+                    body: tableData,
+                    theme: 'striped',
+                    headStyles: {
+                        fillColor: [139, 92, 246],
+                        textColor: 255,
+                        fontSize: 9,
+                        fontStyle: 'bold'
+                    },
+                    bodyStyles: { fontSize: 8 },
+                    alternateRowStyles: { fillColor: [245, 245, 245] }
+                });
+
+                // Summary at bottom
+                const finalY = doc.lastAutoTable.finalY + 10;
+                doc.setFontSize(10);
+                doc.setFont(undefined, 'bold');
+                doc.text('SUMMARY BY METAL TYPE:', 20, finalY);
+
+                let summaryY = finalY + 7;
+                doc.setFontSize(9);
+                Object.keys(totalsByMetal).forEach(metal => {
+                    doc.setFont(undefined, 'bold');
+                    doc.text(`${metal.toUpperCase()}:`, 25, summaryY);
+                    doc.setFont(undefined, 'normal');
+                    doc.text(`${totalsByMetal[metal].count} items, Total Weight: ${totalsByMetal[metal].weight.toFixed(2)} gm`, 60, summaryY);
+                    summaryY += 5;
+                });
+
+                doc.save(`Stock_Report_${reportType}_${date.replace(/\//g, '-')}.pdf`);
+                closeModals();
+                alert('Stock Report PDF downloaded successfully!');
+            }
+
+            function downloadStockReportExcel() {
+                    const reportType = document.getElementById('stockReportType').value;
+                    const metalFilter = document.getElementById('stockMetalFilter').value;
+                    const filteredProducts = getFilteredProducts();
+
+                    if (filteredProducts.length === 0) {
+                        alert('No products found for selected filter!');
+                        return;
+                    }
+
+                    const date = new Date().toLocaleDateString('en-GB');
+                    const wb = XLSX.utils.book_new();
+
+                    // Calculate totals
+                    const totalsByMetal = {};
+                    filteredProducts.forEach(p => {
+                        if (!totalsByMetal[p.metalType]) {
+                            totalsByMetal[p.metalType] = { count: 0, weight: 0 };
+                        }
+                        totalsByMetal[p.metalType].count++;
+                        totalsByMetal[p.metalType].weight += (p.avgWt || 0);
+                    });
+
+                    // Header section
+                    const styleCodeFilter = document.getElementById('stockStyleCodeFilter').value;
+
+                const headerData = [
+                    ['STOCK INVENTORY REPORT'],
+                    [''],
+                    ['Generated Date:', date],
+                    ['Total Items:', filteredProducts.length],
+                    ['Metal Filter:', metalFilter === 'all' ? 'All Metals' : metalFilter.toUpperCase()],
+                    ['Style Code Filter:', styleCodeFilter === 'all' ? 'All Style Codes' : styleCodeFilter],
+                    ['Report Type:', reportType === 'detailed' ? 'Detailed Report' : 'Summary Report'],
+                    ['']
+                ];
+
+                    let productData;
+
+                    if (reportType === 'detailed') {
+                        productData = filteredProducts.map((p, idx) => ({
+                            '#': idx + 1,
+                            'Barcode': p.barcode,
+                            'SKU': p.sku || '-',
+                            'Style Code': p.styleCode || '-',
+                            'Product Name': p.shortName,
+                            'Size': p.size || '-',
+                            'Avg Weight (gm)': (p.avgWt || 0).toFixed(2),
+                            'Purity %': p.purity.toFixed(1),
+                            'MC Rate': p.mcRate.toFixed(2),
+                            'Metal Type': p.metalType.toUpperCase()
+                        }));
+                    } else {
+                        productData = filteredProducts.map((p, idx) => ({
+                            '#': idx + 1,
+                            'Barcode': p.barcode,
+                            'Product Name': p.shortName,
+                            'Metal Type': p.metalType.toUpperCase(),
+                            'Purity %': p.purity.toFixed(1),
+                            'Avg Weight (gm)': (p.avgWt || 0).toFixed(2),
+                            'MC Rate': p.mcRate.toFixed(2)
+                        }));
+                    }
+
+                    // Convert products to array of arrays
+                    const productHeaders = Object.keys(productData[0]);
+                    const productRows = productData.map(obj => productHeaders.map(key => obj[key]));
+
+                    // Summary section
+                    const summaryData = [
+                        [''],
+                        ['SUMMARY BY METAL TYPE'],
+                        ['Metal Type', 'Count', 'Total Weight (gm)']
+                    ];
+
+                    Object.keys(totalsByMetal).forEach(metal => {
+                        summaryData.push([
+                            metal.toUpperCase(),
+                            totalsByMetal[metal].count,
+                            totalsByMetal[metal].weight.toFixed(2)
+                        ]);
+                    });
+
+                    // Combine all data
+                    const allData = [
+                        ...headerData,
+                        productHeaders,
+                        ...productRows,
+                        ...summaryData
+                    ];
+
+                    // Create worksheet
+                    const ws = XLSX.utils.aoa_to_sheet(allData);
+
+                    // Set column widths
+                    if (reportType === 'detailed') {
+                        ws['!cols'] = [
+                            { wch: 5 }, { wch: 15 }, { wch: 18 }, { wch: 15 }, { wch: 35 },
+                            { wch: 10 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 12 }
+                        ];
+                    } else {
+                        ws['!cols'] = [
+                            { wch: 5 }, { wch: 15 }, { wch: 35 }, { wch: 12 },
+                            { wch: 10 }, { wch: 15 }, { wch: 10 }
+                        ];
+                    }
+
+                    // Add worksheet to workbook
+                    XLSX.utils.book_append_sheet(wb, ws, 'Stock Report');
+
+                    // Save file
+                    XLSX.writeFile(wb, `Stock_Report_${reportType}_${date.replace(/\//g, '-')}.xlsx`);
+
+                    closeModals();
+                    alert('Stock Report Excel downloaded successfully!');
+                }
+
+        function showAddProductModal() {
+            document.getElementById('productModalTitle').textContent = 'Add New Product';
+            document.getElementById('editProductIndex').value = '';
+            document.getElementById('newBarcode').value = '';
+            document.getElementById('newSku').value = '';
+            document.getElementById('newStyleCode').value = '';
+            document.getElementById('newShortName').value = '';
+            document.getElementById('newSize').value = '';
+            document.getElementById('newAvgWt').value = '';
+            document.getElementById('newPurity').value = '100';
+            document.getElementById('newMcRate').value = '';
+            document.getElementById('newMetalType').value = 'gold';
+            document.getElementById('modalOverlay').classList.remove('hidden');
+            document.getElementById('modalOverlay').classList.add('flex');
+            document.getElementById('addProductModal').classList.remove('hidden');
+        }
+
+        function editProduct(idx) {
+            const product = products[idx];
+            document.getElementById('productModalTitle').textContent = 'Edit Product';
+            document.getElementById('editProductIndex').value = idx;
+            document.getElementById('newBarcode').value = product.barcode;
+            document.getElementById('newSku').value = product.sku || '';
+            document.getElementById('newStyleCode').value = product.styleCode || '';
+            document.getElementById('newShortName').value = product.shortName;
+            document.getElementById('newSize').value = product.size || '';
+            document.getElementById('newAvgWt').value = product.avgWt || '';
+            document.getElementById('newPurity').value = product.purity;
+            document.getElementById('newMcRate').value = product.mcRate;
+            document.getElementById('newMetalType').value = product.metalType;
+            document.getElementById('modalOverlay').classList.remove('hidden');
+            document.getElementById('modalOverlay').classList.add('flex');
+            document.getElementById('addProductModal').classList.remove('hidden');
+        }
+
+        function saveProduct() {
+            const product = {
+                barcode: document.getElementById('newBarcode').value.trim(),
+                sku: document.getElementById('newSku').value.trim(),
+                styleCode: document.getElementById('newStyleCode').value.trim(),
+                shortName: document.getElementById('newShortName').value.trim(),
+                size: document.getElementById('newSize').value.trim(),
+                avgWt: parseFloat(document.getElementById('newAvgWt').value) || 0,
+                purity: parseFloat(document.getElementById('newPurity').value) || 100,
+                mcRate: parseFloat(document.getElementById('newMcRate').value) || 0,
+                metalType: document.getElementById('newMetalType').value
+            };
+            if (!product.barcode || !product.shortName) {
+                alert('Please fill Barcode and Product Name');
+                return;
+            }
+            const editIndex = document.getElementById('editProductIndex').value;
+            if (editIndex !== '') {
+                product.id = products[editIndex].id;
+                products[editIndex] = product;
+                alert('Product updated!');
+            } else {
+                product.id = Date.now();
+                products.push(product);
+                alert('Product added!');
+            }
+            localStorage.setItem('products', JSON.stringify(products));
+            updateProductsTable();
+            closeModals();
+        }
+
+        function deleteProduct(idx) {
+            if (!confirm('Delete this product?')) return;
+            products.splice(idx, 1);
+            localStorage.setItem('products', JSON.stringify(products));
+            updateProductsTable();
+            alert('Product deleted!');
+        }
+
+        function downloadAllProducts() {
+            if (products.length === 0) {
+                alert('No products to download!');
+                return;
+            }
+            const data = products.map(p => ({
+                Barcode: p.barcode,
+                SKU: p.sku || '',
+                StyleCode: p.styleCode || '',
+                ProductName: p.shortName,
+                Size: p.size || '',
+                AvgWeight: p.avgWt || 0,
+                Purity: p.purity,
+                MCRate: p.mcRate,
+                MetalType: p.metalType
+            }));
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Products');
+            XLSX.writeFile(wb, 'All_Products_' + new Date().toISOString().split('T')[0] + '.xlsx');
+            alert('Products downloaded!');
+        }
+
+        function downloadSampleExcel() {
+            const sampleData = [
+                { Barcode: '2001', SKU: 'RING-22K-100', StyleCode: '5001', ProductName: 'Gold Ring 22K Design 1', Size: '16', AvgWeight: 3.5, Purity: 91.6, MCRate: 250, MetalType: 'gold' },
+                { Barcode: '2002', SKU: 'BANGLE-22K-200', StyleCode: '5002', ProductName: 'Gold Bangle 22K', Size: '2.6', AvgWeight: 25.5, Purity: 91.6, MCRate: 200, MetalType: 'gold' },
+                { Barcode: '2003', SKU: 'CHAIN-18K-300', StyleCode: '5003', ProductName: 'Gold Chain 18K', Size: '18', AvgWeight: 12.3, Purity: 75, MCRate: 180, MetalType: 'gold' },
+                { Barcode: '2004', SKU: 'IDOL-SF-400', StyleCode: '5004', ProductName: 'Silver Ganesh Idol', Size: '4inch', AvgWeight: 45.2, Purity: 100, MCRate: 150, MetalType: 'silver' }
+            ];
+            const ws = XLSX.utils.json_to_sheet(sampleData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Sample Products');
+            XLSX.writeFile(wb, 'Sample_Products_Format.xlsx');
+            alert('Sample downloaded!');
+        }
+
+        function showBulkUploadModal() {
+            document.getElementById('uploadPreview').classList.add('hidden');
+            document.getElementById('excelFileInput').value = '';
+            bulkUploadData = [];
+            document.getElementById('modalOverlay').classList.remove('hidden');
+            document.getElementById('modalOverlay').classList.add('flex');
+            document.getElementById('bulkUploadModal').classList.remove('hidden');
+        }
+
+        function handleExcelUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                    if (jsonData.length === 0) {
+                        alert('Excel file is empty!');
+                        return;
+                    }
+                    bulkUploadData = jsonData.map((row, idx) => ({
+                        id: Date.now() + idx,
+                        barcode: String(row.Barcode || row.barcode || '').trim(),
+                        sku: String(row.SKU || row.sku || '').trim(),
+                        styleCode: String(row.StyleCode || row.styleCode || '').trim(),
+                        shortName: String(row.ProductName || row.productName || row.shortName || '').trim(),
+                        size: String(row.Size || row.size || '').trim(),
+                        avgWt: parseFloat(row.AvgWeight || row.avgWeight || row.avgWt || 0),
+                        purity: parseFloat(row.Purity || row.purity || 100),
+                        mcRate: parseFloat(row.MCRate || row.mcRate || 0),
+                        metalType: String(row.MetalType || row.metalType || 'gold').toLowerCase().trim()
+                    }));
+                    const tbody = document.getElementById('previewTableBody');
+                    tbody.innerHTML = '';
+                    bulkUploadData.slice(0, 5).forEach(item => {
+                        const row = document.createElement('tr');
+                        row.className = 'border-b';
+                        row.innerHTML = `
+                                <td class="px-2 py-2">${item.barcode}</td>
+                                <td class="px-2 py-2">${item.shortName}</td>
+                                <td class="px-2 py-2 capitalize">${item.metalType}</td>
+                                <td class="px-2 py-2">${item.purity}%</td>
+                                <td class="px-2 py-2">₹${item.mcRate}</td>
+                            `;
+                        tbody.appendChild(row);
+                    });
+                    document.getElementById('uploadCount').textContent = bulkUploadData.length;
+                    document.getElementById('uploadPreview').classList.remove('hidden');
+                } catch (error) {
+                    alert('Error reading Excel: ' + error.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function confirmBulkUpload() {
+            if (bulkUploadData.length === 0) return;
+            const invalidItems = bulkUploadData.filter(item => !item.barcode || !item.shortName);
+            if (invalidItems.length > 0) {
+                alert(`Error: ${invalidItems.length} items missing Barcode or Name.`);
+                return;
+            }
+            products.push(...bulkUploadData);
+            localStorage.setItem('products', JSON.stringify(products));
+            updateProductsTable();
+            closeModals();
+            alert(`Successfully uploaded ${bulkUploadData.length} products!`);
+        }
+
+        function downloadAllCustomers() {
+            if (customers.length === 0) {
+                alert('No customers to download!');
+                return;
+            }
+            const data = customers.map(c => ({
+                Name: c.name,
+                Address1: c.address1 || '',
+                Address2: c.address2 || '',
+                City: c.city || '',
+                Mobile: c.mobile
+            }));
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Customers');
+            XLSX.writeFile(wb, 'All_Customers_' + new Date().toISOString().split('T')[0] + '.xlsx');
+            alert('Customers downloaded!');
+        }
+
+        function downloadSampleCustomerExcel() {
+            const sampleData = [
+                { Name: 'Rajesh Kumar', Address1: '123 Main Street', Address2: 'T Nagar', City: 'Chennai-600017', Mobile: '9876543210' },
+                { Name: 'Priya Sharma', Address1: '456 MG Road', Address2: 'Anna Nagar', City: 'Chennai-600040', Mobile: '9123456789' },
+                { Name: 'Vijay Reddy', Address1: '789 Gandhi Street', Address2: 'Adyar', City: 'Chennai-600020', Mobile: '9988776655' }
+            ];
+            const ws = XLSX.utils.json_to_sheet(sampleData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Sample Customers');
+            XLSX.writeFile(wb, 'Sample_Customers_Format.xlsx');
+            alert('Sample downloaded!');
+        }
+
+        function showBulkUploadCustomerModal() {
+            document.getElementById('uploadCustomerPreview').classList.add('hidden');
+            document.getElementById('excelCustomerFileInput').value = '';
+            bulkUploadCustomerData = [];
+            document.getElementById('modalOverlay').classList.remove('hidden');
+            document.getElementById('modalOverlay').classList.add('flex');
+            document.getElementById('bulkUploadCustomerModal').classList.remove('hidden');
+        }
+
+        function handleCustomerExcelUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                    if (jsonData.length === 0) {
+                        alert('Excel file is empty!');
+                        return;
+                    }
+                    bulkUploadCustomerData = jsonData.map(row => ({
+                        name: String(row.Name || row.name || '').trim(),
+                        address1: String(row.Address1 || row.address1 || '').trim(),
+                        address2: String(row.Address2 || row.address2 || '').trim(),
+                        city: String(row.City || row.city || '').trim(),
+                        mobile: String(row.Mobile || row.mobile || '').trim()
+                    }));
+                    const tbody = document.getElementById('previewCustomerTableBody');
+                    tbody.innerHTML = '';
+                    bulkUploadCustomerData.slice(0, 5).forEach(item => {
+                        const row = document.createElement('tr');
+                        row.className = 'border-b';
+                        row.innerHTML = `
+                                <td class="px-2 py-2">${item.name}</td>
+                                <td class="px-2 py-2">${item.address1}, ${item.address2}</td>
+                                <td class="px-2 py-2">${item.city}</td>
+                                <td class="px-2 py-2">${item.mobile}</td>
+                            `;
+                        tbody.appendChild(row);
+                    });
+                    document.getElementById('uploadCustomerCount').textContent = bulkUploadCustomerData.length;
+                    document.getElementById('uploadCustomerPreview').classList.remove('hidden');
+                } catch (error) {
+                    alert('Error reading Excel: ' + error.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function confirmBulkUploadCustomer() {
+            if (bulkUploadCustomerData.length === 0) return;
+            const invalidItems = bulkUploadCustomerData.filter(item => !item.name || !item.mobile);
+            if (invalidItems.length > 0) {
+                alert(`Error: ${invalidItems.length} customers missing Name or Mobile.`);
+                return;
+            }
+            customers.push(...bulkUploadCustomerData);
+            localStorage.setItem('customers', JSON.stringify(customers));
+            updateCustomerDropdown();
+            loadCustomersDisplay();
+            closeModals();
+            alert(`Successfully uploaded ${bulkUploadCustomerData.length} customers!`);
+        }
+
+        function handleBarcodeScan(barcode) {
+                if (!barcode) return;
+
+                const product = products.find(p => p.barcode === barcode);
+                if (product) {
+                    // Product found - populate form
+                    document.getElementById('itemSku').value = product.sku || '';
+                    document.getElementById('itemStyleCode').value = product.styleCode || '';
+                    document.getElementById('itemName').value = product.shortName;
+                    document.getElementById('itemSize').value = product.size || '';
+                    document.getElementById('itemWeight').value = product.avgWt || '';
+                    document.getElementById('itemPurity').value = product.purity;
+                    document.getElementById('itemMetalType').value = product.metalType;
+
+                    // Get metal rate and apply rate slab discount to MC
+                    const metalRate = rates[product.metalType] || rates.silver;
+                    document.getElementById('itemRate').value = metalRate;
+
+                    // Store original MC rate and apply rate slab discount
+                    const originalMCRate = product.mcRate;
+                    const adjustedMCRate = getAdjustedMCRate(originalMCRate);
+                    document.getElementById('itemMcRate').value = adjustedMCRate;
+                    document.getElementById('itemMcRate').setAttribute('data-original-mc', originalMCRate);
+
+                    updateItemAmount();
+                    document.getElementById('itemWeight').focus();
+                    document.getElementById('itemWeight').select();
+
+                    // Success feedback - green flash
+                    const barcodeInput = document.getElementById('barcodeInput');
+                    barcodeInput.style.backgroundColor = '#d4edda';
+                    barcodeInput.style.borderColor = '#28a745';
+                    setTimeout(() => {
+                        barcodeInput.style.backgroundColor = '';
+                        barcodeInput.style.borderColor = '';
+                    }, 300);
+                } else {
+                    alert('Product not found! Please add this product first.');
+                    // Error feedback - red flash
+                    const barcodeInput = document.getElementById('barcodeInput');
+                    barcodeInput.style.backgroundColor = '#f8d7da';
+                    barcodeInput.style.borderColor = '#dc3545';
+                    setTimeout(() => {
+                        barcodeInput.style.backgroundColor = '';
+                        barcodeInput.style.borderColor = '';
+                    }, 500);
+                }
+            }
+
+            function handleProductBarcodeScan(barcode) {
+                    if (!barcode) return;
+
+                    // Check if product already exists
+                    const existingProduct = products.find(p => p.barcode === barcode);
+                    if (existingProduct) {
+                        alert(`Product already exists!\nBarcode: ${barcode}\nName: ${existingProduct.shortName}`);
+                        // Optionally edit the existing product
+                        if (confirm('Do you want to edit this product?')) {
+                            const idx = products.findIndex(p => p.id === existingProduct.id);
+                            editProduct(idx);
+                        }
+                        return;
+                    }
+
+                    // New barcode - open add product modal with barcode pre-filled
+                    showAddProductModal();
+                    document.getElementById('newBarcode').value = barcode;
+                    document.getElementById('newBarcode').style.backgroundColor = '#d4edda';
+
+                    // Success feedback
+                    const scanner = document.getElementById('productBarcodeInput');
+                    scanner.style.backgroundColor = '#d4edda';
+                    setTimeout(() => {
+                        scanner.style.backgroundColor = '';
+                        document.getElementById('newBarcode').style.backgroundColor = '';
+                    }, 500);
+
+                    // Focus on SKU field
+                    setTimeout(() => {
+                        document.getElementById('newSku').focus();
+                    }, 100);
+                }
+
+        function updateItemAmount() {
+            const weight = parseFloat(document.getElementById('itemWeight').value) || 0;
+            const rate = parseFloat(document.getElementById('itemRate').value) || 0;
+            const mcRate = parseFloat(document.getElementById('itemMcRate').value) || 0;
+            const purity = parseFloat(document.getElementById('itemPurity').value) || 100;
+            const metalValue = (weight * rate * purity) / 100;
+            const mcCharges = weight * mcRate;
+            const total = metalValue + mcCharges;
+            document.getElementById('itemAmount').textContent = `₹${total.toFixed(2)}`;
+        }
+
+        function addItem() {
+                const item = {
+                    sku: document.getElementById('itemSku').value,
+                    styleCode: document.getElementById('itemStyleCode').value,
+                    name: document.getElementById('itemName').value,
+                    size: document.getElementById('itemSize').value,
+                    weight: parseFloat(document.getElementById('itemWeight').value) || 0,
+                    purity: parseFloat(document.getElementById('itemPurity').value) || 100,
+                    rate: parseFloat(document.getElementById('itemRate').value) || 0,
+                    mcRate: parseFloat(document.getElementById('itemMcRate').value) || 0,
+                    originalMcRate: parseFloat(document.getElementById('itemMcRate').getAttribute('data-original-mc')) || parseFloat(document.getElementById('itemMcRate').value) || 0,
+                    metalType: document.getElementById('itemMetalType').value
+                };
+
+                if (!item.name || !item.weight) {
+                    alert('Please fill item name and weight');
+                    return;
+                }
+
+                const metalValue = (item.weight * item.rate * item.purity) / 100;
+                const mcCharges = item.weight * item.mcRate;
+                item.amount = metalValue + mcCharges;
+                item.id = Date.now();
+
+                items.push(item);
+                updateItemsTable();
+                updateSummary();
+                clearItemForm();
+                document.getElementById('barcodeInput').focus();
+            }
+
+        function updateItemsTable() {
+            const tbody = document.getElementById('itemsTableBody');
+                    tbody.innerHTML = '';
+                    items.forEach((item, index) => {
+                        const row = document.createElement('tr');
+                        row.className = 'border-b hover:bg-gray-50';
+                        row.innerHTML = `
+                    <td class="px-4 py-3">${index + 1}</td>
+                    <td class="px-4 py-3 font-medium">${item.name}</td>
+                    <td class="px-4 py-3 text-right">${item.weight}</td>
+                    <td class="px-4 py-3 text-right">₹${item.rate}</td>
+                    <td class="px-4 py-3 text-right">₹${item.mcRate}</td>
+                    <td class="px-4 py-3 text-right font-semibold">₹${item.amount.toFixed(2)}</td>
+                    <td class="px-4 py-3 text-center">
+                        <button onclick="removeItem(${item.id})" class="text-red-600 hover:text-red-800">🗑️</button>
+                    </td>
+                `;
+                        tbody.appendChild(row);
+                    });
+                    document.getElementById('itemsTableContainer').classList.toggle('hidden', items.length === 0);
+                }
+
+                function removeItem(id) {
+                    items = items.filter(item => item.id !== id);
+                    updateItemsTable();
+                    updateSummary();
+                }
+
+                function clearItemForm() {
+                    document.getElementById('itemSku').value = '';
+                    document.getElementById('itemStyleCode').value = '';
+                    document.getElementById('itemName').value = '';
+                    document.getElementById('itemSize').value = '';
+                    document.getElementById('itemWeight').value = '';
+                    document.getElementById('itemPurity').value = '100';
+                    document.getElementById('itemRate').value = '';
+                    document.getElementById('itemMcRate').value = '';
+                    document.getElementById('itemMetalType').value = '';
+                    document.getElementById('itemAmount').textContent = '₹0.00';
+                }
+
+                function updateSummary() {
+                    const total = items.reduce((sum, item) => sum + item.amount, 0);
+                    const gst = total * 0.03;
+                    const netTotal = total + gst;
+                    document.getElementById('summaryTotal').textContent = `₹${total.toFixed(2)}`;
+                    document.getElementById('summaryGst').textContent = `₹${gst.toFixed(2)}`;
+                    document.getElementById('summaryNetTotal').textContent = `₹${netTotal.toFixed(2)}`;
+                }
+            function generateQuote() {
+                    if (items.length === 0) {
+                        alert('Please add items first');
+                        return;
+                    }
+                    if (!currentCustomer) {
+                        alert('Please select a customer first');
+                        return;
+                    }
+                    // Show format selection modal
+                    document.getElementById('modalOverlay').classList.remove('hidden');
+                    document.getElementById('modalOverlay').classList.add('flex');
+                    document.getElementById('quotationFormatModal').classList.remove('hidden');
+                }
+
+                function generateQuotePDF() {
+                        const { jsPDF } = window.jspdf;
+                        const doc = new jsPDF('p', 'mm', 'a4');
+
+                        const total = items.reduce((sum, item) => sum + item.amount, 0);
+                        const gst = total * 0.03;
+                        const netTotal = total + gst;
+                        const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
+                        const totalMC = items.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
+                        const totalPCS = items.length;
+                        const date = new Date().toLocaleDateString('en-GB');
+                        const quotationNo = `Q${String(quotationCounter).padStart(4, '0')}`;
+
+                        // ========== CUSTOMER INFO - TOP LEFT ==========
+                        doc.setFontSize(9);
+                        doc.setFont(undefined, 'normal');
+                        doc.text('To:', 15, 15);
+
+                        doc.setFont(undefined, 'bold');
+                        doc.setFontSize(10);
+                        doc.text(currentCustomer.name.toUpperCase(), 15, 20);
+
+                        doc.setFontSize(8);
+                        doc.setFont(undefined, 'normal');
+                        let yPos = 24;
+                        if (currentCustomer.address1) {
+                            doc.text(currentCustomer.address1, 15, yPos);
+                            yPos += 4;
+                        }
+                        if (currentCustomer.address2) {
+                            doc.text(currentCustomer.address2, 15, yPos);
+                            yPos += 4;
+                        }
+                        if (currentCustomer.city) {
+                            doc.text(currentCustomer.city, 15, yPos);
+                            yPos += 4;
+                        }
+                        doc.text(`Mob: ${currentCustomer.mobile}`, 15, yPos);
+
+                        // ========== QUOTATION INFO - TOP RIGHT ==========
+                        doc.setFontSize(8);
+                        doc.setFont(undefined, 'bold');
+                        doc.text('EST. No:', 160, 15);
+                        doc.setFont(undefined, 'normal');
+                        doc.text(quotationNo, 180, 15);
+
+                        doc.setFont(undefined, 'bold');
+                        doc.text('Date:', 160, 20);
+                        doc.setFont(undefined, 'normal');
+                        doc.text(date, 180, 20);
+
+                        // ========== ITEMS TABLE ==========
+                        const tableStartY = yPos + 8;
+
+                        const tableData = items.map((item, idx) => [
+                            idx + 1,
+                            item.sku || '-',
+                            item.styleCode || '-',
+                            item.name,
+                            item.size || '-',
+                            item.weight.toFixed(2),
+                            item.weight.toFixed(2),
+                            item.purity.toFixed(0),
+                            item.weight.toFixed(2),
+                            '1',
+                            item.mcRate.toFixed(2),
+                            item.rate.toFixed(0),
+                            item.amount.toFixed(2)
+                        ]);
+
+                        doc.autoTable({
+                            startY: tableStartY,
+                            head: [[
+                                '#',
+                                'SKU',
+                                'STYLE CODE',
+                                'Short Name',
+                                'SIZE',
+                                'NET.WT',
+                                'AVG.WT',
+                                '% Pure',
+                                'G.WT',
+                                'PCS',
+                                'MC/gm',
+                                'RATE',
+                                'Amount'
+                            ]],
+                            body: tableData,
+                            theme: 'grid',
+                            headStyles: {
+                                fillColor: [211, 211, 211],
+                                textColor: 0,
+                                fontSize: 7,
+                                fontStyle: 'bold',
+                                halign: 'center',
+                                valign: 'middle',
+                                cellPadding: 1.5
+                            },
+                            bodyStyles: {
+                                fontSize: 7,
+                                cellPadding: 1,
+                                valign: 'middle'
+                            },
+                            columnStyles: {
+                                0: { cellWidth: 8, halign: 'center' },
+                                1: { cellWidth: 20, halign: 'left', fontSize: 6.5 },
+                                2: { cellWidth: 16, halign: 'center', fontSize: 6.5 },
+                                3: { cellWidth: 38, halign: 'left' },
+                                4: { cellWidth: 12, halign: 'center' },
+                                5: { cellWidth: 13, halign: 'right' },
+                                6: { cellWidth: 13, halign: 'right' },
+                                7: { cellWidth: 11, halign: 'center' },
+                                8: { cellWidth: 11, halign: 'right' },
+                                9: { cellWidth: 9, halign: 'center' },
+                                10: { cellWidth: 12, halign: 'right' },
+                                11: { cellWidth: 12, halign: 'right' },
+                                12: { cellWidth: 16, halign: 'right' }
+                            },
+                            margin: { left: 15, right: 14 }
+                        });
+
+                        // ========== GRAND TOTAL SECTION ==========
+                        const finalY = doc.lastAutoTable.finalY + 8;
+
+                        // Draw outer border
+                        doc.setDrawColor(0);
+                        doc.setLineWidth(0.5);
+                        doc.rect(15, finalY, 180, 25);
+
+                        // Vertical divider
+                        doc.line(105, finalY, 105, finalY + 25);
+
+                        // LEFT SIDE
+                        doc.setFontSize(8);
+                        doc.setFont(undefined, 'bold');
+                        doc.text('COUNT:', 18, finalY + 6);
+                        doc.setFont(undefined, 'normal');
+                        doc.text(totalPCS.toString(), 45, finalY + 6);
+
+                        doc.setFont(undefined, 'bold');
+                        doc.text('Total Weight:', 18, finalY + 12);
+                        doc.setFont(undefined, 'normal');
+                        doc.text(`${totalWeight.toFixed(2)} gm`, 45, finalY + 12);
+
+                        doc.setFont(undefined, 'bold');
+                        doc.text('MC:', 18, finalY + 18);
+                        doc.setFont(undefined, 'normal');
+                        doc.text(totalMC.toFixed(2), 45, finalY + 18);
+
+                        // RIGHT SIDE - GRAND TOTAL
+                        doc.setFontSize(9);
+                        doc.setFont(undefined, 'bold');
+                        doc.text('GRAND TOTAL', 110, finalY + 5);
+
+                        doc.setFontSize(8);
+                        doc.text('TOTAL:', 110, finalY + 11);
+                        doc.setFont(undefined, 'normal');
+                        doc.text(total.toFixed(2), 190, finalY + 11, { align: 'right' });
+
+                        doc.setFont(undefined, 'bold');
+                        doc.text('GST:', 110, finalY + 16);
+                        doc.setFont(undefined, 'normal');
+                        doc.text(gst.toFixed(2), 190, finalY + 16, { align: 'right' });
+
+                        doc.setFont(undefined, 'bold');
+                        doc.text('NET TOTAL:', 110, finalY + 21);
+                        doc.setFont(undefined, 'bold');
+                        doc.text(netTotal.toFixed(2), 190, finalY + 21, { align: 'right' });
+
+                        // Save
+                        doc.save(`Quotation_${quotationNo}_${date.replace(/\//g, '-')}.pdf`);
+
+                        quotationCounter++;
+                        localStorage.setItem('quotationCounter', quotationCounter);
+                        document.getElementById('quotationNo').textContent = `Quotation No: Q${String(quotationCounter).padStart(4, '0')}`;
+
+                        closeModals();
+                        alert('PDF Quotation generated!');
+                    }
+
+                    function generateQuoteExcel() {
+                            const total = items.reduce((sum, item) => sum + item.amount, 0);
+                            const gst = total * 0.03;
+                            const netTotal = total + gst;
+                            const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
+                            const totalMC = items.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
+                            const totalPCS = items.length;
+                            const date = new Date().toLocaleDateString('en-GB');
+                            const quotationNo = `Q${String(quotationCounter).padStart(4, '0')}`;
+
+                            // Create workbook
+                            const wb = XLSX.utils.book_new();
+
+                            // ========== HEADER SECTION ==========
+                            const headerData = [
+                                ['To:', '', '', '', '', '', 'EST. No:', quotationNo],
+                                [currentCustomer.name.toUpperCase(), '', '', '', '', '', 'Date:', date],
+                                [currentCustomer.address1, '', '', '', '', '', '', ''],
+                                [currentCustomer.address2, '', '', '', '', '', '', ''],
+                                [currentCustomer.city, '', '', '', '', '', '', ''],
+                                [`Mob: ${currentCustomer.mobile}`, '', '', '', '', '', '', ''],
+                                ['']
+                            ];
+
+                            // ========== ITEMS TABLE ==========
+                            const itemsHeader = [[
+                                '#', 'SKU', 'STYLE CODE', 'Short Name', 'SIZE',
+                                'NET.WT', 'AVG.WT', '% Pure', 'G.WT', 'PCS',
+                                'MC/gm', 'RATE', 'Amount'
+                            ]];
+
+                            const itemsData = items.map((item, idx) => [
+                                idx + 1,
+                                item.sku || '-',
+                                item.styleCode || '-',
+                                item.name,
+                                item.size || '-',
+                                item.weight.toFixed(2),
+                                item.weight.toFixed(2),
+                                item.purity.toFixed(0),
+                                item.weight.toFixed(2),
+                                1,
+                                item.mcRate.toFixed(2),
+                                item.rate.toFixed(0),
+                                item.amount.toFixed(2)
+                            ]);
+
+                            // ========== GRAND TOTAL SECTION ==========
+                            const grandTotalData = [
+                                [''],
+                                ['COUNT:', totalPCS, '', '', '', '', '', 'GRAND TOTAL'],
+                                ['Total Weight:', `${totalWeight.toFixed(2)} gm`, '', '', '', '', '', 'TOTAL:', total.toFixed(2)],
+                                ['MC:', totalMC.toFixed(2), '', '', '', '', '', 'GST:', gst.toFixed(2)],
+                                ['', '', '', '', '', '', '', 'NET TOTAL:', netTotal.toFixed(2)]
+                            ];
+
+                            // ========== COMBINE ALL DATA ==========
+                            const allData = [
+                                ...headerData,
+                                ...itemsHeader,
+                                ...itemsData,
+                                ...grandTotalData
+                            ];
+
+                            // Create worksheet
+                            const ws = XLSX.utils.aoa_to_sheet(allData);
+
+                            // ========== COLUMN WIDTHS ==========
+                            ws['!cols'] = [
+                                { wch: 5 },   // #
+                                { wch: 20 },  // SKU
+                                { wch: 15 },  // STYLE CODE
+                                { wch: 35 },  // Short Name
+                                { wch: 10 },  // SIZE
+                                { wch: 12 },  // NET.WT
+                                { wch: 12 },  // AVG.WT
+                                { wch: 10 },  // % Pure
+                                { wch: 10 },  // G.WT
+                                { wch: 8 },   // PCS
+                                { wch: 12 },  // MC/gm
+                                { wch: 12 },  // RATE
+                                { wch: 15 }   // Amount
+                            ];
+
+                            // Add worksheet to workbook
+                            XLSX.utils.book_append_sheet(wb, ws, 'Quotation');
+
+                            // Save file
+                            XLSX.writeFile(wb, `Quotation_${quotationNo}_${date.replace(/\//g, '-')}.xlsx`);
+
+                            quotationCounter++;
+                            localStorage.setItem('quotationCounter', quotationCounter);
+                            document.getElementById('quotationNo').textContent = `Quotation No: Q${String(quotationCounter).padStart(4, '0')}`;
+
+                            closeModals();
+                            alert('Excel Quotation generated successfully!');
+                        }
+    
+               function clearAll() {
+                    if (items.length === 0 || confirm('Clear all items from bill?')) {
+                        items = [];
+                        updateItemsTable();
+                        updateSummary();
+                        clearItemForm();
+                        document.getElementById('rateSlab').value = 'R';
+                        currentRateSlab = 'R';
+                        updateRateSlabInfo();
+                        document.getElementById('barcodeInput').focus();
+                    }
+                }
+
+                function closeModals() {
+                    document.getElementById('modalOverlay').classList.add('hidden');
+                    document.getElementById('modalOverlay').classList.remove('flex');
+                    document.getElementById('ratesModal').classList.add('hidden');
+                    document.getElementById('addProductModal').classList.add('hidden');
+                    document.getElementById('addCustomerModal').classList.add('hidden');
+                    document.getElementById('bulkUploadModal').classList.add('hidden');
+                    document.getElementById('bulkUploadCustomerModal').classList.add('hidden');
+                    document.getElementById('quotationFormatModal').classList.add('hidden');
+                    document.getElementById('stockReportModal').classList.add('hidden');
+                    document.getElementById('rolUploadModal').classList.add('hidden');
+                }
+
+                // ========== ROL MANAGEMENT FUNCTIONS ==========
+
+                    function initializeROL() {
+                        // Populate style code filter dropdown
+                        const styleCodeFilter = document.getElementById('rolStyleCodeFilter');
+                        styleCodeFilter.innerHTML = '<option value="all">All Style Codes</option>';
+
+                        const uniqueStyleCodes = [...new Set(products.map(p => p.styleCode).filter(s => s))];
+                        uniqueStyleCodes.sort().forEach(styleCode => {
+                            const option = document.createElement('option');
+                            option.value = styleCode;
+                            option.textContent = styleCode;
+                            styleCodeFilter.appendChild(option);
+                        });
+                    }
+
+                    function updateROLDisplay() {
+                        const styleCodeFilter = document.getElementById('rolStyleCodeFilter').value;
+                        const viewFilter = document.getElementById('rolViewFilter').value;
+
+                        // Get filtered products
+                        let filteredProducts = products;
+                        if (styleCodeFilter !== 'all') {
+                            filteredProducts = products.filter(p => p.styleCode === styleCodeFilter);
+                        }
+
+                        // Merge with ROL data
+                        const rolItems = filteredProducts.map(product => {
+                            const rolItem = rolData.find(r => r.barcode === product.barcode);
+                            const rolSet = rolItem ? rolItem.rol : 0;
+                            const available = rolItem ? (rolItem.available || 0) : 0;
+                            const required = Math.max(0, rolSet - available);
+
+                            return {
+                                barcode: product.barcode,
+                                styleCode: product.styleCode || '-',
+                                productName: product.shortName,
+                                rolSet: rolSet,
+                                available: available,
+                                required: required,
+                                needsReorder: required > 0
+                            };
+                        });
+
+                        // Apply view filter
+                        let displayItems = rolItems;
+                        if (viewFilter === 'reorder') {
+                            displayItems = rolItems.filter(item => item.needsReorder);
+                        }
+
+                        // Update statistics
+                        const totalItems = rolItems.length;
+                        const reorderCount = rolItems.filter(item => item.needsReorder).length;
+                        const stockOK = totalItems - reorderCount;
+                        const totalRequired = rolItems.reduce((sum, item) => sum + item.required, 0);
+
+                        document.getElementById('rolTotalItems').textContent = totalItems;
+                        document.getElementById('rolReorderCount').textContent = reorderCount;
+                        document.getElementById('rolStockOK').textContent = stockOK;
+                        document.getElementById('rolTotalRequired').textContent = totalRequired;
+
+                        // Update table
+                        const tbody = document.getElementById('rolTableBody');
+                        tbody.innerHTML = '';
+
+                        if (displayItems.length === 0) {
+                            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-gray-500">No items found.</td></tr>';
+                            return;
+                        }
+
+                        displayItems.forEach(item => {
+                            const row = document.createElement('tr');
+                            row.className = item.needsReorder ? 'border-b hover:bg-red-50 bg-red-50' : 'border-b hover:bg-green-50 bg-green-50';
+
+                            const statusBadge = item.needsReorder
+                                ? '<span class="px-2 py-1 bg-red-600 text-white text-xs rounded-full font-bold">REORDER</span>'
+                                : '<span class="px-2 py-1 bg-green-600 text-white text-xs rounded-full font-bold">OK</span>';
+
+                            row.innerHTML = `
+            <td class="px-4 py-3 font-mono text-sm">${item.barcode}</td>
+            <td class="px-4 py-3 text-sm font-semibold text-blue-600">${item.styleCode}</td>
+            <td class="px-4 py-3 font-medium">${item.productName}</td>
+            <td class="px-4 py-3 text-center font-bold">${item.rolSet}</td>
+            <td class="px-4 py-3 text-center">${item.available}</td>
+            <td class="px-4 py-3 text-center font-bold ${item.needsReorder ? 'text-red-600' : 'text-green-600'}">${item.required}</td>
+            <td class="px-4 py-3 text-center">${statusBadge}</td>
+        `;
+                            tbody.appendChild(row);
+                        });
+                    }
+
+                    function downloadROLSample() {
+                        const sampleData = [
+                            { Barcode: '1001', StyleCode: 'EMERALD IDOL', ProductName: 'Silver Ganesh Idol', ROL: 20 },
+                            { Barcode: '1002', StyleCode: 'EMERALD IDOL', ProductName: 'Silver Lakshmi Idol', ROL: 15 },
+                            { Barcode: '1003', StyleCode: 'SOLID IDOL 2D', ProductName: 'Gold Krishna Idol 2D', ROL: 10 },
+                            { Barcode: '1004', StyleCode: 'SOLID IDOL 3D', ProductName: 'Silver Saraswati 3D', ROL: 25 }
+                        ];
+
+                        const ws = XLSX.utils.json_to_sheet(sampleData);
+                        const wb = XLSX.utils.book_new();
+                        XLSX.utils.book_append_sheet(wb, ws, 'ROL Sample');
+                        XLSX.writeFile(wb, 'ROL_Sample_Format.xlsx');
+                        alert('ROL Sample downloaded!');
+                    }
+
+                    function showROLUploadModal() {
+                        document.getElementById('rolUploadPreview').classList.add('hidden');
+                        document.getElementById('rolExcelFileInput').value = '';
+                        bulkUploadROLData = [];
+                        document.getElementById('modalOverlay').classList.remove('hidden');
+                        document.getElementById('modalOverlay').classList.add('flex');
+                        document.getElementById('rolUploadModal').classList.remove('hidden');
+                    }
+
+                    function handleROLExcelUpload(event) {
+                            const file = event.target.files[0];
+                            if (!file) return;
+
+                            const reader = new FileReader();
+                            reader.onload = function (e) {
+                                try {
+                                    const data = new Uint8Array(e.target.result);
+                                    const workbook = XLSX.read(data, { type: 'array' });
+                                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                                    const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+
+                                    if (jsonData.length === 0) {
+                                        alert('Excel file is empty!');
+                                        return;
+                                    }
+
+                                    bulkUploadROLData = jsonData.map(row => ({
+                                        barcode: String(row.Barcode || row.barcode || '').trim(),
+                                        styleCode: String(row.StyleCode || row.styleCode || '').trim(),
+                                        productName: String(row.ProductName || row.productName || '').trim(),
+                                        rol: parseInt(row.ROL || row.rol || 0),
+                                        available: 0 // Initialize available as 0
+                                    }));
+
+                                    // Preview
+                                    const tbody = document.getElementById('rolPreviewTableBody');
+                                    tbody.innerHTML = '';
+                                    bulkUploadROLData.slice(0, 5).forEach(item => {
+                                        const row = document.createElement('tr');
+                                        row.className = 'border-b';
+                                        row.innerHTML = `
+                    <td class="px-2 py-2">${item.barcode}</td>
+                    <td class="px-2 py-2">${item.styleCode}</td>
+                    <td class="px-2 py-2">${item.productName}</td>
+                    <td class="px-2 py-2 text-center font-bold">${item.rol}</td>
+                `;
+                                        tbody.appendChild(row);
+                                    });
+
+                                    document.getElementById('rolUploadCount').textContent = bulkUploadROLData.length;
+                                    document.getElementById('rolUploadPreview').classList.remove('hidden');
+                                } catch (error) {
+                                    alert('Error reading Excel: ' + error.message);
+                                }
+                            };
+                            reader.readAsArrayBuffer(file);
+                        }
+
+                        function confirmROLUpload() {
+                            if (bulkUploadROLData.length === 0) return;
+
+                            // Validate that barcodes exist in products
+                            const invalidItems = bulkUploadROLData.filter(item => {
+                                return !products.find(p => p.barcode === item.barcode);
+                            });
+
+                            if (invalidItems.length > 0) {
+                                alert(`Error: ${invalidItems.length} items have barcodes not found in products database.\nPlease add these products first.`);
+                                return;
+                            }
+
+                            // Merge with existing ROL data
+                            bulkUploadROLData.forEach(newItem => {
+                                const existingIndex = rolData.findIndex(r => r.barcode === newItem.barcode);
+                                if (existingIndex >= 0) {
+                                    rolData[existingIndex] = newItem;
+                                } else {
+                                    rolData.push(newItem);
+                                }
+                            });
+
+                            localStorage.setItem('rolData', JSON.stringify(rolData));
+                            updateROLDisplay();
+                            closeModals();
+                            alert(`Successfully uploaded ${bulkUploadROLData.length} ROL items!`);
+                        }
+
+                        function downloadROLReport() {
+                            const styleCodeFilter = document.getElementById('rolStyleCodeFilter').value;
+
+                            // Get filtered products
+                            let filteredProducts = products;
+                            if (styleCodeFilter !== 'all') {
+                                filteredProducts = products.filter(p => p.styleCode === styleCodeFilter);
+                            }
+
+                            // Merge with ROL data and filter only items needing reorder
+                            const rolItems = filteredProducts.map(product => {
+                                const rolItem = rolData.find(r => r.barcode === product.barcode);
+                                const rolSet = rolItem ? rolItem.rol : 0;
+                                const available = rolItem ? (rolItem.available || 0) : 0;
+                                const required = Math.max(0, rolSet - available);
+
+                                return {
+                                    barcode: product.barcode,
+                                    styleCode: product.styleCode || '-',
+                                    productName: product.shortName,
+                                    rolSet: rolSet,
+                                    available: available,
+                                    required: required,
+                                    needsReorder: required > 0
+                                };
+                            }).filter(item => item.needsReorder); // Only items that need reorder
+
+                            if (rolItems.length === 0) {
+                                alert('No items need reordering!');
+                                return;
+                            }
+
+                            const date = new Date().toLocaleDateString('en-GB');
+                            const wb = XLSX.utils.book_new();
+
+                            // Create data
+                            const headerData = [
+                                ['REORDER LEVEL (ROL) REPORT'],
+                                ['Generated:', date],
+                                ['Style Code Filter:', styleCodeFilter === 'all' ? 'All Style Codes' : styleCodeFilter],
+                                ['Items Requiring Reorder:', rolItems.length],
+                                ['']
+                            ];
+
+                            const tableData = rolItems.map((item, idx) => ({
+                                '#': idx + 1,
+                                'Barcode': item.barcode,
+                                'Style Code': item.styleCode,
+                                'Product Name': item.productName,
+                                'ROL Set': item.rolSet,
+                                'Available Stock': item.available,
+                                'Required Qty': item.required,
+                                'Status': 'REORDER NEEDED'
+                            }));
+
+                            const tableHeaders = Object.keys(tableData[0]);
+                            const tableRows = tableData.map(obj => tableHeaders.map(key => obj[key]));
+
+                            const summaryData = [
+                                [''],
+                                ['SUMMARY'],
+                                ['Total Items Needing Reorder:', rolItems.length],
+                                ['Total Quantity Required:', rolItems.reduce((sum, item) => sum + item.required, 0)]
+                            ];
+
+                            // Combine all data
+                            const allData = [
+                                ...headerData,
+                                tableHeaders,
+                                ...tableRows,
+                                ...summaryData
+                            ];
+
+                            const ws = XLSX.utils.aoa_to_sheet(allData);
+
+                            ws['!cols'] = [
+                                { wch: 5 }, { wch: 15 }, { wch: 15 }, { wch: 35 },
+                                { wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 18 }
+                            ];
+
+                            XLSX.utils.book_append_sheet(wb, ws, 'ROL Report');
+                            XLSX.writeFile(wb, `ROL_Report_${date.replace(/\//g, '-')}.xlsx`);
+                            alert('ROL Report downloaded successfully!');
+                        }
+
+            </script>
+    </body>
+    
+    </html>
