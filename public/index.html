@@ -1834,185 +1834,192 @@
                     document.getElementById('quotationFormatModal').classList.remove('hidden');
                 }
 
-                function generateQuotePDF() {
-                        const { jsPDF } = window.jspdf;
-                        const doc = new jsPDF('p', 'mm', 'a4');
+    function generateQuotePDF() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('p', 'mm', 'a4');
 
-                        const total = items.reduce((sum, item) => sum + item.amount, 0);
-                        const gst = total * 0.03;
-                        const netTotal = total + gst;
-                        const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
-                        const totalMC = items.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
-                        const totalPCS = items.length;
-                        const date = new Date().toLocaleDateString('en-GB');
-                        const quotationNo = `Q${String(quotationCounter).padStart(4, '0')}`;
+        const total = items.reduce((sum, item) => sum + item.amount, 0);
+        const gst = total * 0.03;
+        const netTotal = total + gst;
+        const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
+        const totalMC = items.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
+        const totalPCS = items.length;
+        const date = new Date().toLocaleDateString('en-GB');
+        const quotationNo = `Q${String(quotationCounter).padStart(4, '0')}`;
 
-                        // ========== CUSTOMER INFO - TOP LEFT ==========
-                        doc.setFontSize(9);
-                        doc.setFont(undefined, 'normal');
-                        doc.text('To:', 15, 15);
+        // ========== CUSTOMER INFO - TOP LEFT ==========
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'normal');
+        doc.text('To:', 15, 15);
 
-                        doc.setFont(undefined, 'bold');
-                        doc.setFontSize(10);
-                        doc.text(currentCustomer.name.toUpperCase(), 15, 20);
+        doc.setFont(undefined, 'bold');
+        doc.setFontSize(10);
+        doc.text(currentCustomer.name.toUpperCase(), 15, 20);
 
-                        doc.setFontSize(8);
-                        doc.setFont(undefined, 'normal');
-                        let yPos = 24;
-                        if (currentCustomer.address1) {
-                            doc.text(currentCustomer.address1, 15, yPos);
-                            yPos += 4;
-                        }
-                        if (currentCustomer.address2) {
-                            doc.text(currentCustomer.address2, 15, yPos);
-                            yPos += 4;
-                        }
-                        if (currentCustomer.city) {
-                            doc.text(currentCustomer.city, 15, yPos);
-                            yPos += 4;
-                        }
-                        doc.text(`Mob: ${currentCustomer.mobile}`, 15, yPos);
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'normal');
+        let yPos = 24;
+        if (currentCustomer.address1) {
+            doc.text(currentCustomer.address1, 15, yPos);
+            yPos += 4;
+        }
+        if (currentCustomer.address2) {
+            doc.text(currentCustomer.address2, 15, yPos);
+            yPos += 4;
+        }
+        if (currentCustomer.city) {
+            doc.text(currentCustomer.city, 15, yPos);
+            yPos += 4;
+        }
+        doc.text(`Mob: ${currentCustomer.mobile}`, 15, yPos);
 
-                        // ========== QUOTATION INFO - TOP RIGHT ==========
-                        doc.setFontSize(8);
-                        doc.setFont(undefined, 'bold');
-                        doc.text('EST. No:', 160, 15);
-                        doc.setFont(undefined, 'normal');
-                        doc.text(quotationNo, 180, 15);
+        // ========== QUOTATION INFO - TOP RIGHT ==========
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'bold');
+        doc.text('EST. No:', 160, 15);
+        doc.setFont(undefined, 'normal');
+        doc.text(quotationNo, 180, 15);
 
-                        doc.setFont(undefined, 'bold');
-                        doc.text('Date:', 160, 20);
-                        doc.setFont(undefined, 'normal');
-                        doc.text(date, 180, 20);
+        doc.setFont(undefined, 'bold');
+        doc.text('Date:', 160, 20);
+        doc.setFont(undefined, 'normal');
+        doc.text(date, 180, 20);
 
-                        // ========== ITEMS TABLE ==========
-                        const tableStartY = yPos + 8;
+        // ========== ITEMS TABLE ==========
+        const tableStartY = yPos + 8;
 
-                        const tableData = items.map((item, idx) => [
-                            idx + 1,
-                            item.sku || '-',
-                            item.styleCode || '-',
-                            item.name,
-                            item.size || '-',
-                            item.weight.toFixed(2),
-                            item.weight.toFixed(2),
-                            item.purity.toFixed(0),
-                            item.weight.toFixed(2),
-                            '1',
-                            item.mcRate.toFixed(2),
-                            item.rate.toFixed(0),
-                            item.amount.toFixed(2)
-                        ]);
+        const tableData = items.map((item, idx) => {
+            // Calculate correctly
+            const metalValue = (item.weight * item.rate * item.purity) / 100;
+            const mcCharges = item.weight * item.mcRate;
+            const totalAmount = metalValue + mcCharges;
 
-                        doc.autoTable({
-                            startY: tableStartY,
-                            head: [[
-                                '#',
-                                'SKU',
-                                'STYLE CODE',
-                                'Short Name',
-                                'SIZE',
-                                'NET.WT',
-                                'AVG.WT',
-                                '% Pure',
-                                'G.WT',
-                                'PCS',
-                                'MC/gm',
-                                'RATE',
-                                'Amount'
-                            ]],
-                            body: tableData,
-                            theme: 'grid',
-                            headStyles: {
-                                fillColor: [211, 211, 211],
-                                textColor: 0,
-                                fontSize: 7,
-                                fontStyle: 'bold',
-                                halign: 'center',
-                                valign: 'middle',
-                                cellPadding: 1.5
-                            },
-                            bodyStyles: {
-                                fontSize: 7,
-                                cellPadding: 1,
-                                valign: 'middle'
-                            },
-                            columnStyles: {
-                                0: { cellWidth: 8, halign: 'center' },
-                                1: { cellWidth: 20, halign: 'left', fontSize: 6.5 },
-                                2: { cellWidth: 16, halign: 'center', fontSize: 6.5 },
-                                3: { cellWidth: 38, halign: 'left' },
-                                4: { cellWidth: 12, halign: 'center' },
-                                5: { cellWidth: 13, halign: 'right' },
-                                6: { cellWidth: 13, halign: 'right' },
-                                7: { cellWidth: 11, halign: 'center' },
-                                8: { cellWidth: 11, halign: 'right' },
-                                9: { cellWidth: 9, halign: 'center' },
-                                10: { cellWidth: 12, halign: 'right' },
-                                11: { cellWidth: 12, halign: 'right' },
-                                12: { cellWidth: 16, halign: 'right' }
-                            },
-                            margin: { left: 15, right: 14 }
-                        });
+            return [
+                idx + 1,
+                item.sku || '-',
+                item.styleCode || '-',
+                item.name,
+                item.size || '-',
+                item.weight.toFixed(2),
+                item.weight.toFixed(2),
+                item.purity.toFixed(0),
+                item.weight.toFixed(2),
+                '1',
+                item.mcRate.toFixed(2),
+                item.rate.toFixed(0),
+                totalAmount.toFixed(2)
+            ];
+        });
 
-                        // ========== GRAND TOTAL SECTION ==========
-                        const finalY = doc.lastAutoTable.finalY + 8;
+        doc.autoTable({
+            startY: tableStartY,
+            head: [[
+                '#',
+                'SKU',
+                'STYLE CODE',
+                'Short Name',
+                'SIZE',
+                'NET.WT',
+                'AVG.WT',
+                '% Pure',
+                'G.WT',
+                'PCS',
+                'MC/gm',
+                'RATE',
+                'Amount'
+            ]],
+            body: tableData,
+            theme: 'grid',
+            headStyles: {
+                fillColor: [211, 211, 211],
+                textColor: 0,
+                fontSize: 7,
+                fontStyle: 'bold',
+                halign: 'center',
+                valign: 'middle',
+                cellPadding: 1.5
+            },
+            bodyStyles: {
+                fontSize: 7,
+                cellPadding: 1,
+                valign: 'middle'
+            },
+            columnStyles: {
+                0: { cellWidth: 8, halign: 'center' },
+                1: { cellWidth: 20, halign: 'left', fontSize: 6.5 },
+                2: { cellWidth: 16, halign: 'center', fontSize: 6.5 },
+                3: { cellWidth: 38, halign: 'left' },
+                4: { cellWidth: 12, halign: 'center' },
+                5: { cellWidth: 13, halign: 'right' },
+                6: { cellWidth: 13, halign: 'right' },
+                7: { cellWidth: 11, halign: 'center' },
+                8: { cellWidth: 11, halign: 'right' },
+                9: { cellWidth: 9, halign: 'center' },
+                10: { cellWidth: 12, halign: 'right' },
+                11: { cellWidth: 12, halign: 'right' },
+                12: { cellWidth: 16, halign: 'right' }
+            },
+            margin: { left: 15, right: 14 }
+        });
 
-                        // Draw outer border
-                        doc.setDrawColor(0);
-                        doc.setLineWidth(0.5);
-                        doc.rect(15, finalY, 180, 25);
+        // ========== GRAND TOTAL SECTION ==========
+        const finalY = doc.lastAutoTable.finalY + 8;
 
-                        // Vertical divider
-                        doc.line(105, finalY, 105, finalY + 25);
+        // Draw outer border
+        doc.setDrawColor(0);
+        doc.setLineWidth(0.5);
+        doc.rect(15, finalY, 180, 25);
 
-                        // LEFT SIDE
-                        doc.setFontSize(8);
-                        doc.setFont(undefined, 'bold');
-                        doc.text('COUNT:', 18, finalY + 6);
-                        doc.setFont(undefined, 'normal');
-                        doc.text(totalPCS.toString(), 45, finalY + 6);
+        // Vertical divider
+        doc.line(105, finalY, 105, finalY + 25);
 
-                        doc.setFont(undefined, 'bold');
-                        doc.text('Total Weight:', 18, finalY + 12);
-                        doc.setFont(undefined, 'normal');
-                        doc.text(`${totalWeight.toFixed(2)} gm`, 45, finalY + 12);
+        // LEFT SIDE
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'bold');
+        doc.text('COUNT:', 18, finalY + 6);
+        doc.setFont(undefined, 'normal');
+        doc.text(totalPCS.toString(), 45, finalY + 6);
 
-                        doc.setFont(undefined, 'bold');
-                        doc.text('MC:', 18, finalY + 18);
-                        doc.setFont(undefined, 'normal');
-                        doc.text(totalMC.toFixed(2), 45, finalY + 18);
+        doc.setFont(undefined, 'bold');
+        doc.text('Total Weight:', 18, finalY + 12);
+        doc.setFont(undefined, 'normal');
+        doc.text(`${totalWeight.toFixed(2)} gm`, 45, finalY + 12);
 
-                        // RIGHT SIDE - GRAND TOTAL
-                        doc.setFontSize(9);
-                        doc.setFont(undefined, 'bold');
-                        doc.text('GRAND TOTAL', 110, finalY + 5);
+        doc.setFont(undefined, 'bold');
+        doc.text('MC:', 18, finalY + 18);
+        doc.setFont(undefined, 'normal');
+        doc.text(totalMC.toFixed(2), 45, finalY + 18);
 
-                        doc.setFontSize(8);
-                        doc.text('TOTAL:', 110, finalY + 11);
-                        doc.setFont(undefined, 'normal');
-                        doc.text(total.toFixed(2), 190, finalY + 11, { align: 'right' });
+        // RIGHT SIDE - GRAND TOTAL
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'bold');
+        doc.text('GRAND TOTAL', 110, finalY + 5);
 
-                        doc.setFont(undefined, 'bold');
-                        doc.text('GST:', 110, finalY + 16);
-                        doc.setFont(undefined, 'normal');
-                        doc.text(gst.toFixed(2), 190, finalY + 16, { align: 'right' });
+        doc.setFontSize(8);
+        doc.text('TOTAL:', 110, finalY + 11);
+        doc.setFont(undefined, 'normal');
+        doc.text(total.toFixed(2), 190, finalY + 11, { align: 'right' });
 
-                        doc.setFont(undefined, 'bold');
-                        doc.text('NET TOTAL:', 110, finalY + 21);
-                        doc.setFont(undefined, 'bold');
-                        doc.text(netTotal.toFixed(2), 190, finalY + 21, { align: 'right' });
+        doc.setFont(undefined, 'bold');
+        doc.text('GST:', 110, finalY + 16);
+        doc.setFont(undefined, 'normal');
+        doc.text(gst.toFixed(2), 190, finalY + 16, { align: 'right' });
 
-                        // Save
-                        doc.save(`Quotation_${quotationNo}_${date.replace(/\//g, '-')}.pdf`);
+        doc.setFont(undefined, 'bold');
+        doc.text('NET TOTAL:', 110, finalY + 21);
+        doc.setFont(undefined, 'bold');
+        doc.text(netTotal.toFixed(2), 190, finalY + 21, { align: 'right' });
 
-                        quotationCounter++;
-                        localStorage.setItem('quotationCounter', quotationCounter);
-                        document.getElementById('quotationNo').textContent = `Quotation No: Q${String(quotationCounter).padStart(4, '0')}`;
+        // Save
+        doc.save(`Quotation_${quotationNo}_${date.replace(/\//g, '-')}.pdf`);
 
-                        closeModals();
-                        alert('PDF Quotation generated!');
-                    }
+        quotationCounter++;
+        localStorage.setItem('quotationCounter', quotationCounter);
+        document.getElementById('quotationNo').textContent = `Quotation No: Q${String(quotationCounter).padStart(4, '0')}`;
+
+        closeModals();
+        alert('PDF Quotation generated!');
+    }
 
                     function generateQuoteExcel() {
                             const total = items.reduce((sum, item) => sum + item.amount, 0);
