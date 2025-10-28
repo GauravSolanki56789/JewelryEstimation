@@ -445,171 +445,131 @@
         </div>
 
         <!-- Sales Bill Tab -->
-        <div id="salesbillTab" class="space-y-6 hidden">
-            <div class="bg-white p-6 rounded-xl shadow-lg">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-xl font-semibold text-gray-800">Sales Bill - Customer Details</h3>
-                    <button onclick="showNewCustomerModal()"
-                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">➕ New
-                        Customer</button>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Customer</label>
-                        <select id="billCustomerSelect" onchange="loadBillCustomerDetails()"
-                            class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500">
-                            <option value="">-- Select Customer --</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Mobile Number</label>
-                        <input type="text" id="billCustomerMobile" readonly
-                            class="w-full px-4 py-2 bg-gray-100 border rounded-lg">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Rate Slab *</label>
-                        <select id="billRateSlab" onchange="updateBillRateSlabInfo()"
-                            class="w-full px-4 py-2 border-2 border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-semibold">
-                            <option value="R">R</option>
-                            <option value="R1">R1</option>
-                            <option value="R2">R2</option>
-                            <option value="R3">R3</option>
-                            <option value="R4">R4</option>
-                        </select>
+        <div id="billTab" class="tab-content hidden">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-2xl font-bold mb-6 text-gray-800">💰 Sales Bill</h2>
+        
+                <!-- Step 1: Select Quotation -->
+                <div class="mb-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded">
+                    <h3 class="font-semibold text-blue-900 mb-3">Step 1: Select Quotation to Convert</h3>
+                    <div class="flex gap-4 items-end">
+                        <div class="flex-1">
+                            <label class="block text-sm font-medium mb-2">Select Quotation</label>
+                            <select id="selectQuotationForBill" class="w-full border rounded px-3 py-2"
+                                onchange="loadQuotationForBill()">
+                                <option value="">-- Select a Quotation --</option>
+                            </select>
+                        </div>
+                        <button onclick="refreshQuotationsList()"
+                            class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+                            🔄 Refresh List
+                        </button>
                     </div>
                 </div>
-                <div id="billCustomerDetailsDisplay" class="mt-4 hidden">
-                    <div class="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
-                        <div class="flex justify-between items-start">
-                            <div>
-                                <p class="font-semibold text-gray-800 text-lg" id="billCustName"></p>
-                                <p class="text-sm text-gray-600" id="billCustAddress"></p>
-                            </div>
-                            <div class="bg-green-600 text-white px-4 py-2 rounded-lg text-center">
-                                <p class="text-xs">Rate Slab</p>
-                                <p class="text-xl font-bold" id="billRateSlabDisplay">R</p>
-                                <p class="text-xs" id="billRateSlabDesc">Standard Rate</p>
-                            </div>
+        
+                <!-- Quotation Details Display (Hidden by default) -->
+                <div id="selectedQuotationDetails" class="hidden mb-6 p-4 bg-gray-50 border rounded">
+                    <div class="grid grid-cols-3 gap-4 mb-4">
+                        <div>
+                            <span class="text-sm text-gray-600">Quotation No:</span>
+                            <div class="font-semibold text-lg" id="selectedQuotNo"></div>
+                        </div>
+                        <div>
+                            <span class="text-sm text-gray-600">Customer:</span>
+                            <div class="font-semibold" id="selectedQuotCustomer"></div>
+                        </div>
+                        <div>
+                            <span class="text-sm text-gray-600">Total Amount:</span>
+                            <div class="font-semibold text-green-600" id="selectedQuotAmount"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="text-sm text-gray-600">Items:</span>
+                        <div class="font-medium" id="selectedQuotItems"></div>
+                    </div>
+                </div>
+        
+                <!-- Current Rates Display -->
+                <div id="billRatesSection" class="hidden mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded">
+                    <h3 class="font-semibold mb-2">📊 Current Rates</h3>
+                    <div class="grid grid-cols-3 gap-4 text-sm">
+                        <div>Gold: <span id="billGoldRate" class="font-semibold"></span></div>
+                        <div>Silver: <span id="billSilverRate" class="font-semibold"></span></div>
+                        <div>Platinum: <span id="billPlatinumRate" class="font-semibold"></span></div>
+                    </div>
+                </div>
+        
+                <!-- Step 2: Rate Slab Selection -->
+                <div id="billRateSlabSection" class="hidden mb-6 p-4 bg-green-50 border-l-4 border-green-500 rounded">
+                    <h3 class="font-semibold text-green-900 mb-3">Step 2: Select Rate Slab (Optional Discount)</h3>
+                    <div class="flex gap-4 items-center">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Rate Slab</label>
+                            <select id="billRateSlab" class="border rounded px-3 py-2" onchange="updateBillRateSlabInfo()">
+                                <option value="R">R - Standard Rate</option>
+                                <option value="R1">R1 - MC Discount ₹2/gm</option>
+                                <option value="R2">R2 - MC Discount ₹5/gm</option>
+                                <option value="R3">R3 - MC Discount ₹10/gm</option>
+                                <option value="R4">R4 - MC Discount ₹15/gm</option>
+                            </select>
+                        </div>
+                        <div class="flex-1 text-sm">
+                            <div>Selected: <span id="billRateSlabDisplay" class="font-semibold">R</span></div>
+                            <div class="text-gray-600" id="billRateSlabDesc">Standard Rate</div>
                         </div>
                     </div>
                 </div>
-            </div>
         
-            <!-- Barcode Scanner for Bill -->
-            <div class="bg-gradient-to-r from-green-50 to-teal-50 p-6 rounded-xl border-2 border-green-200">
-                <div class="flex items-center gap-3 mb-3">
-                    <span class="text-2xl">📷</span>
-                    <h2 class="text-xl font-semibold text-gray-800">Barcode Scanner</h2>
-                    <span class="ml-auto text-sm text-gray-600 bg-white px-3 py-1 rounded-full">Sales Bill Mode</span>
+                <!-- Items Table -->
+                <div id="billItemsTableContainer" class="hidden mb-6">
+                    <h3 class="font-semibold mb-3">📦 Bill Items</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full border-collapse border">
+                            <thead class="bg-green-600 text-white">
+                                <tr>
+                                    <th class="border px-4 py-2">#</th>
+                                    <th class="border px-4 py-2">Item Name</th>
+                                    <th class="border px-4 py-2">Weight (gm)</th>
+                                    <th class="border px-4 py-2">Rate</th>
+                                    <th class="border px-4 py-2">MC Rate</th>
+                                    <th class="border px-4 py-2">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody id="billItemsTableBody"></tbody>
+                        </table>
+                    </div>
                 </div>
-                <input id="billBarcodeInput" type="text" placeholder="Scan barcode or type and press Enter..."
-                    class="w-full px-4 py-3 border-2 border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 text-lg"
-                    autofocus>
-                <p class="text-sm text-gray-600 mt-2">🔍 Scanner ready - Scan product barcode for billing</p>
-            </div>
         
-            <!-- Current Rates Display -->
-            <div class="bg-amber-50 p-4 rounded-xl border border-amber-200">
-                <div class="flex justify-between items-center mb-3">
-                    <h3 class="font-semibold text-gray-800">Current Rates</h3>
-                    <button onclick="showRatesModal()"
-                        class="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-medium">Update
-                        Rates</button>
-                </div>
-                <div class="grid grid-cols-3 gap-4">
-                    <div class="bg-white p-3 rounded-lg shadow">
-                        <p class="text-xs text-gray-500">Gold</p>
-                        <p class="text-lg font-bold text-yellow-600" id="billGoldRate">₹7500/gm</p>
-                    </div>
-                    <div class="bg-white p-3 rounded-lg shadow">
-                        <p class="text-xs text-gray-500">Silver</p>
-                        <p class="text-lg font-bold text-gray-600" id="billSilverRate">₹156/gm</p>
-                    </div>
-                    <div class="bg-white p-3 rounded-lg shadow">
-                        <p class="text-xs text-gray-500">Platinum</p>
-                        <p class="text-lg font-bold text-gray-800" id="billPlatinumRate">₹3500/gm</p>
-                    </div>
-                </div>
-            </div>
-        
-            <!-- Bill Item Entry -->
-            <div class="bg-gray-50 p-6 rounded-xl border border-gray-200">
-                <h3 class="text-lg font-semibold text-gray-800 mb-4">Item Details</h3>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <input type="text" id="billItemSku" placeholder="SKU" class="px-3 py-2 border rounded-lg">
-                    <input type="text" id="billItemStyleCode" placeholder="Style Code" class="px-3 py-2 border rounded-lg">
-                    <input type="text" id="billItemName" placeholder="Item Name" class="col-span-2 px-3 py-2 border rounded-lg">
-                    <input type="text" id="billItemSize" placeholder="Size" class="px-3 py-2 border rounded-lg">
-                    <input type="number" step="0.01" id="billItemWeight" placeholder="Weight (gm)"
-                        class="px-3 py-2 border rounded-lg">
-                    <input type="number" step="0.1" id="billItemPurity" placeholder="Purity %" value="100"
-                        class="px-3 py-2 border rounded-lg">
-                    <input type="number" step="0.01" id="billItemRate" placeholder="Rate/gm"
-                        class="px-3 py-2 border rounded-lg">
-                    <input type="number" step="0.01" id="billItemMcRate" placeholder="MC Rate/gm"
-                        class="px-3 py-2 border rounded-lg">
-                    <input type="hidden" id="billItemMetalType">
-                    <div class="col-span-2">
-                        <div class="px-3 py-2 bg-green-50 border-2 border-green-300 rounded-lg font-bold text-green-800 text-lg"
-                            id="billItemAmount">₹0.00</div>
-                    </div>
-                    <button onclick="addBillItem()"
-                        class="col-span-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">➕ Add
-                        Item</button>
-                </div>
-            </div>
-        
-            <!-- Bill Items Table -->
-            <div id="billItemsTableContainer" class="bg-white rounded-xl border shadow-lg hidden">
-                <div class="bg-gray-100 px-6 py-3 border-b">
-                    <h3 class="text-lg font-semibold text-gray-800">Bill Items</h3>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">#</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Item</th>
-                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500">Wt(gm)</th>
-                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500">Rate</th>
-                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500">MC</th>
-                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500">Amount</th>
-                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="billItemsTableBody"></tbody>
-                    </table>
-                </div>
-            </div>
-        
-            <!-- Bill Summary -->
-            <div class="bg-gradient-to-br from-green-100 to-teal-100 p-6 rounded-xl border-2 border-green-300">
-                <div class="space-y-3">
-                    <div class="flex justify-between text-lg">
-                        <span class="font-medium">TOTAL:</span>
-                        <span class="font-bold" id="billSummaryTotal">₹0.00</span>
-                    </div>
-                    <div class="flex justify-between text-lg">
-                        <span class="font-medium">GST (3%):</span>
-                        <span class="font-bold" id="billSummaryGst">₹0.00</span>
-                    </div>
-                    <div class="border-t-2 border-green-400 pt-3">
-                        <div class="flex justify-between text-2xl">
-                            <span class="font-bold">NET TOTAL:</span>
-                            <span class="font-bold text-green-700" id="billSummaryNetTotal">₹0.00</span>
+                <!-- Bill Summary -->
+                <div id="billSummarySection" class="hidden mb-6 p-4 bg-gray-100 rounded">
+                    <h3 class="font-semibold mb-3">💰 Bill Summary</h3>
+                    <div class="space-y-2">
+                        <div class="flex justify-between">
+                            <span>Subtotal:</span>
+                            <span id="billSummaryTotal" class="font-semibold">₹0.00</span>
+                        </div>
+                        <div class="flex justify-between text-sm text-gray-600">
+                            <span>GST (3%):</span>
+                            <span id="billSummaryGst">₹0.00</span>
+                        </div>
+                        <div class="flex justify-between text-lg font-bold text-green-600 border-t pt-2">
+                            <span>Net Total:</span>
+                            <span id="billSummaryNetTotal">₹0.00</span>
                         </div>
                     </div>
                 </div>
-            </div>
         
-            <!-- Bill Actions -->
-            <div class="grid grid-cols-2 gap-4">
-                <button onclick="generateSalesBill()"
-                    class="px-6 py-4 bg-green-600 text-white rounded-xl hover:bg-green-700 font-bold text-lg shadow-lg">💰
-                    Generate Bill</button>
-                <button onclick="clearBillAll()"
-                    class="px-6 py-4 bg-gray-600 text-white rounded-xl hover:bg-gray-700 font-bold text-lg shadow-lg">🗑️ Clear
-                    All</button>
+                <!-- Action Buttons -->
+                <div id="billActionsSection" class="hidden flex gap-4">
+                    <button onclick="generateSalesBill()"
+                        class="flex-1 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 font-semibold">
+                        📄 Generate Bill
+                    </button>
+                    <button onclick="clearBillSelection()"
+                        class="bg-gray-500 text-white px-6 py-3 rounded-lg hover:bg-gray-600">
+                        🔄 Clear & Start New
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -1277,47 +1237,86 @@
         let currentViewingBill = null;
         let quotationToConvert = null;
 
-        // ========== BILL CUSTOMER MANAGEMENT ==========
+        // ========== SALES BILL - CONVERT QUOTATION TO BILL ==========
 
-            function updateBillCustomerDropdown() {
-                const select = document.getElementById('billCustomerSelect');
-                if (!select) return;
+            let selectedQuotationForBill = null;
+            let billItems = [];
+            let currentBillRateSlab = 'R';
 
-                select.innerHTML = '<option value="">-- Select Customer --</option>';
-                customers.forEach((customer, idx) => {
+            function refreshQuotationsList() {
+                const select = document.getElementById('selectQuotationForBill');
+                select.innerHTML = '<option value="">-- Select a Quotation --</option>';
+
+                if (savedQuotations.length === 0) {
+                    alert('No quotations available. Please create a quotation first.');
+                    return;
+                }
+
+                savedQuotations.forEach((quot, idx) => {
                     const option = document.createElement('option');
                     option.value = idx;
-                    option.textContent = customer.name;
+                    option.textContent = `${quot.quotationNo} - ${quot.customer.name} - ₹${quot.netTotal.toFixed(2)}`;
                     select.appendChild(option);
                 });
             }
 
-            function loadBillCustomerDetails() {
-                const idx = document.getElementById('billCustomerSelect').value;
+            function loadQuotationForBill() {
+                const idx = document.getElementById('selectQuotationForBill').value;
+
                 if (idx === '') {
-                    document.getElementById('billCustomerDetailsDisplay').classList.add('hidden');
-                    document.getElementById('billCustomerMobile').value = '';
-                    currentBillCustomer = null;
+                    // Hide all sections
+                    document.getElementById('selectedQuotationDetails').classList.add('hidden');
+                    document.getElementById('billRatesSection').classList.add('hidden');
+                    document.getElementById('billRateSlabSection').classList.add('hidden');
+                    document.getElementById('billItemsTableContainer').classList.add('hidden');
+                    document.getElementById('billSummarySection').classList.add('hidden');
+                    document.getElementById('billActionsSection').classList.add('hidden');
+                    selectedQuotationForBill = null;
+                    billItems = [];
                     return;
                 }
 
-                currentBillCustomer = customers[idx];
-                document.getElementById('billCustName').textContent = currentBillCustomer.name;
-                document.getElementById('billCustAddress').textContent =
-                    `${currentBillCustomer.address1}, ${currentBillCustomer.address2}, ${currentBillCustomer.city}`;
-                document.getElementById('billCustomerMobile').value = currentBillCustomer.mobile;
-                document.getElementById('billCustomerDetailsDisplay').classList.remove('hidden');
+                selectedQuotationForBill = savedQuotations[idx];
 
+                // Display quotation details
+                document.getElementById('selectedQuotNo').textContent = selectedQuotationForBill.quotationNo;
+                document.getElementById('selectedQuotCustomer').textContent = selectedQuotationForBill.customer.name;
+                document.getElementById('selectedQuotAmount').textContent = `₹${selectedQuotationForBill.netTotal.toFixed(2)}`;
+                document.getElementById('selectedQuotItems').textContent =
+                    selectedQuotationForBill.items.map(item => item.name).join(', ');
+
+                document.getElementById('selectedQuotationDetails').classList.remove('hidden');
+
+                // Show current rates
+                updateBillRatesDisplay();
+                document.getElementById('billRatesSection').classList.remove('hidden');
+
+                // Show rate slab section
+                document.getElementById('billRateSlab').value = 'R';
+                currentBillRateSlab = 'R';
                 updateBillRateSlabInfo();
+                document.getElementById('billRateSlabSection').classList.remove('hidden');
 
-                if (billItems.length > 0) {
-                    recalculateBillItems();
-                }
+                // Load items from quotation
+                billItems = JSON.parse(JSON.stringify(selectedQuotationForBill.items));
+
+                // Recalculate with current rates and rate slab
+                recalculateBillItems();
+
+                // Show items table and summary
+                document.getElementById('billItemsTableContainer').classList.remove('hidden');
+                document.getElementById('billSummarySection').classList.remove('hidden');
+                document.getElementById('billActionsSection').classList.remove('hidden');
+            }
+
+            function updateBillRatesDisplay() {
+                document.getElementById('billGoldRate').textContent = `₹${rates.gold}/gm`;
+                document.getElementById('billSilverRate').textContent = `₹${rates.silver}/gm`;
+                document.getElementById('billPlatinumRate').textContent = `₹${rates.platinum}/gm`;
             }
 
             function updateBillRateSlabInfo() {
                 currentBillRateSlab = document.getElementById('billRateSlab').value;
-                const discount = rateSlabDiscounts[currentBillRateSlab];
 
                 document.getElementById('billRateSlabDisplay').textContent = currentBillRateSlab;
 
@@ -1334,8 +1333,6 @@
                 if (billItems.length > 0) {
                     recalculateBillItems();
                 }
-
-                updateBillItemAmount();
             }
 
             function getBillAdjustedMCRate(originalMCRate) {
@@ -1343,486 +1340,361 @@
                 return Math.max(0, originalMCRate - discount);
             }
 
-            // PART 2/8: Bill Rates Display
-                function updateBillRatesDisplay() {
-                    document.getElementById('billGoldRate').textContent = `₹${rates.gold}/gm`;
-                    document.getElementById('billSilverRate').textContent = `₹${rates.silver}/gm`;
-                    document.getElementById('billPlatinumRate').textContent = `₹${rates.platinum}/gm`;
-                }
+            function recalculateBillItems() {
+                billItems.forEach(item => {
+                    // Update with current metal rate
+                    const currentRate = rates[item.metalType] || rates.silver;
+                    item.rate = currentRate;
 
-                // PART 3/8: Bill Barcode Scanner
-                function handleBillBarcodeScan(barcode) {
-                    if (!barcode) return;
+                    // Apply rate slab discount to MC
+                    const originalMCRate = item.originalMcRate || item.mcRate;
+                    const adjustedMCRate = getBillAdjustedMCRate(originalMCRate);
 
-                    const product = products.find(p => p.barcode === barcode);
-                    if (product) {
-                        document.getElementById('billItemSku').value = product.sku || '';
-                        document.getElementById('billItemStyleCode').value = product.styleCode || '';
-                        document.getElementById('billItemName').value = product.shortName;
-                        document.getElementById('billItemSize').value = product.size || '';
-                        document.getElementById('billItemWeight').value = product.avgWt || '';
-                        document.getElementById('billItemPurity').value = product.purity;
-                        document.getElementById('billItemMetalType').value = product.metalType;
-
-                        const metalRate = rates[product.metalType] || rates.silver;
-                        document.getElementById('billItemRate').value = metalRate;
-
-                        const originalMCRate = product.mcRate;
-                        const adjustedMCRate = getBillAdjustedMCRate(originalMCRate);
-                        document.getElementById('billItemMcRate').value = adjustedMCRate;
-                        document.getElementById('billItemMcRate').setAttribute('data-original-mc', originalMCRate);
-
-                        updateBillItemAmount();
-                        document.getElementById('billItemWeight').focus();
-                        document.getElementById('billItemWeight').select();
-
-                        const barcodeInput = document.getElementById('billBarcodeInput');
-                        barcodeInput.style.backgroundColor = '#d4edda';
-                        barcodeInput.style.borderColor = '#28a745';
-                        setTimeout(() => {
-                            barcodeInput.style.backgroundColor = '';
-                            barcodeInput.style.borderColor = '';
-                        }, 300);
-                    } else {
-                        alert('Product not found! Please add this product first.');
-                        const barcodeInput = document.getElementById('billBarcodeInput');
-                        barcodeInput.style.backgroundColor = '#f8d7da';
-                        barcodeInput.style.borderColor = '#dc3545';
-                        setTimeout(() => {
-                            barcodeInput.style.backgroundColor = '';
-                            barcodeInput.style.borderColor = '';
-                        }, 500);
-                    }
-                }
-
-                // PART 4/8: Bill Item Calculations
-                function updateBillItemAmount() {
-                    const weight = parseFloat(document.getElementById('billItemWeight').value) || 0;
-                    const rate = parseFloat(document.getElementById('billItemRate').value) || 0;
-                    const mcRate = parseFloat(document.getElementById('billItemMcRate').value) || 0;
-                    const purity = parseFloat(document.getElementById('billItemPurity').value) || 100;
-
-                    const metalValue = (weight * rate * purity) / 100;
-                    const mcCharges = weight * mcRate;
-                    const total = metalValue + mcCharges;
-
-                    document.getElementById('billItemAmount').textContent = `₹${total.toFixed(2)}`;
-                }
-
-                function addBillItem() {
-                    const item = {
-                        sku: document.getElementById('billItemSku').value,
-                        styleCode: document.getElementById('billItemStyleCode').value,
-                        name: document.getElementById('billItemName').value,
-                        size: document.getElementById('billItemSize').value,
-                        weight: parseFloat(document.getElementById('billItemWeight').value) || 0,
-                        purity: parseFloat(document.getElementById('billItemPurity').value) || 100,
-                        rate: parseFloat(document.getElementById('billItemRate').value) || 0,
-                        mcRate: parseFloat(document.getElementById('billItemMcRate').value) || 0,
-                        originalMcRate: parseFloat(document.getElementById('billItemMcRate').getAttribute('data-original-mc')) ||
-                            parseFloat(document.getElementById('billItemMcRate').value) || 0,
-                        metalType: document.getElementById('billItemMetalType').value
-                    };
-
-                    if (!item.name || !item.weight) {
-                        alert('Please fill item name and weight');
-                        return;
-                    }
-
+                    // Recalculate amount
                     const metalValue = (item.weight * item.rate * item.purity) / 100;
-                    const mcCharges = item.weight * item.mcRate;
+                    const mcCharges = item.weight * adjustedMCRate;
                     item.amount = metalValue + mcCharges;
-                    item.id = Date.now();
+                    item.mcRate = adjustedMCRate;
+                    item.originalMcRate = originalMCRate;
+                });
 
-                    billItems.push(item);
-                    updateBillItemsTable();
-                    updateBillSummary();
-                    clearBillItemForm();
-                }
+                updateBillItemsTable();
+                updateBillSummary();
+            }
 
-                function recalculateBillItems() {
-                    billItems.forEach(item => {
-                        const originalMCRate = item.originalMcRate || item.mcRate;
-                        const adjustedMCRate = getBillAdjustedMCRate(originalMCRate);
+            function updateBillItemsTable() {
+                const tbody = document.getElementById('billItemsTableBody');
+                tbody.innerHTML = '';
 
-                        const metalValue = (item.weight * item.rate * item.purity) / 100;
-                        const mcCharges = item.weight * adjustedMCRate;
-                        item.amount = metalValue + mcCharges;
-                        item.mcRate = adjustedMCRate;
-                        item.originalMcRate = originalMCRate;
-                    });
-
-                    updateBillItemsTable();
-                    updateBillSummary();
-                }
-
-                // PART 5/8: Bill Items Table
-                function updateBillItemsTable() {
-                    const tbody = document.getElementById('billItemsTableBody');
-                    tbody.innerHTML = '';
-
-                    billItems.forEach((item, index) => {
-                        const row = document.createElement('tr');
-                        row.className = 'border-b hover:bg-gray-50';
-                        row.innerHTML = `
+                billItems.forEach((item, index) => {
+                    const row = document.createElement('tr');
+                    row.className = 'border-b hover:bg-gray-50';
+                    row.innerHTML = `
             <td class="px-4 py-3">${index + 1}</td>
             <td class="px-4 py-3 font-medium">${item.name}</td>
-            <td class="px-4 py-3 text-right">${item.weight}</td>
+            <td class="px-4 py-3 text-right">${item.weight.toFixed(2)}</td>
             <td class="px-4 py-3 text-right">₹${item.rate}</td>
-            <td class="px-4 py-3 text-right">₹${item.mcRate}</td>
+            <td class="px-4 py-3 text-right">₹${item.mcRate.toFixed(2)}</td>
             <td class="px-4 py-3 text-right font-semibold">₹${item.amount.toFixed(2)}</td>
-            <td class="px-4 py-3 text-center">
-                <button onclick="removeBillItem(${item.id})" class="text-red-600 hover:text-red-800">🗑️</button>
-            </td>
         `;
-                        tbody.appendChild(row);
-                    });
+                    tbody.appendChild(row);
+                });
+            }
 
-                    document.getElementById('billItemsTableContainer').classList.toggle('hidden', billItems.length === 0);
+            function updateBillSummary() {
+                const total = billItems.reduce((sum, item) => sum + item.amount, 0);
+                const gst = total * 0.03;
+                const netTotal = total + gst;
+
+                document.getElementById('billSummaryTotal').textContent = `₹${total.toFixed(2)}`;
+                document.getElementById('billSummaryGst').textContent = `₹${gst.toFixed(2)}`;
+                document.getElementById('billSummaryNetTotal').textContent = `₹${netTotal.toFixed(2)}`;
+            }
+
+            function clearBillSelection() {
+                if (confirm('Clear current selection and start new bill?')) {
+                    document.getElementById('selectQuotationForBill').value = '';
+                    loadQuotationForBill();
+                }
+            }
+
+            function generateSalesBill() {
+                if (!selectedQuotationForBill) {
+                    alert('Please select a quotation first');
+                    return;
+                }
+                if (billItems.length === 0) {
+                    alert('No items to bill');
+                    return;
                 }
 
-                function removeBillItem(id) {
-                    billItems = billItems.filter(item => item.id !== id);
-                    updateBillItemsTable();
-                    updateBillSummary();
+                // Show format selection modal
+                document.getElementById('modalOverlay').classList.remove('hidden');
+                document.getElementById('modalOverlay').classList.add('flex');
+                document.getElementById('billFormatModal').classList.remove('hidden');
+            }
+
+            function generateSalesBillPDF() {
+                const total = billItems.reduce((sum, item) => sum + item.amount, 0);
+                const gst = total * 0.03;
+                const netTotal = total + gst;
+                const billNo = `B${String(billCounter).padStart(4, '0')}`;
+
+                // SAVE BILL TO HISTORY
+                const billRecord = {
+                    id: Date.now(),
+                    billNo: billNo,
+                    quotationNo: selectedQuotationForBill.quotationNo,
+                    date: new Date().toISOString(),
+                    customer: selectedQuotationForBill.customer,
+                    items: JSON.parse(JSON.stringify(billItems)),
+                    total: total,
+                    gst: gst,
+                    netTotal: netTotal,
+                    rateSlab: currentBillRateSlab
+                };
+
+                savedBills.unshift(billRecord);
+                localStorage.setItem('savedBills', JSON.stringify(savedBills));
+
+                // PDF Generation
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF('p', 'mm', 'a4');
+
+                const totalWeight = billItems.reduce((sum, item) => sum + item.weight, 0);
+                const totalMC = billItems.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
+                const totalPCS = billItems.length;
+                const date = new Date().toLocaleDateString('en-GB');
+
+                const customer = selectedQuotationForBill.customer;
+
+                // Customer info
+                doc.setFontSize(9);
+                doc.setFont(undefined, 'normal');
+                doc.text('To:', 15, 15);
+                doc.setFont(undefined, 'bold');
+                doc.setFontSize(10);
+                doc.text(customer.name.toUpperCase(), 15, 20);
+
+                doc.setFontSize(8);
+                doc.setFont(undefined, 'normal');
+                let yPos = 24;
+                if (customer.address1) {
+                    doc.text(customer.address1, 15, yPos);
+                    yPos += 4;
                 }
-
-                function clearBillItemForm() {
-                    document.getElementById('billItemSku').value = '';
-                    document.getElementById('billItemStyleCode').value = '';
-                    document.getElementById('billItemName').value = '';
-                    document.getElementById('billItemSize').value = '';
-                    document.getElementById('billItemWeight').value = '';
-                    document.getElementById('billItemPurity').value = '100';
-                    document.getElementById('billItemRate').value = '';
-                    document.getElementById('billItemMcRate').value = '';
-                    document.getElementById('billItemMetalType').value = '';
-                    document.getElementById('billItemAmount').textContent = '₹0.00';
-
-                    setTimeout(() => {
-                        document.getElementById('billBarcodeInput').focus();
-                    }, 100);
+                if (customer.address2) {
+                    doc.text(customer.address2, 15, yPos);
+                    yPos += 4;
                 }
-
-                function updateBillSummary() {
-                    const total = billItems.reduce((sum, item) => sum + item.amount, 0);
-                    const gst = total * 0.03;
-                    const netTotal = total + gst;
-
-                    document.getElementById('billSummaryTotal').textContent = `₹${total.toFixed(2)}`;
-                    document.getElementById('billSummaryGst').textContent = `₹${gst.toFixed(2)}`;
-                    document.getElementById('billSummaryNetTotal').textContent = `₹${netTotal.toFixed(2)}`;
+                if (customer.city) {
+                    doc.text(customer.city, 15, yPos);
+                    yPos += 4;
                 }
+                doc.text(`Mob: ${customer.mobile}`, 15, yPos);
 
-                function clearBillAll() {
-                    if (billItems.length === 0 || confirm('Clear all items from bill?')) {
-                        billItems = [];
-                        updateBillItemsTable();
-                        updateBillSummary();
-                        clearBillItemForm();
-                        document.getElementById('billRateSlab').value = 'R';
-                        currentBillRateSlab = 'R';
-                        updateBillRateSlabInfo();
-                        document.getElementById('billBarcodeInput').focus();
-                    }
-                }
+                // Bill info
+                doc.setFontSize(8);
+                doc.setFont(undefined, 'bold');
+                doc.text('BILL No:', 160, 15);
+                doc.setFont(undefined, 'normal');
+                doc.text(billNo, 180, 15);
+                doc.setFont(undefined, 'bold');
+                doc.text('Date:', 160, 20);
+                doc.setFont(undefined, 'normal');
+                doc.text(date, 180, 20);
+                doc.setFont(undefined, 'bold');
+                doc.text('Quotation:', 160, 25);
+                doc.setFont(undefined, 'normal');
+                doc.text(selectedQuotationForBill.quotationNo, 180, 25);
 
-                // PART 6/8: Bill Generation
-                function generateSalesBill() {
-                    if (billItems.length === 0) {
-                        alert('Please add items first');
-                        return;
-                    }
-                    if (!currentBillCustomer) {
-                        alert('Please select a customer first');
-                        return;
-                    }
+                // Items table
+                const tableStartY = yPos + 8;
+                const tableData = billItems.map((item, idx) => [
+                    idx + 1,
+                    item.sku || '-',
+                    item.styleCode || '-',
+                    item.name,
+                    item.size || '-',
+                    item.weight.toFixed(2),
+                    item.weight.toFixed(2),
+                    item.purity.toFixed(0),
+                    item.weight.toFixed(2),
+                    '1',
+                    item.mcRate.toFixed(2),
+                    item.rate.toFixed(0),
+                    item.amount.toFixed(2)
+                ]);
 
-                    document.getElementById('modalOverlay').classList.remove('hidden');
-                    document.getElementById('modalOverlay').classList.add('flex');
-                    document.getElementById('billFormatModal').classList.remove('hidden');
-                }
+                doc.autoTable({
+                    startY: tableStartY,
+                    head: [[
+                        '#', 'SKU', 'STYLE CODE', 'Short Name', 'SIZE',
+                        'NET.WT', 'AVG.WT', '% Pure', 'G.WT', 'PCS',
+                        'MC/gm', 'RATE', 'Amount'
+                    ]],
+                    body: tableData,
+                    theme: 'grid',
+                    headStyles: {
+                        fillColor: [34, 197, 94],
+                        textColor: 255,
+                        fontSize: 7,
+                        fontStyle: 'bold',
+                        halign: 'center',
+                        valign: 'middle',
+                        cellPadding: 1.5
+                    },
+                    bodyStyles: {
+                        fontSize: 7,
+                        cellPadding: 1,
+                        valign: 'middle'
+                    },
+                    columnStyles: {
+                        0: { cellWidth: 8, halign: 'center' },
+                        1: { cellWidth: 20, halign: 'left', fontSize: 6.5 },
+                        2: { cellWidth: 16, halign: 'center', fontSize: 6.5 },
+                        3: { cellWidth: 38, halign: 'left' },
+                        4: { cellWidth: 12, halign: 'center' },
+                        5: { cellWidth: 13, halign: 'right' },
+                        6: { cellWidth: 13, halign: 'right' },
+                        7: { cellWidth: 11, halign: 'center' },
+                        8: { cellWidth: 11, halign: 'right' },
+                        9: { cellWidth: 9, halign: 'center' },
+                        10: { cellWidth: 12, halign: 'right' },
+                        11: { cellWidth: 12, halign: 'right' },
+                        12: { cellWidth: 16, halign: 'right' }
+                    },
+                    margin: { left: 15, right: 14 }
+                });
 
-                // PART 7/8: Bill PDF Generation
-                    function generateSalesBillPDF() {
-                        const total = billItems.reduce((sum, item) => sum + item.amount, 0);
-                        const gst = total * 0.03;
-                        const netTotal = total + gst;
-                        const billNo = `B${String(billCounter).padStart(4, '0')}`;
+                // Grand total section
+                const finalY = doc.lastAutoTable.finalY + 8;
+                doc.setDrawColor(0);
+                doc.setLineWidth(0.5);
+                doc.rect(15, finalY, 180, 25);
+                doc.line(105, finalY, 105, finalY + 25);
 
-                        // SAVE BILL TO HISTORY
-                        const billRecord = {
-                            id: Date.now(),
-                            billNo: billNo,
-                            date: new Date().toISOString(),
-                            customer: {
-                                name: currentBillCustomer.name,
-                                address1: currentBillCustomer.address1,
-                                address2: currentBillCustomer.address2,
-                                city: currentBillCustomer.city,
-                                mobile: currentBillCustomer.mobile
-                            },
-                            items: JSON.parse(JSON.stringify(billItems)),
-                            total: total,
-                            gst: gst,
-                            netTotal: netTotal,
-                            rateSlab: currentBillRateSlab
-                        };
+                // Left side
+                doc.setFontSize(8);
+                doc.setFont(undefined, 'bold');
+                doc.text('COUNT:', 18, finalY + 6);
+                doc.setFont(undefined, 'normal');
+                doc.text(totalPCS.toString(), 45, finalY + 6);
+                doc.setFont(undefined, 'bold');
+                doc.text('Total Weight:', 18, finalY + 12);
+                doc.setFont(undefined, 'normal');
+                doc.text(`${totalWeight.toFixed(2)} gm`, 45, finalY + 12);
+                doc.setFont(undefined, 'bold');
+                doc.text('MC:', 18, finalY + 18);
+                doc.setFont(undefined, 'normal');
+                doc.text(totalMC.toFixed(2), 45, finalY + 18);
 
-                        savedBills.unshift(billRecord);
-                        localStorage.setItem('savedBills', JSON.stringify(savedBills));
+                // Right side
+                doc.setFontSize(9);
+                doc.setFont(undefined, 'bold');
+                doc.text('GRAND TOTAL', 110, finalY + 5);
+                doc.setFontSize(8);
+                doc.text('TOTAL:', 110, finalY + 11);
+                doc.setFont(undefined, 'normal');
+                doc.text(total.toFixed(2), 190, finalY + 11, { align: 'right' });
+                doc.setFont(undefined, 'bold');
+                doc.text('GST:', 110, finalY + 16);
+                doc.setFont(undefined, 'normal');
+                doc.text(gst.toFixed(2), 190, finalY + 16, { align: 'right' });
+                doc.setFont(undefined, 'bold');
+                doc.text('NET TOTAL:', 110, finalY + 21);
+                doc.text(netTotal.toFixed(2), 190, finalY + 21, { align: 'right' });
 
-                        // PDF Generation
-                        const { jsPDF } = window.jspdf;
-                        const doc = new jsPDF('p', 'mm', 'a4');
+                doc.save(`Bill_${billNo}_${date.replace(/\//g, '-')}.pdf`);
 
-                        const totalWeight = billItems.reduce((sum, item) => sum + item.weight, 0);
-                        const totalMC = billItems.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
-                        const totalPCS = billItems.length;
-                        const date = new Date().toLocaleDateString('en-GB');
+                billCounter++;
+                localStorage.setItem('billCounter', billCounter);
 
-                        // Customer info
-                        doc.setFontSize(9);
-                        doc.setFont(undefined, 'normal');
-                        doc.text('To:', 15, 15);
-                        doc.setFont(undefined, 'bold');
-                        doc.setFontSize(10);
-                        doc.text(currentBillCustomer.name.toUpperCase(), 15, 20);
+                closeModals();
+                alert(`Sales Bill PDF generated successfully!\nBill No: ${billNo}\nQuotation: ${selectedQuotationForBill.quotationNo}`);
 
-                        doc.setFontSize(8);
-                        doc.setFont(undefined, 'normal');
-                        let yPos = 24;
-                        if (currentBillCustomer.address1) {
-                            doc.text(currentBillCustomer.address1, 15, yPos);
-                            yPos += 4;
-                        }
-                        if (currentBillCustomer.address2) {
-                            doc.text(currentBillCustomer.address2, 15, yPos);
-                            yPos += 4;
-                        }
-                        if (currentBillCustomer.city) {
-                            doc.text(currentBillCustomer.city, 15, yPos);
-                            yPos += 4;
-                        }
-                        doc.text(`Mob: ${currentBillCustomer.mobile}`, 15, yPos);
+                // Clear selection
+                clearBillSelection();
+            }
 
-                        // Bill info
-                        doc.setFontSize(8);
-                        doc.setFont(undefined, 'bold');
-                        doc.text('BILL No:', 160, 15);
-                        doc.setFont(undefined, 'normal');
-                        doc.text(billNo, 180, 15);
-                        doc.setFont(undefined, 'bold');
-                        doc.text('Date:', 160, 20);
-                        doc.setFont(undefined, 'normal');
-                        doc.text(date, 180, 20);
+            function generateSalesBillExcel() {
+                const total = billItems.reduce((sum, item) => sum + item.amount, 0);
+                const gst = total * 0.03;
+                const netTotal = total + gst;
+                const billNo = `B${String(billCounter).padStart(4, '0')}`;
 
-                        // Items table
-                        const tableStartY = yPos + 8;
-                        const tableData = billItems.map((item, idx) => [
-                            idx + 1,
-                            item.sku || '-',
-                            item.styleCode || '-',
-                            item.name,
-                            item.size || '-',
-                            item.weight.toFixed(2),
-                            item.weight.toFixed(2),
-                            item.purity.toFixed(0),
-                            item.weight.toFixed(2),
-                            '1',
-                            item.mcRate.toFixed(2),
-                            item.rate.toFixed(0),
-                            item.amount.toFixed(2)
-                        ]);
+                // SAVE BILL TO HISTORY
+                const billRecord = {
+                    id: Date.now(),
+                    billNo: billNo,
+                    quotationNo: selectedQuotationForBill.quotationNo,
+                    date: new Date().toISOString(),
+                    customer: selectedQuotationForBill.customer,
+                    items: JSON.parse(JSON.stringify(billItems)),
+                    total: total,
+                    gst: gst,
+                    netTotal: netTotal,
+                    rateSlab: currentBillRateSlab
+                };
 
-                        doc.autoTable({
-                            startY: tableStartY,
-                            head: [[
-                                '#', 'SKU', 'STYLE CODE', 'Short Name', 'SIZE',
-                                'NET.WT', 'AVG.WT', '% Pure', 'G.WT', 'PCS',
-                                'MC/gm', 'RATE', 'Amount'
-                            ]],
-                            body: tableData,
-                            theme: 'grid',
-                            headStyles: {
-                                fillColor: [34, 197, 94],
-                                textColor: 255,
-                                fontSize: 7,
-                                fontStyle: 'bold',
-                                halign: 'center',
-                                valign: 'middle',
-                                cellPadding: 1.5
-                            },
-                            bodyStyles: {
-                                fontSize: 7,
-                                cellPadding: 1,
-                                valign: 'middle'
-                            },
-                            columnStyles: {
-                                0: { cellWidth: 8, halign: 'center' },
-                                1: { cellWidth: 20, halign: 'left', fontSize: 6.5 },
-                                2: { cellWidth: 16, halign: 'center', fontSize: 6.5 },
-                                3: { cellWidth: 38, halign: 'left' },
-                                4: { cellWidth: 12, halign: 'center' },
-                                5: { cellWidth: 13, halign: 'right' },
-                                6: { cellWidth: 13, halign: 'right' },
-                                7: { cellWidth: 11, halign: 'center' },
-                                8: { cellWidth: 11, halign: 'right' },
-                                9: { cellWidth: 9, halign: 'center' },
-                                10: { cellWidth: 12, halign: 'right' },
-                                11: { cellWidth: 12, halign: 'right' },
-                                12: { cellWidth: 16, halign: 'right' }
-                            },
-                            margin: { left: 15, right: 14 }
-                        });
+                savedBills.unshift(billRecord);
+                localStorage.setItem('savedBills', JSON.stringify(savedBills));
 
-                        // Grand total section
-                        const finalY = doc.lastAutoTable.finalY + 8;
-                        doc.setDrawColor(0);
-                        doc.setLineWidth(0.5);
-                        doc.rect(15, finalY, 180, 25);
-                        doc.line(105, finalY, 105, finalY + 25);
+                // Excel generation
+                const totalWeight = billItems.reduce((sum, item) => sum + item.weight, 0);
+                const totalMC = billItems.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
+                const totalPCS = billItems.length;
+                const date = new Date().toLocaleDateString('en-GB');
+                const customer = selectedQuotationForBill.customer;
 
-                        // Left side
-                        doc.setFontSize(8);
-                        doc.setFont(undefined, 'bold');
-                        doc.text('COUNT:', 18, finalY + 6);
-                        doc.setFont(undefined, 'normal');
-                        doc.text(totalPCS.toString(), 45, finalY + 6);
-                        doc.setFont(undefined, 'bold');
-                        doc.text('Total Weight:', 18, finalY + 12);
-                        doc.setFont(undefined, 'normal');
-                        doc.text(`${totalWeight.toFixed(2)} gm`, 45, finalY + 12);
-                        doc.setFont(undefined, 'bold');
-                        doc.text('MC:', 18, finalY + 18);
-                        doc.setFont(undefined, 'normal');
-                        doc.text(totalMC.toFixed(2), 45, finalY + 18);
+                const wb = XLSX.utils.book_new();
 
-                        // Right side
-                        doc.setFontSize(9);
-                        doc.setFont(undefined, 'bold');
-                        doc.text('GRAND TOTAL', 110, finalY + 5);
-                        doc.setFontSize(8);
-                        doc.text('TOTAL:', 110, finalY + 11);
-                        doc.setFont(undefined, 'normal');
-                        doc.text(total.toFixed(2), 190, finalY + 11, { align: 'right' });
-                        doc.setFont(undefined, 'bold');
-                        doc.text('GST:', 110, finalY + 16);
-                        doc.setFont(undefined, 'normal');
-                        doc.text(gst.toFixed(2), 190, finalY + 16, { align: 'right' });
-                        doc.setFont(undefined, 'bold');
-                        doc.text('NET TOTAL:', 110, finalY + 21);
-                        doc.text(netTotal.toFixed(2), 190, finalY + 21, { align: 'right' });
+                const headerData = [
+                    ['To:', '', '', '', '', '', 'BILL No:', billNo],
+                    [customer.name.toUpperCase(), '', '', '', '', '', 'Date:', date],
+                    [customer.address1, '', '', '', '', '', 'Quotation:', selectedQuotationForBill.quotationNo],
+                    [customer.address2, '', '', '', '', '', '', ''],
+                    [customer.city, '', '', '', '', '', '', ''],
+                    [`Mob: ${customer.mobile}`, '', '', '', '', '', '', ''],
+                    ['']
+                ];
 
-                        doc.save(`Bill_${billNo}_${date.replace(/\//g, '-')}.pdf`);
+                const itemsHeader = [[
+                    '#', 'SKU', 'STYLE CODE', 'Short Name', 'SIZE',
+                    'NET.WT', 'AVG.WT', '% Pure', 'G.WT', 'PCS',
+                    'MC/gm', 'RATE', 'Amount'
+                ]];
 
-                        billCounter++;
-                        localStorage.setItem('billCounter', billCounter);
+                const itemsData = billItems.map((item, idx) => [
+                    idx + 1,
+                    item.sku || '-',
+                    item.styleCode || '-',
+                    item.name,
+                    item.size || '-',
+                    item.weight.toFixed(2),
+                    item.weight.toFixed(2),
+                    item.purity.toFixed(0),
+                    item.weight.toFixed(2),
+                    1,
+                    item.mcRate.toFixed(2),
+                    item.rate.toFixed(0),
+                    item.amount.toFixed(2)
+                ]);
 
-                        closeModals();
-                        alert('Sales Bill PDF generated successfully!');
-                    }
+                const grandTotalData = [
+                    [''],
+                    ['COUNT:', totalPCS, '', '', '', '', '', 'GRAND TOTAL'],
+                    ['Total Weight:', `${totalWeight.toFixed(2)} gm`, '', '', '', '', '', 'TOTAL:', total.toFixed(2)],
+                    ['MC:', totalMC.toFixed(2), '', '', '', '', '', 'GST:', gst.toFixed(2)],
+                    ['', '', '', '', '', '', '', 'NET TOTAL:', netTotal.toFixed(2)]
+                ];
 
-                    // PART 8/8: Bill Excel Generation
-                        function generateSalesBillExcel() {
-                            const total = billItems.reduce((sum, item) => sum + item.amount, 0);
-                            const gst = total * 0.03;
-                            const netTotal = total + gst;
-                            const billNo = `B${String(billCounter).padStart(4, '0')}`;
+                const allData = [
+                    ...headerData,
+                    ...itemsHeader,
+                    ...itemsData,
+                    ...grandTotalData
+                ];
 
-                            // SAVE BILL TO HISTORY
-                            const billRecord = {
-                                id: Date.now(),
-                                billNo: billNo,
-                                date: new Date().toISOString(),
-                                customer: {
-                                    name: currentBillCustomer.name,
-                                    address1: currentBillCustomer.address1,
-                                    address2: currentBillCustomer.address2,
-                                    city: currentBillCustomer.city,
-                                    mobile: currentBillCustomer.mobile
-                                },
-                                items: JSON.parse(JSON.stringify(billItems)),
-                                total: total,
-                                gst: gst,
-                                netTotal: netTotal,
-                                rateSlab: currentBillRateSlab
-                            };
+                const ws = XLSX.utils.aoa_to_sheet(allData);
+                ws['!cols'] = [
+                    { wch: 5 }, { wch: 20 }, { wch: 15 }, { wch: 35 }, { wch: 10 },
+                    { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 8 },
+                    { wch: 12 }, { wch: 12 }, { wch: 15 }
+                ];
 
-                            savedBills.unshift(billRecord);
-                            localStorage.setItem('savedBills', JSON.stringify(savedBills));
+                XLSX.utils.book_append_sheet(wb, ws, 'Bill');
+                XLSX.writeFile(wb, `Bill_${billNo}_${date.replace(/\//g, '-')}.xlsx`);
 
-                            // Excel generation
-                            const totalWeight = billItems.reduce((sum, item) => sum + item.weight, 0);
-                            const totalMC = billItems.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
-                            const totalPCS = billItems.length;
-                            const date = new Date().toLocaleDateString('en-GB');
+                billCounter++;
+                localStorage.setItem('billCounter', billCounter);
 
-                            const wb = XLSX.utils.book_new();
+                closeModals();
+                alert(`Sales Bill Excel generated successfully!\nBill No: ${billNo}\nQuotation: ${selectedQuotationForBill.quotationNo}`);
 
-                            const headerData = [
-                                ['To:', '', '', '', '', '', 'BILL No:', billNo],
-                                [currentBillCustomer.name.toUpperCase(), '', '', '', '', '', 'Date:', date],
-                                [currentBillCustomer.address1, '', '', '', '', '', '', ''],
-                                [currentBillCustomer.address2, '', '', '', '', '', '', ''],
-                                [currentBillCustomer.city, '', '', '', '', '', '', ''],
-                                [`Mob: ${currentBillCustomer.mobile}`, '', '', '', '', '', '', ''],
-                                ['']
-                            ];
-
-                            const itemsHeader = [[
-                                '#', 'SKU', 'STYLE CODE', 'Short Name', 'SIZE',
-                                'NET.WT', 'AVG.WT', '% Pure', 'G.WT', 'PCS',
-                                'MC/gm', 'RATE', 'Amount'
-                            ]];
-
-                            const itemsData = billItems.map((item, idx) => [
-                                idx + 1,
-                                item.sku || '-',
-                                item.styleCode || '-',
-                                item.name,
-                                item.size || '-',
-                                item.weight.toFixed(2),
-                                item.weight.toFixed(2),
-                                item.purity.toFixed(0),
-                                item.weight.toFixed(2),
-                                1,
-                                item.mcRate.toFixed(2),
-                                item.rate.toFixed(0),
-                                item.amount.toFixed(2)
-                            ]);
-
-                            const grandTotalData = [
-                                [''],
-                                ['COUNT:', totalPCS, '', '', '', '', '', 'GRAND TOTAL'],
-                                ['Total Weight:', `${totalWeight.toFixed(2)} gm`, '', '', '', '', '', 'TOTAL:', total.toFixed(2)],
-                                ['MC:', totalMC.toFixed(2), '', '', '', '', '', 'GST:', gst.toFixed(2)],
-                                ['', '', '', '', '', '', '', 'NET TOTAL:', netTotal.toFixed(2)]
-                            ];
-
-                            const allData = [
-                                ...headerData,
-                                ...itemsHeader,
-                                ...itemsData,
-                                ...grandTotalData
-                            ];
-
-                            const ws = XLSX.utils.aoa_to_sheet(allData);
-                            ws['!cols'] = [
-                                { wch: 5 }, { wch: 20 }, { wch: 15 }, { wch: 35 }, { wch: 10 },
-                                { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 8 },
-                                { wch: 12 }, { wch: 12 }, { wch: 15 }
-                            ];
-
-                            XLSX.utils.book_append_sheet(wb, ws, 'Bill');
-                            XLSX.writeFile(wb, `Bill_${billNo}_${date.replace(/\//g, '-')}.xlsx`);
-
-                            billCounter++;
-                            localStorage.setItem('billCounter', billCounter);
-
-                            closeModals();
-                            alert('Sales Bill Excel generated successfully!');
-                        }
+                // Clear selection
+                clearBillSelection();
+            }
 
                         // ========== BILL HISTORY MANAGEMENT ==========
 
