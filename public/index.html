@@ -36,10 +36,13 @@
                         <button onclick="showTab('quotations')" id="btnQuotations"
                             class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">📜
                             Quotations</button>
+                        <button onclick="showTab('billhistory')" id="btnBillHistory" 
+                            class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">📋BillHistory</button>
                     </div>
                 </div>
             </div>
         </div>
+        
 
         <!-- Billing Tab -->
         <div id="billingTab" class="space-y-6">
@@ -445,7 +448,7 @@
         </div>
 
         <!-- Sales Bill Tab -->
-        <div id="billTab" class="tab-content hidden">
+        <div id="salesbillTab" class="tab-content hidden">
             <div class="bg-white rounded-lg shadow-md p-6">
                 <h2 class="text-2xl font-bold mb-6 text-gray-800">💰 Sales Bill</h2>
         
@@ -1111,27 +1114,41 @@
             </div>
         </div>
     </div>
-    
+ 
     <!-- View Bill Details Modal -->
     <div id="viewBillModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
         <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-4xl w-full pointer-events-auto max-h-[90vh] overflow-y-auto"
             onclick="event.stopPropagation()">
             <div class="flex justify-between items-center mb-4">
-                <h3 class="text-xl font-bold" id="viewBillTitle">Bill Details</h3>
+                <h3 class="text-xl font-bold">Bill Details - <span id="viewBillNo"></span></h3>
                 <button onclick="closeModals()" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
             </div>
     
             <!-- Customer Info -->
             <div class="bg-green-50 p-4 rounded-lg mb-4">
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-2 gap-4 mb-2">
                     <div>
                         <p class="text-sm text-gray-600">Customer</p>
-                        <p class="font-bold" id="viewBillCustomer"></p>
+                        <p class="font-bold" id="viewBillCustomerName"></p>
                     </div>
                     <div>
                         <p class="text-sm text-gray-600">Date</p>
                         <p class="font-bold" id="viewBillDate"></p>
                     </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-sm text-gray-600">Address</p>
+                        <p class="text-sm" id="viewBillCustomerAddress"></p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">Mobile</p>
+                        <p class="text-sm" id="viewBillCustomerMobile"></p>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <p class="text-sm text-gray-600">Rate Slab: <span class="font-semibold" id="viewBillRateSlab"></span>
+                    </p>
                 </div>
             </div>
     
@@ -1141,14 +1158,18 @@
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="px-2 py-2 text-left">#</th>
+                            <th class="px-2 py-2 text-left">SKU</th>
+                            <th class="px-2 py-2 text-left">Style Code</th>
                             <th class="px-2 py-2 text-left">Item</th>
+                            <th class="px-2 py-2 text-center">Size</th>
                             <th class="px-2 py-2 text-right">Weight</th>
+                            <th class="px-2 py-2 text-center">Purity</th>
                             <th class="px-2 py-2 text-right">Rate</th>
                             <th class="px-2 py-2 text-right">MC</th>
                             <th class="px-2 py-2 text-right">Amount</th>
                         </tr>
                     </thead>
-                    <tbody id="viewBillItemsBody"></tbody>
+                    <tbody id="viewBillItemsTableBody"></tbody>
                 </table>
             </div>
     
@@ -1170,13 +1191,9 @@
     
             <!-- Actions -->
             <div class="flex gap-3 mt-4">
-                <button onclick="reprintBillPDF()"
-                    class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold">
-                    📕 Download PDF
-                </button>
-                <button onclick="reprintBillExcel()"
+                <button onclick="reprintBill(document.getElementById('viewBillModal').getAttribute('data-bill-index'))"
                     class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">
-                    📗 Download Excel
+                    🖨️ Reprint
                 </button>
                 <button onclick="closeModals()" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
                     Close
@@ -1197,6 +1214,29 @@
                 <button onclick="confirmConvertToBill()"
                     class="w-full px-6 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-lg">
                     ✅ Convert to Bill
+                </button>
+                <button onclick="closeModals()"
+                    class="w-full px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reprint Format Modal -->
+    <div id="reprintFormatModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full pointer-events-auto"
+            onclick="event.stopPropagation()">
+            <h3 class="text-xl font-bold mb-4">🖨️ Reprint Bill Format</h3>
+            <input type="hidden" id="reprintBillIndex" value="">
+            <div class="space-y-3">
+                <button onclick="reprintBillPDF()"
+                    class="w-full px-6 py-4 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold text-lg flex items-center justify-center gap-2">
+                    <span>📕</span> Download as PDF
+                </button>
+                <button onclick="reprintBillExcel()"
+                    class="w-full px-6 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-lg flex items-center justify-center gap-2">
+                    <span>📗</span> Download as Excel
                 </button>
                 <button onclick="closeModals()"
                     class="w-full px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
@@ -1240,7 +1280,6 @@
         // ========== SALES BILL - CONVERT QUOTATION TO BILL ==========
 
             let selectedQuotationForBill = null;
-            let billItems = [];
             let currentBillRateSlab = 'R';
 
             function refreshQuotationsList() {
@@ -2098,9 +2137,26 @@
                 document.getElementById(id).addEventListener('input', updateBillItemAmount);
             });    
 
+            // Initialize Sales Bill Tab
+            refreshQuotationsList();
+            updateBillCustomerDropdown();
+
                 // Initial focus on barcode scanner
                 document.getElementById('barcodeInput').focus();
             });
+
+            function updateBillCustomerDropdown() {
+                    const select = document.getElementById('billCustomerSelect');
+                    if (!select) return;
+
+                    select.innerHTML = '<option value="">-- Select Customer --</option>';
+                    customers.forEach((customer, idx) => {
+                        const option = document.createElement('option');
+                        option.value = idx;
+                        option.textContent = customer.name;
+                        select.appendChild(option);
+                    });
+                }
 
         function showTab(tab) {
                 // Hide all tabs
@@ -2119,6 +2175,7 @@
                 document.getElementById('btnROL').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
                 document.getElementById('btnQuotations').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
                 document.getElementById('btnSalesBill').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition'; // ADD
+                document.getElementById('btnBillHistory').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
 
                 if (tab === 'billing') {
                     document.getElementById('billingTab').classList.remove('hidden');
@@ -2147,6 +2204,10 @@
                     setTimeout(() => {
                         document.getElementById('billBarcodeInput').focus();
                     }, 100);
+                } else if (tab === 'billhistory') {
+                    document.getElementById('billHistoryTab').classList.remove('hidden');
+                    document.getElementById('btnBillHistory').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
+                    loadBillHistory();
                 }
             }
 
@@ -3559,6 +3620,9 @@
                         document.getElementById('stockReportModal').classList.add('hidden');
                         document.getElementById('rolUploadModal').classList.add('hidden');
                         document.getElementById('viewQuotationModal').classList.add('hidden');
+                        document.getElementById('billFormatModal').classList.add('hidden');
+                        document.getElementById('viewBillModal').classList.add('hidden');
+                        document.getElementById('reprintFormatModal').classList.add('hidden');
                     }
 
                 // ========== ROL MANAGEMENT FUNCTIONS ==========
@@ -4242,7 +4306,7 @@
                                 XLSX.utils.book_append_sheet(wb, ws, 'Quotation');
                                 XLSX.writeFile(wb, `Quotation_${q.quotationNo}_REPRINT.xlsx`);
                                 alert('Quotation Excel downloaded!');
-                            }
+                            } 
 
             </script>
     </body>
