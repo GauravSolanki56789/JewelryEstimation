@@ -2028,12 +2028,13 @@
                 }
 
     function generateQuotePDF() {
-            // SAVE QUOTATION TO HISTORY
-            const quotationNo = `Q${String(quotationCounter).padStart(4, '0')}`;
+            // Calculate totals ONCE
             const total = items.reduce((sum, item) => sum + item.amount, 0);
             const gst = total * 0.03;
             const netTotal = total + gst;
+            const quotationNo = `Q${String(quotationCounter).padStart(4, '0')}`;
 
+            // SAVE QUOTATION TO HISTORY
             const quotationRecord = {
                 id: Date.now(),
                 quotationNo: quotationNo,
@@ -2059,14 +2060,10 @@
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF('p', 'mm', 'a4');
 
-            const total = items.reduce((sum, item) => sum + item.amount, 0);
-            const gst = total * 0.03;
-            const netTotal = total + gst;
             const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
             const totalMC = items.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
             const totalPCS = items.length;
             const date = new Date().toLocaleDateString('en-GB');
-            const quotationNo = `Q${String(quotationCounter).padStart(4, '0')}`;
 
             // ========== CUSTOMER INFO - TOP LEFT ==========
             doc.setFontSize(9);
@@ -2231,131 +2228,128 @@
             alert('PDF Quotation generated!');
         }
 
-                    function generateQuoteExcel() {
-                            // SAVE QUOTATION TO HISTORY (same as PDF)
-                            const quotationNo = `Q${String(quotationCounter).padStart(4, '0')}`;
-                            const total = items.reduce((sum, item) => sum + item.amount, 0);
-                            const gst = total * 0.03;
-                            const netTotal = total + gst;
+        function generateQuoteExcel() {
+                // Calculate totals ONCE
+                const total = items.reduce((sum, item) => sum + item.amount, 0);
+                const gst = total * 0.03;
+                const netTotal = total + gst;
+                const quotationNo = `Q${String(quotationCounter).padStart(4, '0')}`;
 
-                            const quotationRecord = {
-                                id: Date.now(),
-                                quotationNo: quotationNo,
-                                date: new Date().toISOString(),
-                                customer: {
-                                    name: currentCustomer.name,
-                                    address1: currentCustomer.address1,
-                                    address2: currentCustomer.address2,
-                                    city: currentCustomer.city,
-                                    mobile: currentCustomer.mobile
-                                },
-                                items: JSON.parse(JSON.stringify(items)),
-                                total: total,
-                                gst: gst,
-                                netTotal: netTotal,
-                                rateSlab: currentRateSlab
-                            };
+                // SAVE QUOTATION TO HISTORY
+                const quotationRecord = {
+                    id: Date.now(),
+                    quotationNo: quotationNo,
+                    date: new Date().toISOString(),
+                    customer: {
+                        name: currentCustomer.name,
+                        address1: currentCustomer.address1,
+                        address2: currentCustomer.address2,
+                        city: currentCustomer.city,
+                        mobile: currentCustomer.mobile
+                    },
+                    items: JSON.parse(JSON.stringify(items)),
+                    total: total,
+                    gst: gst,
+                    netTotal: netTotal,
+                    rateSlab: currentRateSlab
+                };
 
-                            savedQuotations.unshift(quotationRecord);
-                            localStorage.setItem('savedQuotations', JSON.stringify(savedQuotations));
+                savedQuotations.unshift(quotationRecord);
+                localStorage.setItem('savedQuotations', JSON.stringify(savedQuotations));
 
-                            // EXCEL GENERATION
-                            const total = items.reduce((sum, item) => sum + item.amount, 0);
-                            const gst = total * 0.03;
-                            const netTotal = total + gst;
-                            const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
-                            const totalMC = items.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
-                            const totalPCS = items.length;
-                            const date = new Date().toLocaleDateString('en-GB');
-                            const quotationNo = `Q${String(quotationCounter).padStart(4, '0')}`;
+                // EXCEL GENERATION
+                const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
+                const totalMC = items.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
+                const totalPCS = items.length;
+                const date = new Date().toLocaleDateString('en-GB');
 
-                            // Create workbook
-                            const wb = XLSX.utils.book_new();
+                // Create workbook
+                const wb = XLSX.utils.book_new();
 
-                            // ========== HEADER SECTION ==========
-                            const headerData = [
-                                ['To:', '', '', '', '', '', 'EST. No:', quotationNo],
-                                [currentCustomer.name.toUpperCase(), '', '', '', '', '', 'Date:', date],
-                                [currentCustomer.address1, '', '', '', '', '', '', ''],
-                                [currentCustomer.address2, '', '', '', '', '', '', ''],
-                                [currentCustomer.city, '', '', '', '', '', '', ''],
-                                [`Mob: ${currentCustomer.mobile}`, '', '', '', '', '', '', ''],
-                                ['']
-                            ];
+                // ========== HEADER SECTION ==========
+                const headerData = [
+                    ['To:', '', '', '', '', '', 'EST. No:', quotationNo],
+                    [currentCustomer.name.toUpperCase(), '', '', '', '', '', 'Date:', date],
+                    [currentCustomer.address1, '', '', '', '', '', '', ''],
+                    [currentCustomer.address2, '', '', '', '', '', '', ''],
+                    [currentCustomer.city, '', '', '', '', '', '', ''],
+                    [`Mob: ${currentCustomer.mobile}`, '', '', '', '', '', '', ''],
+                    ['']
+                ];
 
-                            // ========== ITEMS TABLE ==========
-                            const itemsHeader = [[
-                                '#', 'SKU', 'STYLE CODE', 'Short Name', 'SIZE',
-                                'NET.WT', 'AVG.WT', '% Pure', 'G.WT', 'PCS',
-                                'MC/gm', 'RATE', 'Amount'
-                            ]];
+                // ========== ITEMS TABLE ==========
+                const itemsHeader = [[
+                    '#', 'SKU', 'STYLE CODE', 'Short Name', 'SIZE',
+                    'NET.WT', 'AVG.WT', '% Pure', 'G.WT', 'PCS',
+                    'MC/gm', 'RATE', 'Amount'
+                ]];
 
-                            const itemsData = items.map((item, idx) => [
-                                idx + 1,
-                                item.sku || '-',
-                                item.styleCode || '-',
-                                item.name,
-                                item.size || '-',
-                                item.weight.toFixed(2),
-                                item.weight.toFixed(2),
-                                item.purity.toFixed(0),
-                                item.weight.toFixed(2),
-                                1,
-                                item.mcRate.toFixed(2),
-                                item.rate.toFixed(0),
-                                item.amount.toFixed(2)
-                            ]);
+                const itemsData = items.map((item, idx) => [
+                    idx + 1,
+                    item.sku || '-',
+                    item.styleCode || '-',
+                    item.name,
+                    item.size || '-',
+                    item.weight.toFixed(2),
+                    item.weight.toFixed(2),
+                    item.purity.toFixed(0),
+                    item.weight.toFixed(2),
+                    1,
+                    item.mcRate.toFixed(2),
+                    item.rate.toFixed(0),
+                    item.amount.toFixed(2)
+                ]);
 
-                            // ========== GRAND TOTAL SECTION ==========
-                            const grandTotalData = [
-                                [''],
-                                ['COUNT:', totalPCS, '', '', '', '', '', 'GRAND TOTAL'],
-                                ['Total Weight:', `${totalWeight.toFixed(2)} gm`, '', '', '', '', '', 'TOTAL:', total.toFixed(2)],
-                                ['MC:', totalMC.toFixed(2), '', '', '', '', '', 'GST:', gst.toFixed(2)],
-                                ['', '', '', '', '', '', '', 'NET TOTAL:', netTotal.toFixed(2)]
-                            ];
+                // ========== GRAND TOTAL SECTION ==========
+                const grandTotalData = [
+                    [''],
+                    ['COUNT:', totalPCS, '', '', '', '', '', 'GRAND TOTAL'],
+                    ['Total Weight:', `${totalWeight.toFixed(2)} gm`, '', '', '', '', '', 'TOTAL:', total.toFixed(2)],
+                    ['MC:', totalMC.toFixed(2), '', '', '', '', '', 'GST:', gst.toFixed(2)],
+                    ['', '', '', '', '', '', '', 'NET TOTAL:', netTotal.toFixed(2)]
+                ];
 
-                            // ========== COMBINE ALL DATA ==========
-                            const allData = [
-                                ...headerData,
-                                ...itemsHeader,
-                                ...itemsData,
-                                ...grandTotalData
-                            ];
+                // ========== COMBINE ALL DATA ==========
+                const allData = [
+                    ...headerData,
+                    ...itemsHeader,
+                    ...itemsData,
+                    ...grandTotalData
+                ];
 
-                            // Create worksheet
-                            const ws = XLSX.utils.aoa_to_sheet(allData);
+                // Create worksheet
+                const ws = XLSX.utils.aoa_to_sheet(allData);
 
-                            // ========== COLUMN WIDTHS ==========
-                            ws['!cols'] = [
-                                { wch: 5 },   // #
-                                { wch: 20 },  // SKU
-                                { wch: 15 },  // STYLE CODE
-                                { wch: 35 },  // Short Name
-                                { wch: 10 },  // SIZE
-                                { wch: 12 },  // NET.WT
-                                { wch: 12 },  // AVG.WT
-                                { wch: 10 },  // % Pure
-                                { wch: 10 },  // G.WT
-                                { wch: 8 },   // PCS
-                                { wch: 12 },  // MC/gm
-                                { wch: 12 },  // RATE
-                                { wch: 15 }   // Amount
-                            ];
+                // ========== COLUMN WIDTHS ==========
+                ws['!cols'] = [
+                    { wch: 5 },   // #
+                    { wch: 20 },  // SKU
+                    { wch: 15 },  // STYLE CODE
+                    { wch: 35 },  // Short Name
+                    { wch: 10 },  // SIZE
+                    { wch: 12 },  // NET.WT
+                    { wch: 12 },  // AVG.WT
+                    { wch: 10 },  // % Pure
+                    { wch: 10 },  // G.WT
+                    { wch: 8 },   // PCS
+                    { wch: 12 },  // MC/gm
+                    { wch: 12 },  // RATE
+                    { wch: 15 }   // Amount
+                ];
 
-                            // Add worksheet to workbook
-                            XLSX.utils.book_append_sheet(wb, ws, 'Quotation');
+                // Add worksheet to workbook
+                XLSX.utils.book_append_sheet(wb, ws, 'Quotation');
 
-                            // Save file
-                            XLSX.writeFile(wb, `Quotation_${quotationNo}_${date.replace(/\//g, '-')}.xlsx`);
+                // Save file
+                XLSX.writeFile(wb, `Quotation_${quotationNo}_${date.replace(/\//g, '-')}.xlsx`);
 
-                            quotationCounter++;
-                            localStorage.setItem('quotationCounter', quotationCounter);
-                            document.getElementById('quotationNo').textContent = `Quotation No: Q${String(quotationCounter).padStart(4, '0')}`;
+                quotationCounter++;
+                localStorage.setItem('quotationCounter', quotationCounter);
+                document.getElementById('quotationNo').textContent = `Quotation No: Q${String(quotationCounter).padStart(4, '0')}`;
 
-                            closeModals();
-                            alert('Excel Quotation generated successfully!');
-                        }
+                closeModals();
+                alert('Excel Quotation generated successfully!');
+            }
     
                function clearAll() {
                     if (items.length === 0 || confirm('Clear all items from bill?')) {
