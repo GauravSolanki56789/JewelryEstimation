@@ -1,6 +1,5 @@
-1) The quotation pdf is not right.
-2)In Stock Report Options need to filter by style code option also should be there )
-2)ROL (Reorder level set)
+1)Estimation rate correction by uploading all the estimation and sales bills.
+2)The add button (Items should be automatically added and upon added they should be editable)
 
 
 Need to make a software for Value Refrigerants also 

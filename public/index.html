@@ -31,6 +31,9 @@
                             Customers</button>
                         <button onclick="showTab('rol')" id="btnROL"
                             class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">📊 ROL</button>
+                        <button onclick="showTab('quotations')" id="btnQuotations"
+                            class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">📜
+                            Quotations</button>
                     </div>
                 </div>
             </div>
@@ -344,6 +347,97 @@
                         </thead>
                         <tbody id="rolTableBody"></tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+        <!-- Quotations History Tab -->
+        <div id="quotationsTab" class="space-y-6 hidden">
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+                <div class="flex justify-between items-center mb-6 flex-wrap gap-3">
+                    <h2 class="text-2xl font-bold text-gray-800">📜 Quotation History</h2>
+                    <div class="flex gap-2 flex-wrap">
+                        <button onclick="downloadAllQuotations()"
+                            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-sm">📥
+                            Export All</button>
+                        <button onclick="clearOldQuotations()"
+                            class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold text-sm">🗑️
+                            Clear Old</button>
+                    </div>
+                </div>
+        
+                <!-- Search and Filter -->
+                <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border-2 border-blue-200 mb-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Search</label>
+                            <input type="text" id="quotationSearch" onkeyup="filterQuotations()"
+                                placeholder="🔍 Search by Quote No, Customer..."
+                                class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Customer</label>
+                            <select id="quotationCustomerFilter" onchange="filterQuotations()"
+                                class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                <option value="all">All Customers</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Date</label>
+                            <select id="quotationDateFilter" onchange="filterQuotations()"
+                                class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                <option value="all">All Dates</option>
+                                <option value="today">Today</option>
+                                <option value="week">This Week</option>
+                                <option value="month">This Month</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+        
+                <!-- Statistics -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-4 rounded-lg shadow">
+                        <p class="text-sm opacity-90">Total Quotations</p>
+                        <p class="text-3xl font-bold" id="quotationTotalCount">0</p>
+                    </div>
+                    <div class="bg-gradient-to-br from-green-500 to-green-600 text-white p-4 rounded-lg shadow">
+                        <p class="text-sm opacity-90">Total Value</p>
+                        <p class="text-2xl font-bold" id="quotationTotalValue">₹0</p>
+                    </div>
+                    <div class="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-4 rounded-lg shadow">
+                        <p class="text-sm opacity-90">This Month</p>
+                        <p class="text-3xl font-bold" id="quotationMonthCount">0</p>
+                    </div>
+                    <div class="bg-gradient-to-br from-orange-500 to-orange-600 text-white p-4 rounded-lg shadow">
+                        <p class="text-sm opacity-90">Today</p>
+                        <p class="text-3xl font-bold" id="quotationTodayCount">0</p>
+                    </div>
+                </div>
+        
+                <!-- Quotations Table -->
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-sm font-semibold">Quote No</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold">Date</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold">Customer</th>
+                                <th class="px-4 py-3 text-center text-sm font-semibold">Items</th>
+                                <th class="px-4 py-3 text-right text-sm font-semibold">Amount</th>
+                                <th class="px-4 py-3 text-right text-sm font-semibold">GST</th>
+                                <th class="px-4 py-3 text-right text-sm font-semibold">Net Total</th>
+                                <th class="px-4 py-3 text-center text-sm font-semibold">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="quotationsTableBody"></tbody>
+                    </table>
+                </div>
+        
+                <!-- Empty State -->
+                <div id="quotationsEmptyState" class="text-center py-12 hidden">
+                    <div class="text-6xl mb-4">📋</div>
+                    <h3 class="text-xl font-bold text-gray-700 mb-2">No Quotations Yet</h3>
+                    <p class="text-gray-500">Generate your first quotation from the Billing tab</p>
                 </div>
             </div>
         </div>
@@ -699,6 +793,79 @@
         </div>
     </div>
 
+    <!-- View Quotation Details Modal -->
+    <div id="viewQuotationModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-4xl w-full pointer-events-auto max-h-[90vh] overflow-y-auto"
+            onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold" id="viewQuotationTitle">Quotation Details</h3>
+                <button onclick="closeModals()" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+    
+            <!-- Customer Info -->
+            <div class="bg-amber-50 p-4 rounded-lg mb-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-sm text-gray-600">Customer</p>
+                        <p class="font-bold" id="viewQuotCustomer"></p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">Date</p>
+                        <p class="font-bold" id="viewQuotDate"></p>
+                    </div>
+                </div>
+            </div>
+    
+            <!-- Items Table -->
+            <div class="overflow-x-auto mb-4">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-2 py-2 text-left">#</th>
+                            <th class="px-2 py-2 text-left">Item</th>
+                            <th class="px-2 py-2 text-right">Weight</th>
+                            <th class="px-2 py-2 text-right">Rate</th>
+                            <th class="px-2 py-2 text-right">MC</th>
+                            <th class="px-2 py-2 text-right">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody id="viewQuotItemsBody"></tbody>
+                </table>
+            </div>
+    
+            <!-- Totals -->
+            <div class="bg-gradient-to-br from-amber-100 to-orange-100 p-4 rounded-lg">
+                <div class="flex justify-between mb-2">
+                    <span class="font-medium">Total:</span>
+                    <span class="font-bold" id="viewQuotTotal"></span>
+                </div>
+                <div class="flex justify-between mb-2">
+                    <span class="font-medium">GST (3%):</span>
+                    <span class="font-bold" id="viewQuotGST"></span>
+                </div>
+                <div class="flex justify-between text-lg border-t-2 border-amber-400 pt-2">
+                    <span class="font-bold">Net Total:</span>
+                    <span class="font-bold text-amber-700" id="viewQuotNetTotal"></span>
+                </div>
+            </div>
+    
+            <!-- Actions -->
+            <div class="flex gap-3 mt-4">
+                <button onclick="reprintQuotationPDF()"
+                    class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold">
+                    📕 Download PDF
+                </button>
+                <button onclick="reprintQuotationExcel()"
+                    class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">
+                    📗 Download Excel
+                </button>
+                <button onclick="closeModals()" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let items = [];
         let rates = JSON.parse(localStorage.getItem('rates') || '{"gold":7500,"silver":156,"platinum":3500}');
@@ -719,6 +886,9 @@
         let rolData = JSON.parse(localStorage.getItem('rolData') || '[]');
         let bulkUploadROLData = [];
 
+        let savedQuotations = JSON.parse(localStorage.getItem('savedQuotations') || '[]');
+        let currentViewingQuotation = null;
+
         if (products.length === 0) {
             products = [
                 { id: 1, barcode: '1001', sku: 'RING-22K-001', styleCode: '4001', shortName: 'Gold Ring 22K', size: '18', avgWt: 4.5, purity: 91.6, mcRate: 250, metalType: 'gold' },
@@ -732,6 +902,7 @@
                 updateRatesDisplay();
                 updateCustomerDropdown();
                 updateProductsTable();
+                updateRateSlabInfo(); // ADD THIS LINE
 
                 // Billing barcode scanner
                 document.getElementById('barcodeInput').addEventListener('keypress', function (e) {
@@ -741,7 +912,7 @@
                     }
                 });
 
-                // Product Management barcode scanner - ADD THIS
+                // Product Management barcode scanner
                 const productBarcodeInput = document.getElementById('productBarcodeInput');
                 if (productBarcodeInput) {
                     productBarcodeInput.addEventListener('keypress', function (e) {
@@ -755,17 +926,23 @@
                 ['itemWeight', 'itemRate', 'itemMcRate', 'itemPurity'].forEach(id => {
                     document.getElementById(id).addEventListener('input', updateItemAmount);
                 });
+
+                // Set initial focus on barcode scanner
+                document.getElementById('barcodeInput').focus();
             });
 
         function showTab(tab) {
                 document.getElementById('billingTab').classList.add('hidden');
                 document.getElementById('productsTab').classList.add('hidden');
                 document.getElementById('customersTab').classList.add('hidden');
-                document.getElementById('rolTab').classList.add('hidden');  // ADD THIS LINE
+                document.getElementById('rolTab').classList.add('hidden');
+                document.getElementById('quotationsTab').classList.add('hidden');
+
                 document.getElementById('btnBilling').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
                 document.getElementById('btnProducts').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
                 document.getElementById('btnCustomers').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
-                document.getElementById('btnROL').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';  // ADD THIS LINE
+                document.getElementById('btnROL').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
+                document.getElementById('btnQuotations').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
 
                 if (tab === 'billing') {
                     document.getElementById('billingTab').classList.remove('hidden');
@@ -778,11 +955,15 @@
                     document.getElementById('customersTab').classList.remove('hidden');
                     document.getElementById('btnCustomers').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
                     loadCustomersDisplay();
-                } else if (tab === 'rol') {  // ADD THIS BLOCK
+                } else if (tab === 'rol') {
                     document.getElementById('rolTab').classList.remove('hidden');
                     document.getElementById('btnROL').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
                     initializeROL();
                     updateROLDisplay();
+                } else if (tab === 'quotations') {
+                    document.getElementById('quotationsTab').classList.remove('hidden');
+                    document.getElementById('btnQuotations').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
+                    loadQuotationsHistory();
                 }
             }
 
@@ -869,11 +1050,11 @@
                     document.getElementById('rateSlabDisplay').textContent = currentRateSlab;
 
                     const descriptions = {
-                        'R': 'Standard MC',
-                        'R1': 'MC - ₹2/gm',
-                        'R2': 'MC - ₹5/gm',
-                        'R3': 'MC - ₹10/gm',
-                        'R4': 'MC - ₹15/gm'
+                        'R': 'Standard Rate',
+                        'R1': 'MC Discount ₹2/gm',
+                        'R2': 'MC Discount ₹5/gm',
+                        'R3': 'MC Discount ₹10/gm',
+                        'R4': 'MC Discount ₹15/gm'
                     };
 
                     document.getElementById('rateSlabDesc').textContent = descriptions[currentRateSlab];
@@ -1048,18 +1229,26 @@
 
     function filterProducts() {
             const searchTerm = document.getElementById('productSearch').value.toLowerCase().trim();
+
+            if (!searchTerm) {
+                updateProductsTable();
+                return;
+            }
+
             const tbody = document.getElementById('productsTableBody');
             tbody.innerHTML = '';
 
             const filteredProducts = products.filter(product => {
-                return (
-                    (product.barcode && product.barcode.toLowerCase().includes(searchTerm)) ||
-                    (product.sku && product.sku.toLowerCase().includes(searchTerm)) ||
-                    (product.styleCode && product.styleCode.toLowerCase().includes(searchTerm)) ||
-                    (product.shortName && product.shortName.toLowerCase().includes(searchTerm)) ||
-                    (product.metalType && product.metalType.toLowerCase().includes(searchTerm)) ||
-                    (product.size && product.size.toLowerCase().includes(searchTerm))
-                );
+                const searchableFields = [
+                    product.barcode || '',
+                    product.sku || '',
+                    product.styleCode || '',
+                    product.shortName || '',
+                    product.metalType || '',
+                    product.size || ''
+                ].map(field => field.toString().toLowerCase());
+
+                return searchableFields.some(field => field.includes(searchTerm));
             });
 
             if (filteredProducts.length === 0) {
@@ -1100,7 +1289,7 @@
             const styleCodeFilter = document.getElementById('stockStyleCodeFilter');
             styleCodeFilter.innerHTML = '<option value="all">All Style Codes</option>';
 
-            const uniqueStyleCodes = [...new Set(products.map(p => p.styleCode).filter(s => s))];
+            const uniqueStyleCodes = [...new Set(products.map(p => p.styleCode).filter(s => s && s.trim() !== ''))];
             uniqueStyleCodes.sort().forEach(styleCode => {
                 const option = document.createElement('option');
                 option.value = styleCode;
@@ -1758,6 +1947,7 @@
                     return;
                 }
 
+                // Calculate amount correctly
                 const metalValue = (item.weight * item.rate * item.purity) / 100;
                 const mcCharges = item.weight * item.mcRate;
                 item.amount = metalValue + mcCharges;
@@ -1767,7 +1957,6 @@
                 updateItemsTable();
                 updateSummary();
                 clearItemForm();
-                document.getElementById('barcodeInput').focus();
             }
 
         function updateItemsTable() {
@@ -1809,6 +1998,10 @@
                     document.getElementById('itemMcRate').value = '';
                     document.getElementById('itemMetalType').value = '';
                     document.getElementById('itemAmount').textContent = '₹0.00';
+                     // Return focus to barcode scanner
+                    setTimeout(() => {
+                        document.getElementById('barcodeInput').focus();
+                    }, 100);
                 }
 
                 function updateSummary() {
@@ -1835,66 +2028,88 @@
                 }
 
     function generateQuotePDF() {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF('p', 'mm', 'a4');
+            // SAVE QUOTATION TO HISTORY
+            const quotationNo = `Q${String(quotationCounter).padStart(4, '0')}`;
+            const total = items.reduce((sum, item) => sum + item.amount, 0);
+            const gst = total * 0.03;
+            const netTotal = total + gst;
 
-        const total = items.reduce((sum, item) => sum + item.amount, 0);
-        const gst = total * 0.03;
-        const netTotal = total + gst;
-        const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
-        const totalMC = items.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
-        const totalPCS = items.length;
-        const date = new Date().toLocaleDateString('en-GB');
-        const quotationNo = `Q${String(quotationCounter).padStart(4, '0')}`;
+            const quotationRecord = {
+                id: Date.now(),
+                quotationNo: quotationNo,
+                date: new Date().toISOString(),
+                customer: {
+                    name: currentCustomer.name,
+                    address1: currentCustomer.address1,
+                    address2: currentCustomer.address2,
+                    city: currentCustomer.city,
+                    mobile: currentCustomer.mobile
+                },
+                items: JSON.parse(JSON.stringify(items)), // Deep copy
+                total: total,
+                gst: gst,
+                netTotal: netTotal,
+                rateSlab: currentRateSlab
+            };
 
-        // ========== CUSTOMER INFO - TOP LEFT ==========
-        doc.setFontSize(9);
-        doc.setFont(undefined, 'normal');
-        doc.text('To:', 15, 15);
+            savedQuotations.unshift(quotationRecord); // Add to beginning
+            localStorage.setItem('savedQuotations', JSON.stringify(savedQuotations));
 
-        doc.setFont(undefined, 'bold');
-        doc.setFontSize(10);
-        doc.text(currentCustomer.name.toUpperCase(), 15, 20);
+            // PDF Generation
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4');
 
-        doc.setFontSize(8);
-        doc.setFont(undefined, 'normal');
-        let yPos = 24;
-        if (currentCustomer.address1) {
-            doc.text(currentCustomer.address1, 15, yPos);
-            yPos += 4;
-        }
-        if (currentCustomer.address2) {
-            doc.text(currentCustomer.address2, 15, yPos);
-            yPos += 4;
-        }
-        if (currentCustomer.city) {
-            doc.text(currentCustomer.city, 15, yPos);
-            yPos += 4;
-        }
-        doc.text(`Mob: ${currentCustomer.mobile}`, 15, yPos);
+            const total = items.reduce((sum, item) => sum + item.amount, 0);
+            const gst = total * 0.03;
+            const netTotal = total + gst;
+            const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
+            const totalMC = items.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
+            const totalPCS = items.length;
+            const date = new Date().toLocaleDateString('en-GB');
+            const quotationNo = `Q${String(quotationCounter).padStart(4, '0')}`;
 
-        // ========== QUOTATION INFO - TOP RIGHT ==========
-        doc.setFontSize(8);
-        doc.setFont(undefined, 'bold');
-        doc.text('EST. No:', 160, 15);
-        doc.setFont(undefined, 'normal');
-        doc.text(quotationNo, 180, 15);
+            // ========== CUSTOMER INFO - TOP LEFT ==========
+            doc.setFontSize(9);
+            doc.setFont(undefined, 'normal');
+            doc.text('To:', 15, 15);
 
-        doc.setFont(undefined, 'bold');
-        doc.text('Date:', 160, 20);
-        doc.setFont(undefined, 'normal');
-        doc.text(date, 180, 20);
+            doc.setFont(undefined, 'bold');
+            doc.setFontSize(10);
+            doc.text(currentCustomer.name.toUpperCase(), 15, 20);
 
-        // ========== ITEMS TABLE ==========
-        const tableStartY = yPos + 8;
+            doc.setFontSize(8);
+            doc.setFont(undefined, 'normal');
+            let yPos = 24;
+            if (currentCustomer.address1) {
+                doc.text(currentCustomer.address1, 15, yPos);
+                yPos += 4;
+            }
+            if (currentCustomer.address2) {
+                doc.text(currentCustomer.address2, 15, yPos);
+                yPos += 4;
+            }
+            if (currentCustomer.city) {
+                doc.text(currentCustomer.city, 15, yPos);
+                yPos += 4;
+            }
+            doc.text(`Mob: ${currentCustomer.mobile}`, 15, yPos);
 
-        const tableData = items.map((item, idx) => {
-            // Calculate correctly
-            const metalValue = (item.weight * item.rate * item.purity) / 100;
-            const mcCharges = item.weight * item.mcRate;
-            const totalAmount = metalValue + mcCharges;
+            // ========== QUOTATION INFO - TOP RIGHT ==========
+            doc.setFontSize(8);
+            doc.setFont(undefined, 'bold');
+            doc.text('EST. No:', 160, 15);
+            doc.setFont(undefined, 'normal');
+            doc.text(quotationNo, 180, 15);
 
-            return [
+            doc.setFont(undefined, 'bold');
+            doc.text('Date:', 160, 20);
+            doc.setFont(undefined, 'normal');
+            doc.text(date, 180, 20);
+
+            // ========== ITEMS TABLE ==========
+            const tableStartY = yPos + 8;
+
+            const tableData = items.map((item, idx) => [
                 idx + 1,
                 item.sku || '-',
                 item.styleCode || '-',
@@ -1907,121 +2122,144 @@
                 '1',
                 item.mcRate.toFixed(2),
                 item.rate.toFixed(0),
-                totalAmount.toFixed(2)
-            ];
-        });
+                item.amount.toFixed(2)
+            ]);
 
-        doc.autoTable({
-            startY: tableStartY,
-            head: [[
-                '#',
-                'SKU',
-                'STYLE CODE',
-                'Short Name',
-                'SIZE',
-                'NET.WT',
-                'AVG.WT',
-                '% Pure',
-                'G.WT',
-                'PCS',
-                'MC/gm',
-                'RATE',
-                'Amount'
-            ]],
-            body: tableData,
-            theme: 'grid',
-            headStyles: {
-                fillColor: [211, 211, 211],
-                textColor: 0,
-                fontSize: 7,
-                fontStyle: 'bold',
-                halign: 'center',
-                valign: 'middle',
-                cellPadding: 1.5
-            },
-            bodyStyles: {
-                fontSize: 7,
-                cellPadding: 1,
-                valign: 'middle'
-            },
-            columnStyles: {
-                0: { cellWidth: 8, halign: 'center' },
-                1: { cellWidth: 20, halign: 'left', fontSize: 6.5 },
-                2: { cellWidth: 16, halign: 'center', fontSize: 6.5 },
-                3: { cellWidth: 38, halign: 'left' },
-                4: { cellWidth: 12, halign: 'center' },
-                5: { cellWidth: 13, halign: 'right' },
-                6: { cellWidth: 13, halign: 'right' },
-                7: { cellWidth: 11, halign: 'center' },
-                8: { cellWidth: 11, halign: 'right' },
-                9: { cellWidth: 9, halign: 'center' },
-                10: { cellWidth: 12, halign: 'right' },
-                11: { cellWidth: 12, halign: 'right' },
-                12: { cellWidth: 16, halign: 'right' }
-            },
-            margin: { left: 15, right: 14 }
-        });
+            doc.autoTable({
+                startY: tableStartY,
+                head: [[
+                    '#',
+                    'SKU',
+                    'STYLE CODE',
+                    'Short Name',
+                    'SIZE',
+                    'NET.WT',
+                    'AVG.WT',
+                    '% Pure',
+                    'G.WT',
+                    'PCS',
+                    'MC/gm',
+                    'RATE',
+                    'Amount'
+                ]],
+                body: tableData,
+                theme: 'grid',
+                headStyles: {
+                    fillColor: [211, 211, 211],
+                    textColor: 0,
+                    fontSize: 7,
+                    fontStyle: 'bold',
+                    halign: 'center',
+                    valign: 'middle',
+                    cellPadding: 1.5
+                },
+                bodyStyles: {
+                    fontSize: 7,
+                    cellPadding: 1,
+                    valign: 'middle'
+                },
+                columnStyles: {
+                    0: { cellWidth: 8, halign: 'center' },
+                    1: { cellWidth: 20, halign: 'left', fontSize: 6.5 },
+                    2: { cellWidth: 16, halign: 'center', fontSize: 6.5 },
+                    3: { cellWidth: 38, halign: 'left' },
+                    4: { cellWidth: 12, halign: 'center' },
+                    5: { cellWidth: 13, halign: 'right' },
+                    6: { cellWidth: 13, halign: 'right' },
+                    7: { cellWidth: 11, halign: 'center' },
+                    8: { cellWidth: 11, halign: 'right' },
+                    9: { cellWidth: 9, halign: 'center' },
+                    10: { cellWidth: 12, halign: 'right' },
+                    11: { cellWidth: 12, halign: 'right' },
+                    12: { cellWidth: 16, halign: 'right' }
+                },
+                margin: { left: 15, right: 14 }
+            });
 
-        // ========== GRAND TOTAL SECTION ==========
-        const finalY = doc.lastAutoTable.finalY + 8;
+            // ========== GRAND TOTAL SECTION ==========
+            const finalY = doc.lastAutoTable.finalY + 8;
 
-        // Draw outer border
-        doc.setDrawColor(0);
-        doc.setLineWidth(0.5);
-        doc.rect(15, finalY, 180, 25);
+            doc.setDrawColor(0);
+            doc.setLineWidth(0.5);
+            doc.rect(15, finalY, 180, 25);
+            doc.line(105, finalY, 105, finalY + 25);
 
-        // Vertical divider
-        doc.line(105, finalY, 105, finalY + 25);
+            // LEFT SIDE
+            doc.setFontSize(8);
+            doc.setFont(undefined, 'bold');
+            doc.text('COUNT:', 18, finalY + 6);
+            doc.setFont(undefined, 'normal');
+            doc.text(totalPCS.toString(), 45, finalY + 6);
 
-        // LEFT SIDE
-        doc.setFontSize(8);
-        doc.setFont(undefined, 'bold');
-        doc.text('COUNT:', 18, finalY + 6);
-        doc.setFont(undefined, 'normal');
-        doc.text(totalPCS.toString(), 45, finalY + 6);
+            doc.setFont(undefined, 'bold');
+            doc.text('Total Weight:', 18, finalY + 12);
+            doc.setFont(undefined, 'normal');
+            doc.text(`${totalWeight.toFixed(2)} gm`, 45, finalY + 12);
 
-        doc.setFont(undefined, 'bold');
-        doc.text('Total Weight:', 18, finalY + 12);
-        doc.setFont(undefined, 'normal');
-        doc.text(`${totalWeight.toFixed(2)} gm`, 45, finalY + 12);
+            doc.setFont(undefined, 'bold');
+            doc.text('MC:', 18, finalY + 18);
+            doc.setFont(undefined, 'normal');
+            doc.text(totalMC.toFixed(2), 45, finalY + 18);
 
-        doc.setFont(undefined, 'bold');
-        doc.text('MC:', 18, finalY + 18);
-        doc.setFont(undefined, 'normal');
-        doc.text(totalMC.toFixed(2), 45, finalY + 18);
+            // RIGHT SIDE
+            doc.setFontSize(9);
+            doc.setFont(undefined, 'bold');
+            doc.text('GRAND TOTAL', 110, finalY + 5);
 
-        // RIGHT SIDE - GRAND TOTAL
-        doc.setFontSize(9);
-        doc.setFont(undefined, 'bold');
-        doc.text('GRAND TOTAL', 110, finalY + 5);
+            doc.setFontSize(8);
+            doc.text('TOTAL:', 110, finalY + 11);
+            doc.setFont(undefined, 'normal');
+            doc.text(total.toFixed(2), 190, finalY + 11, { align: 'right' });
 
-        doc.setFontSize(8);
-        doc.text('TOTAL:', 110, finalY + 11);
-        doc.setFont(undefined, 'normal');
-        doc.text(total.toFixed(2), 190, finalY + 11, { align: 'right' });
+            doc.setFont(undefined, 'bold');
+            doc.text('GST:', 110, finalY + 16);
+            doc.setFont(undefined, 'normal');
+            doc.text(gst.toFixed(2), 190, finalY + 16, { align: 'right' });
 
-        doc.setFont(undefined, 'bold');
-        doc.text('GST:', 110, finalY + 16);
-        doc.setFont(undefined, 'normal');
-        doc.text(gst.toFixed(2), 190, finalY + 16, { align: 'right' });
+            doc.setFont(undefined, 'bold');
+            doc.text('NET TOTAL:', 110, finalY + 21);
+            doc.setFont(undefined, 'bold');
+            doc.text(netTotal.toFixed(2), 190, finalY + 21, { align: 'right' });
 
-        doc.setFont(undefined, 'bold');
-        doc.text('NET TOTAL:', 110, finalY + 21);
-        doc.setFont(undefined, 'bold');
-        doc.text(netTotal.toFixed(2), 190, finalY + 21, { align: 'right' });
+            doc.save(`Quotation_${quotationNo}_${date.replace(/\//g, '-')}.pdf`);
 
-        // Save
-        doc.save(`Quotation_${quotationNo}_${date.replace(/\//g, '-')}.pdf`);
+            quotationCounter++;
+            localStorage.setItem('quotationCounter', quotationCounter);
+            document.getElementById('quotationNo').textContent = `Quotation No: Q${String(quotationCounter).padStart(4, '0')}`;
 
-        quotationCounter++;
-        localStorage.setItem('quotationCounter', quotationCounter);
-        document.getElementById('quotationNo').textContent = `Quotation No: Q${String(quotationCounter).padStart(4, '0')}`;
-
-        closeModals();
-        alert('PDF Quotation generated!');
-    }
+            closeModals();
+            alert('PDF Quotation generated!');
+        }
 
                     function generateQuoteExcel() {
+                            // SAVE QUOTATION TO HISTORY (same as PDF)
+                            const quotationNo = `Q${String(quotationCounter).padStart(4, '0')}`;
+                            const total = items.reduce((sum, item) => sum + item.amount, 0);
+                            const gst = total * 0.03;
+                            const netTotal = total + gst;
+
+                            const quotationRecord = {
+                                id: Date.now(),
+                                quotationNo: quotationNo,
+                                date: new Date().toISOString(),
+                                customer: {
+                                    name: currentCustomer.name,
+                                    address1: currentCustomer.address1,
+                                    address2: currentCustomer.address2,
+                                    city: currentCustomer.city,
+                                    mobile: currentCustomer.mobile
+                                },
+                                items: JSON.parse(JSON.stringify(items)),
+                                total: total,
+                                gst: gst,
+                                netTotal: netTotal,
+                                rateSlab: currentRateSlab
+                            };
+
+                            savedQuotations.unshift(quotationRecord);
+                            localStorage.setItem('savedQuotations', JSON.stringify(savedQuotations));
+
+                            // EXCEL GENERATION
                             const total = items.reduce((sum, item) => sum + item.amount, 0);
                             const gst = total * 0.03;
                             const netTotal = total + gst;
@@ -2133,33 +2371,39 @@
                 }
 
                 function closeModals() {
-                    document.getElementById('modalOverlay').classList.add('hidden');
-                    document.getElementById('modalOverlay').classList.remove('flex');
-                    document.getElementById('ratesModal').classList.add('hidden');
-                    document.getElementById('addProductModal').classList.add('hidden');
-                    document.getElementById('addCustomerModal').classList.add('hidden');
-                    document.getElementById('bulkUploadModal').classList.add('hidden');
-                    document.getElementById('bulkUploadCustomerModal').classList.add('hidden');
-                    document.getElementById('quotationFormatModal').classList.add('hidden');
-                    document.getElementById('stockReportModal').classList.add('hidden');
-                    document.getElementById('rolUploadModal').classList.add('hidden');
-                }
+                        document.getElementById('modalOverlay').classList.add('hidden');
+                        document.getElementById('modalOverlay').classList.remove('flex');
+                        document.getElementById('ratesModal').classList.add('hidden');
+                        document.getElementById('addProductModal').classList.add('hidden');
+                        document.getElementById('addCustomerModal').classList.add('hidden');
+                        document.getElementById('bulkUploadModal').classList.add('hidden');
+                        document.getElementById('bulkUploadCustomerModal').classList.add('hidden');
+                        document.getElementById('quotationFormatModal').classList.add('hidden');
+                        document.getElementById('stockReportModal').classList.add('hidden');
+                        document.getElementById('rolUploadModal').classList.add('hidden');
+                        document.getElementById('viewQuotationModal').classList.add('hidden');
+                    }
 
                 // ========== ROL MANAGEMENT FUNCTIONS ==========
 
                     function initializeROL() {
-                        // Populate style code filter dropdown
-                        const styleCodeFilter = document.getElementById('rolStyleCodeFilter');
-                        styleCodeFilter.innerHTML = '<option value="all">All Style Codes</option>';
+                            // Populate style code filter dropdown
+                            const styleCodeFilter = document.getElementById('rolStyleCodeFilter');
+                            if (!styleCodeFilter) return;
 
-                        const uniqueStyleCodes = [...new Set(products.map(p => p.styleCode).filter(s => s))];
-                        uniqueStyleCodes.sort().forEach(styleCode => {
-                            const option = document.createElement('option');
-                            option.value = styleCode;
-                            option.textContent = styleCode;
-                            styleCodeFilter.appendChild(option);
-                        });
-                    }
+                            styleCodeFilter.innerHTML = '<option value="all">All Style Codes</option>';
+
+                            const uniqueStyleCodes = [...new Set(products.map(p => p.styleCode).filter(s => s && s.trim() !== ''))];
+                            uniqueStyleCodes.sort().forEach(styleCode => {
+                                const option = document.createElement('option');
+                                option.value = styleCode;
+                                option.textContent = styleCode;
+                                styleCodeFilter.appendChild(option);
+                            });
+
+                            // Initialize display
+                            updateROLDisplay();
+                        }
 
                     function updateROLDisplay() {
                         const styleCodeFilter = document.getElementById('rolStyleCodeFilter').value;
@@ -2422,6 +2666,406 @@
                             XLSX.writeFile(wb, `ROL_Report_${date.replace(/\//g, '-')}.xlsx`);
                             alert('ROL Report downloaded successfully!');
                         }
+
+                        // ========== QUOTATION HISTORY FUNCTIONS ==========
+
+                            function loadQuotationsHistory() {
+                                // Populate customer filter
+                                const customerFilter = document.getElementById('quotationCustomerFilter');
+                                customerFilter.innerHTML = '<option value="all">All Customers</option>';
+
+                                const uniqueCustomers = [...new Set(savedQuotations.map(q => q.customer.name))];
+                                uniqueCustomers.forEach(name => {
+                                    const option = document.createElement('option');
+                                    option.value = name;
+                                    option.textContent = name;
+                                    customerFilter.appendChild(option);
+                                });
+
+                                // Update statistics and display
+                                updateQuotationStatistics();
+                                displayQuotations(savedQuotations);
+                            }
+
+                            function updateQuotationStatistics() {
+                                const today = new Date();
+                                today.setHours(0, 0, 0, 0);
+
+                                const thisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+                                const todayQuotations = savedQuotations.filter(q => {
+                                    const qDate = new Date(q.date);
+                                    qDate.setHours(0, 0, 0, 0);
+                                    return qDate.getTime() === today.getTime();
+                                });
+
+                                const monthQuotations = savedQuotations.filter(q => {
+                                    const qDate = new Date(q.date);
+                                    return qDate >= thisMonth;
+                                });
+
+                                const totalValue = savedQuotations.reduce((sum, q) => sum + q.netTotal, 0);
+
+                                document.getElementById('quotationTotalCount').textContent = savedQuotations.length;
+                                document.getElementById('quotationTotalValue').textContent = `₹${totalValue.toFixed(0)}`;
+                                document.getElementById('quotationMonthCount').textContent = monthQuotations.length;
+                                document.getElementById('quotationTodayCount').textContent = todayQuotations.length;
+                            }
+
+                            function displayQuotations(quotations) {
+                                const tbody = document.getElementById('quotationsTableBody');
+                                const emptyState = document.getElementById('quotationsEmptyState');
+
+                                tbody.innerHTML = '';
+
+                                if (quotations.length === 0) {
+                                    emptyState.classList.remove('hidden');
+                                    return;
+                                }
+
+                                emptyState.classList.add('hidden');
+
+                                quotations.forEach(quotation => {
+                                    const row = document.createElement('tr');
+                                    row.className = 'border-b hover:bg-gray-50';
+
+                                    const date = new Date(quotation.date).toLocaleDateString('en-GB');
+                                    const itemCount = quotation.items.length;
+
+                                    row.innerHTML = `
+            <td class="px-4 py-3 font-mono text-sm font-bold text-blue-600">${quotation.quotationNo}</td>
+            <td class="px-4 py-3 text-sm">${date}</td>
+            <td class="px-4 py-3 font-medium">${quotation.customer.name}</td>
+            <td class="px-4 py-3 text-center">${itemCount}</td>
+            <td class="px-4 py-3 text-right">₹${quotation.total.toFixed(2)}</td>
+            <td class="px-4 py-3 text-right">₹${quotation.gst.toFixed(2)}</td>
+            <td class="px-4 py-3 text-right font-bold">₹${quotation.netTotal.toFixed(2)}</td>
+            <td class="px-4 py-3 text-center">
+                <button onclick="viewQuotationDetails(${quotation.id})" 
+                    class="text-blue-600 hover:text-blue-800 font-medium mr-2" title="View">👁️</button>
+                <button onclick="deleteQuotation(${quotation.id})" 
+                    class="text-red-600 hover:text-red-800 font-medium" title="Delete">🗑️</button>
+            </td>
+        `;
+
+                                    tbody.appendChild(row);
+                                });
+                            }
+
+                            function filterQuotations() {
+                                const searchTerm = document.getElementById('quotationSearch').value.toLowerCase();
+                                const customerFilter = document.getElementById('quotationCustomerFilter').value;
+                                const dateFilter = document.getElementById('quotationDateFilter').value;
+
+                                let filtered = savedQuotations;
+
+                                // Search filter
+                                if (searchTerm) {
+                                    filtered = filtered.filter(q =>
+                                        q.quotationNo.toLowerCase().includes(searchTerm) ||
+                                        q.customer.name.toLowerCase().includes(searchTerm) ||
+                                        q.customer.mobile.includes(searchTerm)
+                                    );
+                                }
+
+                                // Customer filter
+                                if (customerFilter !== 'all') {
+                                    filtered = filtered.filter(q => q.customer.name === customerFilter);
+                                }
+
+                                // Date filter
+                                if (dateFilter !== 'all') {
+                                    const today = new Date();
+                                    today.setHours(0, 0, 0, 0);
+
+                                    filtered = filtered.filter(q => {
+                                        const qDate = new Date(q.date);
+                                        qDate.setHours(0, 0, 0, 0);
+
+                                        if (dateFilter === 'today') {
+                                            return qDate.getTime() === today.getTime();
+                                        } else if (dateFilter === 'week') {
+                                            const weekAgo = new Date(today);
+                                            weekAgo.setDate(weekAgo.getDate() - 7);
+                                            return qDate >= weekAgo;
+                                        } else if (dateFilter === 'month') {
+                                            const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+                                            return qDate >= monthStart;
+                                        }
+                                        return true;
+                                    });
+                                }
+
+                                displayQuotations(filtered);
+                            }
+
+                            function viewQuotationDetails(id) {
+                                const quotation = savedQuotations.find(q => q.id === id);
+                                if (!quotation) return;
+
+                                currentViewingQuotation = quotation;
+
+                                document.getElementById('viewQuotationTitle').textContent = `Quotation ${quotation.quotationNo}`;
+                                document.getElementById('viewQuotCustomer').textContent = quotation.customer.name;
+                                document.getElementById('viewQuotDate').textContent = new Date(quotation.date).toLocaleDateString('en-GB');
+
+                                // Items
+                                const tbody = document.getElementById('viewQuotItemsBody');
+                                tbody.innerHTML = '';
+                                quotation.items.forEach((item, idx) => {
+                                    const row = document.createElement('tr');
+                                    row.className = 'border-b';
+                                    row.innerHTML = `
+            <td class="px-2 py-2">${idx + 1}</td>
+            <td class="px-2 py-2">${item.name}</td>
+            <td class="px-2 py-2 text-right">${item.weight.toFixed(2)}g</td>
+            <td class="px-2 py-2 text-right">₹${item.rate}</td>
+            <td class="px-2 py-2 text-right">₹${item.mcRate}</td>
+            <td class="px-2 py-2 text-right font-semibold">₹${item.amount.toFixed(2)}</td>
+        `;
+                                    tbody.appendChild(row);
+                                });
+
+                                // Totals
+                                document.getElementById('viewQuotTotal').textContent = `₹${quotation.total.toFixed(2)}`;
+                                document.getElementById('viewQuotGST').textContent = `₹${quotation.gst.toFixed(2)}`;
+                                document.getElementById('viewQuotNetTotal').textContent = `₹${quotation.netTotal.toFixed(2)}`;
+
+                                // Show modal
+                                document.getElementById('modalOverlay').classList.remove('hidden');
+                                document.getElementById('modalOverlay').classList.add('flex');
+                                document.getElementById('viewQuotationModal').classList.remove('hidden');
+                            }
+
+                            function deleteQuotation(id) {
+                                if (!confirm('Are you sure you want to delete this quotation?')) return;
+
+                                savedQuotations = savedQuotations.filter(q => q.id !== id);
+                                localStorage.setItem('savedQuotations', JSON.stringify(savedQuotations));
+
+                                loadQuotationsHistory();
+                                alert('Quotation deleted successfully!');
+                            }
+
+                            function downloadAllQuotations() {
+                                if (savedQuotations.length === 0) {
+                                    alert('No quotations to export!');
+                                    return;
+                                }
+
+                                const data = savedQuotations.map(q => ({
+                                    'Quote No': q.quotationNo,
+                                    'Date': new Date(q.date).toLocaleDateString('en-GB'),
+                                    'Customer': q.customer.name,
+                                    'Mobile': q.customer.mobile,
+                                    'Items': q.items.length,
+                                    'Total': q.total.toFixed(2),
+                                    'GST': q.gst.toFixed(2),
+                                    'Net Total': q.netTotal.toFixed(2)
+                                }));
+
+                                const ws = XLSX.utils.json_to_sheet(data);
+                                const wb = XLSX.utils.book_new();
+                                XLSX.utils.book_append_sheet(wb, ws, 'Quotations');
+                                XLSX.writeFile(wb, `All_Quotations_${new Date().toISOString().split('T')[0]}.xlsx`);
+                                alert('All quotations exported successfully!');
+                            }
+
+                            function clearOldQuotations() {
+                                const months = prompt('Delete quotations older than how many months? (Enter number)');
+                                if (!months || isNaN(months)) return;
+
+                                const cutoffDate = new Date();
+                                cutoffDate.setMonth(cutoffDate.getMonth() - parseInt(months));
+
+                                const before = savedQuotations.length;
+                                savedQuotations = savedQuotations.filter(q => new Date(q.date) >= cutoffDate);
+                                const after = savedQuotations.length;
+
+                                localStorage.setItem('savedQuotations', JSON.stringify(savedQuotations));
+                                loadQuotationsHistory();
+
+                                alert(`Deleted ${before - after} old quotations`);
+                            }
+
+                            function reprintQuotationPDF() {
+                                if (!currentViewingQuotation) return;
+
+                                const q = currentViewingQuotation;
+                                const { jsPDF } = window.jspdf;
+                                const doc = new jsPDF('p', 'mm', 'a4');
+
+                                const date = new Date(q.date).toLocaleDateString('en-GB');
+
+                                // Customer info
+                                doc.setFontSize(9);
+                                doc.setFont(undefined, 'normal');
+                                doc.text('To:', 15, 15);
+                                doc.setFont(undefined, 'bold');
+                                doc.setFontSize(10);
+                                doc.text(q.customer.name.toUpperCase(), 15, 20);
+
+                                doc.setFontSize(8);
+                                doc.setFont(undefined, 'normal');
+                                let yPos = 24;
+                                if (q.customer.address1) {
+                                    doc.text(q.customer.address1, 15, yPos);
+                                    yPos += 4;
+                                }
+                                if (q.customer.address2) {
+                                    doc.text(q.customer.address2, 15, yPos);
+                                    yPos += 4;
+                                }
+                                if (q.customer.city) {
+                                    doc.text(q.customer.city, 15, yPos);
+                                    yPos += 4;
+                                }
+                                doc.text(`Mob: ${q.customer.mobile}`, 15, yPos);
+
+                                // Quote info
+                                doc.setFontSize(8);
+                                doc.setFont(undefined, 'bold');
+                                doc.text('EST. No:', 160, 15);
+                                doc.setFont(undefined, 'normal');
+                                doc.text(q.quotationNo, 180, 15);
+                                doc.setFont(undefined, 'bold');
+                                doc.text('Date:', 160, 20);
+                                doc.setFont(undefined, 'normal');
+                                doc.text(date, 180, 20);
+
+                                // Items table
+                                const tableStartY = yPos + 8;
+                                const tableData = q.items.map((item, idx) => [
+                                    idx + 1,
+                                    item.sku || '-',
+                                    item.styleCode || '-',
+                                    item.name,
+                                    item.size || '-',
+                                    item.weight.toFixed(2),
+                                    item.weight.toFixed(2),
+                                    item.purity.toFixed(0),
+                                    item.weight.toFixed(2),
+                                    '1',
+                                    item.mcRate.toFixed(2),
+                                    item.rate.toFixed(0),
+                                    item.amount.toFixed(2)
+                                ]);
+
+                                doc.autoTable({
+                                    startY: tableStartY,
+                                    head: [['#', 'SKU', 'STYLE CODE', 'Short Name', 'SIZE', 'NET.WT', 'AVG.WT', '% Pure', 'G.WT', 'PCS', 'MC/gm', 'RATE', 'Amount']],
+                                    body: tableData,
+                                    theme: 'grid',
+                                    headStyles: { fillColor: [211, 211, 211], textColor: 0, fontSize: 7, fontStyle: 'bold', halign: 'center', cellPadding: 1.5 },
+                                    bodyStyles: { fontSize: 7, cellPadding: 1 },
+                                    columnStyles: {
+                                        0: { cellWidth: 8, halign: 'center' },
+                                        1: { cellWidth: 20, halign: 'left', fontSize: 6.5 },
+                                        2: { cellWidth: 16, halign: 'center', fontSize: 6.5 },
+                                        3: { cellWidth: 38, halign: 'left' },
+                                        4: { cellWidth: 12, halign: 'center' },
+                                        5: { cellWidth: 13, halign: 'right' },
+                                        6: { cellWidth: 13, halign: 'right' },
+                                        7: { cellWidth: 11, halign: 'center' },
+                                        8: { cellWidth: 11, halign: 'right' },
+                                        9: { cellWidth: 9, halign: 'center' },
+                                        10: { cellWidth: 12, halign: 'right' },
+                                        11: { cellWidth: 12, halign: 'right' },
+                                        12: { cellWidth: 16, halign: 'right' }
+                                    },
+                                    margin: { left: 15, right: 14 }
+                                });
+
+                                // Totals section
+                                const finalY = doc.lastAutoTable.finalY + 8;
+                                const totalWeight = q.items.reduce((sum, item) => sum + item.weight, 0);
+                                const totalMC = q.items.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
+
+                                doc.setDrawColor(0);
+                                doc.setLineWidth(0.5);
+                                doc.rect(15, finalY, 180, 25);
+                                doc.line(105, finalY, 105, finalY + 25);
+
+                                doc.setFontSize(8);
+                                doc.setFont(undefined, 'bold');
+                                doc.text('COUNT:', 18, finalY + 6);
+                                doc.setFont(undefined, 'normal');
+                                doc.text(q.items.length.toString(), 45, finalY + 6);
+                                doc.setFont(undefined, 'bold');
+                                doc.text('Total Weight:', 18, finalY + 12);
+                                doc.setFont(undefined, 'normal');
+                                doc.text(`${totalWeight.toFixed(2)} gm`, 45, finalY + 12);
+                                doc.setFont(undefined, 'bold');
+                                doc.text('MC:', 18, finalY + 18);
+                                doc.setFont(undefined, 'normal');
+                                doc.text(totalMC.toFixed(2), 45, finalY + 18);
+
+                                doc.setFontSize(9);
+                                doc.setFont(undefined, 'bold');
+                                doc.text('GRAND TOTAL', 110, finalY + 5);
+                                doc.setFontSize(8);
+                                doc.text('TOTAL:', 110, finalY + 11);
+                                doc.setFont(undefined, 'normal');
+                                doc.text(q.total.toFixed(2), 190, finalY + 11, { align: 'right' });
+                                doc.setFont(undefined, 'bold');
+                                doc.text('GST:', 110, finalY + 16);
+                                doc.setFont(undefined, 'normal');
+                                doc.text(q.gst.toFixed(2), 190, finalY + 16, { align: 'right' });
+                                doc.setFont(undefined, 'bold');
+                                doc.text('NET TOTAL:', 110, finalY + 21);
+                                doc.text(q.netTotal.toFixed(2), 190, finalY + 21, { align: 'right' });
+
+                                doc.save(`Quotation_${q.quotationNo}_REPRINT.pdf`);
+                                alert('Quotation PDF downloaded!');
+                            }
+
+                            function reprintQuotationExcel() {
+                                if (!currentViewingQuotation) return;
+
+                                const q = currentViewingQuotation;
+                                const date = new Date(q.date).toLocaleDateString('en-GB');
+                                const wb = XLSX.utils.book_new();
+
+                                const headerData = [
+                                    ['To:', '', '', '', '', '', 'EST. No:', q.quotationNo],
+                                    [q.customer.name.toUpperCase(), '', '', '', '', '', 'Date:', date],
+                                    [q.customer.address1, '', '', '', '', '', '', ''],
+                                    [q.customer.address2, '', '', '', '', '', '', ''],
+                                    [q.customer.city, '', '', '', '', '', '', ''],
+                                    [`Mob: ${q.customer.mobile}`, '', '', '', '', '', '', ''],
+                                    ['']
+                                ];
+
+                                const itemsHeader = [['#', 'SKU', 'STYLE CODE', 'Short Name', 'SIZE', 'NET.WT', 'AVG.WT', '% Pure', 'G.WT', 'PCS', 'MC/gm', 'RATE', 'Amount']];
+                                const itemsData = q.items.map((item, idx) => [
+                                    idx + 1, item.sku || '-', item.styleCode || '-', item.name, item.size || '-',
+                                    item.weight.toFixed(2), item.weight.toFixed(2), item.purity.toFixed(0),
+                                    item.weight.toFixed(2), 1, item.mcRate.toFixed(2), item.rate.toFixed(0), item.amount.toFixed(2)
+                                ]);
+
+                                const totalWeight = q.items.reduce((sum, item) => sum + item.weight, 0);
+                                const totalMC = q.items.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
+
+                                const grandTotalData = [
+                                    [''],
+                                    ['COUNT:', q.items.length, '', '', '', '', '', 'GRAND TOTAL'],
+                                    ['Total Weight:', `${totalWeight.toFixed(2)} gm`, '', '', '', '', '', 'TOTAL:', q.total.toFixed(2)],
+                                    ['MC:', totalMC.toFixed(2), '', '', '', '', '', 'GST:', q.gst.toFixed(2)],
+                                    ['', '', '', '', '', '', '', 'NET TOTAL:', q.netTotal.toFixed(2)]
+                                ];
+
+                                const allData = [...headerData, ...itemsHeader, ...itemsData, ...grandTotalData];
+                                const ws = XLSX.utils.aoa_to_sheet(allData);
+                                ws['!cols'] = [
+                                    { wch: 5 }, { wch: 20 }, { wch: 15 }, { wch: 35 }, { wch: 10 },
+                                    { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 8 },
+                                    { wch: 12 }, { wch: 12 }, { wch: 15 }
+                                ];
+
+                                XLSX.utils.book_append_sheet(wb, ws, 'Quotation');
+                                XLSX.writeFile(wb, `Quotation_${q.quotationNo}_REPRINT.xlsx`);
+                                alert('Quotation Excel downloaded!');
+                            }
 
             </script>
     </body>
