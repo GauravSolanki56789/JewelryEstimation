@@ -31,6 +31,8 @@
                             Customers</button>
                         <button onclick="showTab('rol')" id="btnROL"
                             class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">📊 ROL</button>
+                        <button onclick="showTab('salesbill')" id="btnSalesBill"
+                            class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">💰Sales Bill</button>
                         <button onclick="showTab('quotations')" id="btnQuotations"
                             class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">📜
                             Quotations</button>
@@ -441,6 +443,268 @@
                 </div>
             </div>
         </div>
+
+        <!-- Sales Bill Tab -->
+        <div id="salesbillTab" class="space-y-6 hidden">
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold text-gray-800">Sales Bill - Customer Details</h3>
+                    <button onclick="showNewCustomerModal()"
+                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">➕ New
+                        Customer</button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Customer</label>
+                        <select id="billCustomerSelect" onchange="loadBillCustomerDetails()"
+                            class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500">
+                            <option value="">-- Select Customer --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Mobile Number</label>
+                        <input type="text" id="billCustomerMobile" readonly
+                            class="w-full px-4 py-2 bg-gray-100 border rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Rate Slab *</label>
+                        <select id="billRateSlab" onchange="updateBillRateSlabInfo()"
+                            class="w-full px-4 py-2 border-2 border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-semibold">
+                            <option value="R">R</option>
+                            <option value="R1">R1</option>
+                            <option value="R2">R2</option>
+                            <option value="R3">R3</option>
+                            <option value="R4">R4</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="billCustomerDetailsDisplay" class="mt-4 hidden">
+                    <div class="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="font-semibold text-gray-800 text-lg" id="billCustName"></p>
+                                <p class="text-sm text-gray-600" id="billCustAddress"></p>
+                            </div>
+                            <div class="bg-green-600 text-white px-4 py-2 rounded-lg text-center">
+                                <p class="text-xs">Rate Slab</p>
+                                <p class="text-xl font-bold" id="billRateSlabDisplay">R</p>
+                                <p class="text-xs" id="billRateSlabDesc">Standard Rate</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        
+            <!-- Barcode Scanner for Bill -->
+            <div class="bg-gradient-to-r from-green-50 to-teal-50 p-6 rounded-xl border-2 border-green-200">
+                <div class="flex items-center gap-3 mb-3">
+                    <span class="text-2xl">📷</span>
+                    <h2 class="text-xl font-semibold text-gray-800">Barcode Scanner</h2>
+                    <span class="ml-auto text-sm text-gray-600 bg-white px-3 py-1 rounded-full">Sales Bill Mode</span>
+                </div>
+                <input id="billBarcodeInput" type="text" placeholder="Scan barcode or type and press Enter..."
+                    class="w-full px-4 py-3 border-2 border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 text-lg"
+                    autofocus>
+                <p class="text-sm text-gray-600 mt-2">🔍 Scanner ready - Scan product barcode for billing</p>
+            </div>
+        
+            <!-- Current Rates Display -->
+            <div class="bg-amber-50 p-4 rounded-xl border border-amber-200">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="font-semibold text-gray-800">Current Rates</h3>
+                    <button onclick="showRatesModal()"
+                        class="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-medium">Update
+                        Rates</button>
+                </div>
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="bg-white p-3 rounded-lg shadow">
+                        <p class="text-xs text-gray-500">Gold</p>
+                        <p class="text-lg font-bold text-yellow-600" id="billGoldRate">₹7500/gm</p>
+                    </div>
+                    <div class="bg-white p-3 rounded-lg shadow">
+                        <p class="text-xs text-gray-500">Silver</p>
+                        <p class="text-lg font-bold text-gray-600" id="billSilverRate">₹156/gm</p>
+                    </div>
+                    <div class="bg-white p-3 rounded-lg shadow">
+                        <p class="text-xs text-gray-500">Platinum</p>
+                        <p class="text-lg font-bold text-gray-800" id="billPlatinumRate">₹3500/gm</p>
+                    </div>
+                </div>
+            </div>
+        
+            <!-- Bill Item Entry -->
+            <div class="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">Item Details</h3>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <input type="text" id="billItemSku" placeholder="SKU" class="px-3 py-2 border rounded-lg">
+                    <input type="text" id="billItemStyleCode" placeholder="Style Code" class="px-3 py-2 border rounded-lg">
+                    <input type="text" id="billItemName" placeholder="Item Name" class="col-span-2 px-3 py-2 border rounded-lg">
+                    <input type="text" id="billItemSize" placeholder="Size" class="px-3 py-2 border rounded-lg">
+                    <input type="number" step="0.01" id="billItemWeight" placeholder="Weight (gm)"
+                        class="px-3 py-2 border rounded-lg">
+                    <input type="number" step="0.1" id="billItemPurity" placeholder="Purity %" value="100"
+                        class="px-3 py-2 border rounded-lg">
+                    <input type="number" step="0.01" id="billItemRate" placeholder="Rate/gm"
+                        class="px-3 py-2 border rounded-lg">
+                    <input type="number" step="0.01" id="billItemMcRate" placeholder="MC Rate/gm"
+                        class="px-3 py-2 border rounded-lg">
+                    <input type="hidden" id="billItemMetalType">
+                    <div class="col-span-2">
+                        <div class="px-3 py-2 bg-green-50 border-2 border-green-300 rounded-lg font-bold text-green-800 text-lg"
+                            id="billItemAmount">₹0.00</div>
+                    </div>
+                    <button onclick="addBillItem()"
+                        class="col-span-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">➕ Add
+                        Item</button>
+                </div>
+            </div>
+        
+            <!-- Bill Items Table -->
+            <div id="billItemsTableContainer" class="bg-white rounded-xl border shadow-lg hidden">
+                <div class="bg-gray-100 px-6 py-3 border-b">
+                    <h3 class="text-lg font-semibold text-gray-800">Bill Items</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">#</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Item</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500">Wt(gm)</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500">Rate</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500">MC</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500">Amount</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="billItemsTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        
+            <!-- Bill Summary -->
+            <div class="bg-gradient-to-br from-green-100 to-teal-100 p-6 rounded-xl border-2 border-green-300">
+                <div class="space-y-3">
+                    <div class="flex justify-between text-lg">
+                        <span class="font-medium">TOTAL:</span>
+                        <span class="font-bold" id="billSummaryTotal">₹0.00</span>
+                    </div>
+                    <div class="flex justify-between text-lg">
+                        <span class="font-medium">GST (3%):</span>
+                        <span class="font-bold" id="billSummaryGst">₹0.00</span>
+                    </div>
+                    <div class="border-t-2 border-green-400 pt-3">
+                        <div class="flex justify-between text-2xl">
+                            <span class="font-bold">NET TOTAL:</span>
+                            <span class="font-bold text-green-700" id="billSummaryNetTotal">₹0.00</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        
+            <!-- Bill Actions -->
+            <div class="grid grid-cols-2 gap-4">
+                <button onclick="generateSalesBill()"
+                    class="px-6 py-4 bg-green-600 text-white rounded-xl hover:bg-green-700 font-bold text-lg shadow-lg">💰
+                    Generate Bill</button>
+                <button onclick="clearBillAll()"
+                    class="px-6 py-4 bg-gray-600 text-white rounded-xl hover:bg-gray-700 font-bold text-lg shadow-lg">🗑️ Clear
+                    All</button>
+            </div>
+        </div>
+
+        <!-- Bill History Tab -->
+        <div id="billHistoryTab" class="space-y-6 hidden">
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+                <div class="flex justify-between items-center mb-6 flex-wrap gap-3">
+                    <h2 class="text-2xl font-bold text-gray-800">💰 Sales Bill History</h2>
+                    <div class="flex gap-2 flex-wrap">
+                        <button onclick="downloadAllBills()"
+                            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-sm">📥
+                            Export All</button>
+                        <button onclick="clearOldBills()"
+                            class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold text-sm">🗑️
+                            Clear Old</button>
+                    </div>
+                </div>
+        
+                <!-- Search and Filter -->
+                <div class="bg-gradient-to-r from-green-50 to-teal-50 p-4 rounded-xl border-2 border-green-200 mb-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Search</label>
+                            <input type="text" id="billSearch" onkeyup="filterBills()"
+                                placeholder="🔍 Search by Bill No, Customer..."
+                                class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Customer</label>
+                            <select id="billCustomerFilter" onchange="filterBills()"
+                                class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                                <option value="all">All Customers</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Date</label>
+                            <select id="billDateFilter" onchange="filterBills()"
+                                class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                                <option value="all">All Dates</option>
+                                <option value="today">Today</option>
+                                <option value="week">This Week</option>
+                                <option value="month">This Month</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+        
+                <!-- Statistics -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-gradient-to-br from-green-500 to-green-600 text-white p-4 rounded-lg shadow">
+                        <p class="text-sm opacity-90">Total Bills</p>
+                        <p class="text-3xl font-bold" id="billTotalCount">0</p>
+                    </div>
+                    <div class="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-4 rounded-lg shadow">
+                        <p class="text-sm opacity-90">Total Revenue</p>
+                        <p class="text-2xl font-bold" id="billTotalValue">₹0</p>
+                    </div>
+                    <div class="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-4 rounded-lg shadow">
+                        <p class="text-sm opacity-90">This Month</p>
+                        <p class="text-3xl font-bold" id="billMonthCount">0</p>
+                    </div>
+                    <div class="bg-gradient-to-br from-orange-500 to-orange-600 text-white p-4 rounded-lg shadow">
+                        <p class="text-sm opacity-90">Today</p>
+                        <p class="text-3xl font-bold" id="billTodayCount">0</p>
+                    </div>
+                </div>
+        
+                <!-- Bills Table -->
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-sm font-semibold">Bill No</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold">Date</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold">Customer</th>
+                                <th class="px-4 py-3 text-center text-sm font-semibold">Items</th>
+                                <th class="px-4 py-3 text-right text-sm font-semibold">Amount</th>
+                                <th class="px-4 py-3 text-right text-sm font-semibold">GST</th>
+                                <th class="px-4 py-3 text-right text-sm font-semibold">Net Total</th>
+                                <th class="px-4 py-3 text-center text-sm font-semibold">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="billsTableBody"></tbody>
+                    </table>
+                </div>
+        
+                <!-- Empty State -->
+                <div id="billsEmptyState" class="text-center py-12 hidden">
+                    <div class="text-6xl mb-4">💰</div>
+                    <h3 class="text-xl font-bold text-gray-700 mb-2">No Bills Yet</h3>
+                    <p class="text-gray-500">Generate your first sales bill from the Sales Bill tab</p>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <!-- Modal Overlay -->
@@ -866,6 +1130,122 @@
         </div>
     </div>
 
+    <!-- Bill Format Selection Modal -->
+    <div id="billFormatModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full pointer-events-auto"
+            onclick="event.stopPropagation()">
+            <h3 class="text-xl font-bold mb-4">💰 Choose Bill Format</h3>
+            <div class="space-y-3">
+                <button onclick="generateSalesBillPDF()"
+                    class="w-full px-6 py-4 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold text-lg flex items-center justify-center gap-2">
+                    <span>📕</span> Download as PDF
+                </button>
+                <button onclick="generateSalesBillExcel()"
+                    class="w-full px-6 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-lg flex items-center justify-center gap-2">
+                    <span>📗</span> Download as Excel
+                </button>
+                <button onclick="closeModals()"
+                    class="w-full px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- View Bill Details Modal -->
+    <div id="viewBillModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-4xl w-full pointer-events-auto max-h-[90vh] overflow-y-auto"
+            onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold" id="viewBillTitle">Bill Details</h3>
+                <button onclick="closeModals()" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+    
+            <!-- Customer Info -->
+            <div class="bg-green-50 p-4 rounded-lg mb-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-sm text-gray-600">Customer</p>
+                        <p class="font-bold" id="viewBillCustomer"></p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">Date</p>
+                        <p class="font-bold" id="viewBillDate"></p>
+                    </div>
+                </div>
+            </div>
+    
+            <!-- Items Table -->
+            <div class="overflow-x-auto mb-4">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-2 py-2 text-left">#</th>
+                            <th class="px-2 py-2 text-left">Item</th>
+                            <th class="px-2 py-2 text-right">Weight</th>
+                            <th class="px-2 py-2 text-right">Rate</th>
+                            <th class="px-2 py-2 text-right">MC</th>
+                            <th class="px-2 py-2 text-right">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody id="viewBillItemsBody"></tbody>
+                </table>
+            </div>
+    
+            <!-- Totals -->
+            <div class="bg-gradient-to-br from-green-100 to-teal-100 p-4 rounded-lg">
+                <div class="flex justify-between mb-2">
+                    <span class="font-medium">Total:</span>
+                    <span class="font-bold" id="viewBillTotal"></span>
+                </div>
+                <div class="flex justify-between mb-2">
+                    <span class="font-medium">GST (3%):</span>
+                    <span class="font-bold" id="viewBillGST"></span>
+                </div>
+                <div class="flex justify-between text-lg border-t-2 border-green-400 pt-2">
+                    <span class="font-bold">Net Total:</span>
+                    <span class="font-bold text-green-700" id="viewBillNetTotal"></span>
+                </div>
+            </div>
+    
+            <!-- Actions -->
+            <div class="flex gap-3 mt-4">
+                <button onclick="reprintBillPDF()"
+                    class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold">
+                    📕 Download PDF
+                </button>
+                <button onclick="reprintBillExcel()"
+                    class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">
+                    📗 Download Excel
+                </button>
+                <button onclick="closeModals()" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Convert Quotation to Bill Modal -->
+    <div id="convertQuotModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full pointer-events-auto"
+            onclick="event.stopPropagation()">
+            <h3 class="text-xl font-bold mb-4">🔄 Convert to Sales Bill</h3>
+            <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
+                <p class="text-sm text-blue-800">This will create a new sales bill from this quotation.</p>
+            </div>
+            <div class="space-y-3">
+                <button onclick="confirmConvertToBill()"
+                    class="w-full px-6 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-lg">
+                    ✅ Convert to Bill
+                </button>
+                <button onclick="closeModals()"
+                    class="w-full px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let items = [];
         let rates = JSON.parse(localStorage.getItem('rates') || '{"gold":7500,"silver":156,"platinum":3500}');
@@ -888,6 +1268,14 @@
 
         let savedQuotations = JSON.parse(localStorage.getItem('savedQuotations') || '[]');
         let currentViewingQuotation = null;
+        // New variables added for sales bill
+        let billItems = [];
+        let currentBillCustomer = null;
+        let billCounter = parseInt(localStorage.getItem('billCounter') || '1');
+        let currentBillRateSlab = 'R';
+        let savedBills = JSON.parse(localStorage.getItem('savedBills') || '[]');
+        let currentViewingBill = null;
+        let quotationToConvert = null;
 
         if (products.length === 0) {
             products = [
@@ -902,7 +1290,8 @@
                 updateRatesDisplay();
                 updateCustomerDropdown();
                 updateProductsTable();
-                updateRateSlabInfo(); // ADD THIS LINE
+                updateRateSlabInfo(); 
+                updateBillCustomerDropdown();
 
                 // Billing barcode scanner
                 document.getElementById('barcodeInput').addEventListener('keypress', function (e) {
@@ -911,6 +1300,12 @@
                         this.value = '';
                     }
                 });
+                document.getElementById('billBarcodeInput').addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') {
+                    handleBillBarcodeScan(this.value.trim());
+                    this.value = '';
+                }
+            });
 
                 // Product Management barcode scanner
                 const productBarcodeInput = document.getElementById('productBarcodeInput');
@@ -927,22 +1322,32 @@
                     document.getElementById(id).addEventListener('input', updateItemAmount);
                 });
 
-                // Set initial focus on barcode scanner
+                // ADDED BILL ITEM LISTENERS
+            ['billItemWeight', 'billItemRate', 'billItemMcRate', 'billItemPurity'].forEach(id => {
+                document.getElementById(id).addEventListener('input', updateBillItemAmount);
+            });    
+
+                // Initial focus on barcode scanner
                 document.getElementById('barcodeInput').focus();
             });
 
         function showTab(tab) {
+                // Hide all tabs
                 document.getElementById('billingTab').classList.add('hidden');
                 document.getElementById('productsTab').classList.add('hidden');
                 document.getElementById('customersTab').classList.add('hidden');
                 document.getElementById('rolTab').classList.add('hidden');
                 document.getElementById('quotationsTab').classList.add('hidden');
+                document.getElementById('salesbillTab').classList.add('hidden'); // ADD
+                document.getElementById('billHistoryTab').classList.add('hidden'); // ADD
 
+                // Reset all buttons
                 document.getElementById('btnBilling').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
                 document.getElementById('btnProducts').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
                 document.getElementById('btnCustomers').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
                 document.getElementById('btnROL').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
                 document.getElementById('btnQuotations').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
+                document.getElementById('btnSalesBill').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition'; // ADD
 
                 if (tab === 'billing') {
                     document.getElementById('billingTab').classList.remove('hidden');
@@ -964,6 +1369,13 @@
                     document.getElementById('quotationsTab').classList.remove('hidden');
                     document.getElementById('btnQuotations').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
                     loadQuotationsHistory();
+                } else if (tab === 'salesbill') { // ADD THIS BLOCK
+                    document.getElementById('salesbillTab').classList.remove('hidden');
+                    document.getElementById('btnSalesBill').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
+                    updateBillRatesDisplay();
+                    setTimeout(() => {
+                        document.getElementById('billBarcodeInput').focus();
+                    }, 100);
                 }
             }
 
