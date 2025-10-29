@@ -1,5 +1,11 @@
 1)Estimation rate correction by uploading all the estimation and sales bills.
-2)The add button (Items should be automatically added and upon added they should be editable)
+
+
+1)I need to be able to edit the mc also in the added items
+2)I need to be able to search a customer name also in the customer details.
+3)The Sales bill is not looking like sales bill 
+4)The view button in the sales bill history is not working 
+
 
 
 Need to make a software for Value Refrigerants also 

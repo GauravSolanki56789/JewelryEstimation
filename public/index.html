@@ -1280,7 +1280,7 @@
         // ========== SALES BILL - CONVERT QUOTATION TO BILL ==========
 
             let selectedQuotationForBill = null;
-            let currentBillRateSlab = 'R';
+            
 
             function refreshQuotationsList() {
                 const select = document.getElementById('selectQuotationForBill');
@@ -1316,6 +1316,11 @@
                 }
 
                 selectedQuotationForBill = savedQuotations[idx];
+                 if (selectedQuotationForBill.isBilled) {
+                    alert(`⚠️ This quotation (${selectedQuotationForBill.quotationNo}) has already been billed!\nBill No: ${selectedQuotationForBill.billNo || 'Unknown'}\n\nPlease select a different quotation.`);
+                    document.getElementById('selectQuotationForBill').value = '';
+                    return;
+                }
 
                 // Display quotation details
                 document.getElementById('selectedQuotNo').textContent = selectedQuotationForBill.quotationNo;
@@ -1454,346 +1459,370 @@
             }
 
             function generateSalesBillPDF() {
-                const total = billItems.reduce((sum, item) => sum + item.amount, 0);
-                const gst = total * 0.03;
-                const netTotal = total + gst;
-                const billNo = `B${String(billCounter).padStart(4, '0')}`;
+                    const total = billItems.reduce((sum, item) => sum + item.amount, 0);
+                    const gst = total * 0.03;
+                    const netTotal = total + gst;
+                    const billNo = `B${String(billCounter).padStart(4, '0')}`;
 
-                // SAVE BILL TO HISTORY
-                const billRecord = {
-                    id: Date.now(),
-                    billNo: billNo,
-                    quotationNo: selectedQuotationForBill.quotationNo,
-                    date: new Date().toISOString(),
-                    customer: selectedQuotationForBill.customer,
-                    items: JSON.parse(JSON.stringify(billItems)),
-                    total: total,
-                    gst: gst,
-                    netTotal: netTotal,
-                    rateSlab: currentBillRateSlab
-                };
+                    // SAVE BILL TO HISTORY
+                    const billRecord = {
+                        id: Date.now(),
+                        billNo: billNo,
+                        quotationNo: selectedQuotationForBill.quotationNo,
+                        date: new Date().toISOString(),
+                        customer: selectedQuotationForBill.customer,
+                        items: JSON.parse(JSON.stringify(billItems)),
+                        total: total,
+                        gst: gst,
+                        netTotal: netTotal,
+                        rateSlab: currentBillRateSlab
+                    };
 
-                savedBills.unshift(billRecord);
-                localStorage.setItem('savedBills', JSON.stringify(savedBills));
+                    savedBills.unshift(billRecord);
+                    localStorage.setItem('savedBills', JSON.stringify(savedBills));
 
-                // PDF Generation
-                const { jsPDF } = window.jspdf;
-                const doc = new jsPDF('p', 'mm', 'a4');
+                    // MARK QUOTATION AS BILLED
+                    const quotIndex = savedQuotations.findIndex(q => q.id === selectedQuotationForBill.id);
+                    if (quotIndex >= 0) {
+                        savedQuotations[quotIndex].isBilled = true;
+                        savedQuotations[quotIndex].billNo = billNo;
+                        savedQuotations[quotIndex].billDate = new Date().toISOString();
+                        localStorage.setItem('savedQuotations', JSON.stringify(savedQuotations));
+                    }
 
-                const totalWeight = billItems.reduce((sum, item) => sum + item.weight, 0);
-                const totalMC = billItems.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
-                const totalPCS = billItems.length;
-                const date = new Date().toLocaleDateString('en-GB');
+                    // PDF Generation with CORRECTED FORMAT
+                    const { jsPDF } = window.jspdf;
+                    const doc = new jsPDF('p', 'mm', 'a4');
 
-                const customer = selectedQuotationForBill.customer;
+                    const totalWeight = billItems.reduce((sum, item) => sum + item.weight, 0);
+                    const totalMC = billItems.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
+                    const totalPCS = billItems.length;
+                    const date = new Date().toLocaleDateString('en-GB');
+                    const customer = selectedQuotationForBill.customer;
 
-                // Customer info
-                doc.setFontSize(9);
-                doc.setFont(undefined, 'normal');
-                doc.text('To:', 15, 15);
-                doc.setFont(undefined, 'bold');
-                doc.setFontSize(10);
-                doc.text(customer.name.toUpperCase(), 15, 20);
+                    // Header - BILL (not EST.)
+                    doc.setFontSize(9);
+                    doc.setFont(undefined, 'normal');
+                    doc.text('To:', 15, 15);
+                    doc.setFont(undefined, 'bold');
+                    doc.setFontSize(10);
+                    doc.text(customer.name.toUpperCase(), 15, 20);
 
-                doc.setFontSize(8);
-                doc.setFont(undefined, 'normal');
-                let yPos = 24;
-                if (customer.address1) {
-                    doc.text(customer.address1, 15, yPos);
-                    yPos += 4;
+                    doc.setFontSize(8);
+                    doc.setFont(undefined, 'normal');
+                    let yPos = 24;
+                    if (customer.address1) {
+                        doc.text(customer.address1, 15, yPos);
+                        yPos += 4;
+                    }
+                    if (customer.address2) {
+                        doc.text(customer.address2, 15, yPos);
+                        yPos += 4;
+                    }
+                    if (customer.city) {
+                        doc.text(customer.city, 15, yPos);
+                        yPos += 4;
+                    }
+                    doc.text(`Mob: ${customer.mobile}`, 15, yPos);
+
+                    // BILL INFO (Right side)
+                    doc.setFontSize(8);
+                    doc.setFont(undefined, 'bold');
+                    doc.text('BILL No:', 160, 15);
+                    doc.setFont(undefined, 'normal');
+                    doc.text(billNo, 180, 15);
+
+                    doc.setFont(undefined, 'bold');
+                    doc.text('Date:', 160, 20);
+                    doc.setFont(undefined, 'normal');
+                    doc.text(date, 180, 20);
+
+                    doc.setFont(undefined, 'bold');
+                    doc.text('Ref. Est:', 160, 25);
+                    doc.setFont(undefined, 'normal');
+                    doc.text(selectedQuotationForBill.quotationNo, 180, 25);
+
+                    // Items Table - MATCHING SAMPLE FORMAT
+                    const tableStartY = yPos + 8;
+                    const tableData = billItems.map((item, idx) => {
+                        // Calculate metal value and total correctly
+                        const metalValue = (item.weight * item.rate * item.purity) / 100;
+                        const mcCharges = item.weight * item.mcRate;
+                        const itemTotal = metalValue + mcCharges;
+
+                        return [
+                            idx + 1,
+                            item.sku || '-',
+                            item.styleCode || '-',
+                            item.name,
+                            item.size || '-',
+                            item.weight.toFixed(2),
+                            item.weight.toFixed(2),
+                            item.purity.toFixed(1),
+                            item.weight.toFixed(2),
+                            '1',
+                            item.mcRate.toFixed(2),
+                            item.rate.toFixed(2),
+                            itemTotal.toFixed(2)
+                        ];
+                    });
+
+                    doc.autoTable({
+                        startY: tableStartY,
+                        head: [[
+                            '#',
+                            'SKU',
+                            'STYLE CODE',
+                            'Short Name',
+                            'SIZE',
+                            'NET.WT',
+                            'AVG.WT',
+                            '% Pure',
+                            'G.WT',
+                            'PCS',
+                            'MC/gm',
+                            'RATE',
+                            'Amount'
+                        ]],
+                        body: tableData,
+                        theme: 'grid',
+                        headStyles: {
+                            fillColor: [34, 197, 94],  // Green color for BILL
+                            textColor: 255,
+                            fontSize: 7,
+                            fontStyle: 'bold',
+                            halign: 'center',
+                            valign: 'middle',
+                            cellPadding: 1.5
+                        },
+                        bodyStyles: {
+                            fontSize: 7,
+                            cellPadding: 1,
+                            valign: 'middle'
+                        },
+                        columnStyles: {
+                            0: { cellWidth: 8, halign: 'center' },
+                            1: { cellWidth: 20, halign: 'left', fontSize: 6.5 },
+                            2: { cellWidth: 16, halign: 'center', fontSize: 6.5 },
+                            3: { cellWidth: 38, halign: 'left' },
+                            4: { cellWidth: 12, halign: 'center' },
+                            5: { cellWidth: 13, halign: 'right' },
+                            6: { cellWidth: 13, halign: 'right' },
+                            7: { cellWidth: 11, halign: 'center' },
+                            8: { cellWidth: 11, halign: 'right' },
+                            9: { cellWidth: 9, halign: 'center' },
+                            10: { cellWidth: 12, halign: 'right' },
+                            11: { cellWidth: 12, halign: 'right' },
+                            12: { cellWidth: 16, halign: 'right' }
+                        },
+                        margin: { left: 15, right: 14 }
+                    });
+
+                    // Grand Total Section
+                    const finalY = doc.lastAutoTable.finalY + 8;
+                    doc.setDrawColor(0);
+                    doc.setLineWidth(0.5);
+                    doc.rect(15, finalY, 180, 25);
+                    doc.line(105, finalY, 105, finalY + 25);
+
+                    // Left side
+                    doc.setFontSize(8);
+                    doc.setFont(undefined, 'bold');
+                    doc.text('COUNT:', 18, finalY + 6);
+                    doc.setFont(undefined, 'normal');
+                    doc.text(totalPCS.toString(), 45, finalY + 6);
+
+                    doc.setFont(undefined, 'bold');
+                    doc.text('Total Weight:', 18, finalY + 12);
+                    doc.setFont(undefined, 'normal');
+                    doc.text(`${totalWeight.toFixed(2)} gm`, 45, finalY + 12);
+
+                    doc.setFont(undefined, 'bold');
+                    doc.text('MC:', 18, finalY + 18);
+                    doc.setFont(undefined, 'normal');
+                    doc.text(totalMC.toFixed(2), 45, finalY + 18);
+
+                    // Right side - GRAND TOTAL
+                    doc.setFontSize(9);
+                    doc.setFont(undefined, 'bold');
+                    doc.text('GRAND TOTAL', 110, finalY + 5);
+
+                    doc.setFontSize(8);
+                    doc.text('TOTAL:', 110, finalY + 11);
+                    doc.setFont(undefined, 'normal');
+                    doc.text(total.toFixed(2), 190, finalY + 11, { align: 'right' });
+
+                    doc.setFont(undefined, 'bold');
+                    doc.text('GST (3%):', 110, finalY + 16);
+                    doc.setFont(undefined, 'normal');
+                    doc.text(gst.toFixed(2), 190, finalY + 16, { align: 'right' });
+
+                    doc.setFont(undefined, 'bold');
+                    doc.text('NET TOTAL:', 110, finalY + 21);
+                    doc.text(netTotal.toFixed(2), 190, finalY + 21, { align: 'right' });
+
+                    doc.save(`Bill_${billNo}_${date.replace(/\//g, '-')}.pdf`);
+
+                    billCounter++;
+                    localStorage.setItem('billCounter', billCounter);
+
+                    closeModals();
+                    alert(`Sales Bill PDF generated!\nBill No: ${billNo}\nQuotation: ${selectedQuotationForBill.quotationNo}`);
+
+                    clearBillSelection();
                 }
-                if (customer.address2) {
-                    doc.text(customer.address2, 15, yPos);
-                    yPos += 4;
-                }
-                if (customer.city) {
-                    doc.text(customer.city, 15, yPos);
-                    yPos += 4;
-                }
-                doc.text(`Mob: ${customer.mobile}`, 15, yPos);
 
-                // Bill info
-                doc.setFontSize(8);
-                doc.setFont(undefined, 'bold');
-                doc.text('BILL No:', 160, 15);
-                doc.setFont(undefined, 'normal');
-                doc.text(billNo, 180, 15);
-                doc.setFont(undefined, 'bold');
-                doc.text('Date:', 160, 20);
-                doc.setFont(undefined, 'normal');
-                doc.text(date, 180, 20);
-                doc.setFont(undefined, 'bold');
-                doc.text('Quotation:', 160, 25);
-                doc.setFont(undefined, 'normal');
-                doc.text(selectedQuotationForBill.quotationNo, 180, 25);
+            function generateSalesBillExcel() {
+                    const total = billItems.reduce((sum, item) => sum + item.amount, 0);
+                    const gst = total * 0.03;
+                    const netTotal = total + gst;
+                    const billNo = `B${String(billCounter).padStart(4, '0')}`;
 
-                // Items table
-                const tableStartY = yPos + 8;
-                const tableData = billItems.map((item, idx) => [
-                    idx + 1,
-                    item.sku || '-',
-                    item.styleCode || '-',
-                    item.name,
-                    item.size || '-',
-                    item.weight.toFixed(2),
-                    item.weight.toFixed(2),
-                    item.purity.toFixed(0),
-                    item.weight.toFixed(2),
-                    '1',
-                    item.mcRate.toFixed(2),
-                    item.rate.toFixed(0),
-                    item.amount.toFixed(2)
-                ]);
+                    // SAVE BILL TO HISTORY
+                    const billRecord = {
+                        id: Date.now(),
+                        billNo: billNo,
+                        quotationNo: selectedQuotationForBill.quotationNo,
+                        date: new Date().toISOString(),
+                        customer: selectedQuotationForBill.customer,
+                        items: JSON.parse(JSON.stringify(billItems)),
+                        total: total,
+                        gst: gst,
+                        netTotal: netTotal,
+                        rateSlab: currentBillRateSlab
+                    };
 
-                doc.autoTable({
-                    startY: tableStartY,
-                    head: [[
+                    savedBills.unshift(billRecord);
+                    localStorage.setItem('savedBills', JSON.stringify(savedBills));
+
+                    // MARK QUOTATION AS BILLED
+                    const quotIndex = savedQuotations.findIndex(q => q.id === selectedQuotationForBill.id);
+                    if (quotIndex >= 0) {
+                        savedQuotations[quotIndex].isBilled = true;
+                        savedQuotations[quotIndex].billNo = billNo;
+                        savedQuotations[quotIndex].billDate = new Date().toISOString();
+                        localStorage.setItem('savedQuotations', JSON.stringify(savedQuotations));
+                    }
+
+                    // Excel Generation
+                    const totalWeight = billItems.reduce((sum, item) => sum + item.weight, 0);
+                    const totalMC = billItems.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
+                    const totalPCS = billItems.length;
+                    const date = new Date().toLocaleDateString('en-GB');
+                    const customer = selectedQuotationForBill.customer;
+
+                    const wb = XLSX.utils.book_new();
+
+                    // Header Data
+                    const headerData = [
+                        ['To:', '', '', '', '', '', 'BILL No:', billNo],
+                        [customer.name.toUpperCase(), '', '', '', '', '', 'Date:', date],
+                        [customer.address1, '', '', '', '', '', 'Ref. Est:', selectedQuotationForBill.quotationNo],
+                        [customer.address2, '', '', '', '', '', '', ''],
+                        [customer.city, '', '', '', '', '', '', ''],
+                        [`Mob: ${customer.mobile}`, '', '', '', '', '', '', ''],
+                        ['']
+                    ];
+
+                    // Items Table Header
+                    const itemsHeader = [[
                         '#', 'SKU', 'STYLE CODE', 'Short Name', 'SIZE',
                         'NET.WT', 'AVG.WT', '% Pure', 'G.WT', 'PCS',
                         'MC/gm', 'RATE', 'Amount'
-                    ]],
-                    body: tableData,
-                    theme: 'grid',
-                    headStyles: {
-                        fillColor: [34, 197, 94],
-                        textColor: 255,
-                        fontSize: 7,
-                        fontStyle: 'bold',
-                        halign: 'center',
-                        valign: 'middle',
-                        cellPadding: 1.5
-                    },
-                    bodyStyles: {
-                        fontSize: 7,
-                        cellPadding: 1,
-                        valign: 'middle'
-                    },
-                    columnStyles: {
-                        0: { cellWidth: 8, halign: 'center' },
-                        1: { cellWidth: 20, halign: 'left', fontSize: 6.5 },
-                        2: { cellWidth: 16, halign: 'center', fontSize: 6.5 },
-                        3: { cellWidth: 38, halign: 'left' },
-                        4: { cellWidth: 12, halign: 'center' },
-                        5: { cellWidth: 13, halign: 'right' },
-                        6: { cellWidth: 13, halign: 'right' },
-                        7: { cellWidth: 11, halign: 'center' },
-                        8: { cellWidth: 11, halign: 'right' },
-                        9: { cellWidth: 9, halign: 'center' },
-                        10: { cellWidth: 12, halign: 'right' },
-                        11: { cellWidth: 12, halign: 'right' },
-                        12: { cellWidth: 16, halign: 'right' }
-                    },
-                    margin: { left: 15, right: 14 }
-                });
+                    ]];
 
-                // Grand total section
-                const finalY = doc.lastAutoTable.finalY + 8;
-                doc.setDrawColor(0);
-                doc.setLineWidth(0.5);
-                doc.rect(15, finalY, 180, 25);
-                doc.line(105, finalY, 105, finalY + 25);
+                    // Items Data with CORRECT calculation
+                    const itemsData = billItems.map((item, idx) => {
+                        const metalValue = (item.weight * item.rate * item.purity) / 100;
+                        const mcCharges = item.weight * item.mcRate;
+                        const itemTotal = metalValue + mcCharges;
 
-                // Left side
-                doc.setFontSize(8);
-                doc.setFont(undefined, 'bold');
-                doc.text('COUNT:', 18, finalY + 6);
-                doc.setFont(undefined, 'normal');
-                doc.text(totalPCS.toString(), 45, finalY + 6);
-                doc.setFont(undefined, 'bold');
-                doc.text('Total Weight:', 18, finalY + 12);
-                doc.setFont(undefined, 'normal');
-                doc.text(`${totalWeight.toFixed(2)} gm`, 45, finalY + 12);
-                doc.setFont(undefined, 'bold');
-                doc.text('MC:', 18, finalY + 18);
-                doc.setFont(undefined, 'normal');
-                doc.text(totalMC.toFixed(2), 45, finalY + 18);
+                        return [
+                            idx + 1,
+                            item.sku || '-',
+                            item.styleCode || '-',
+                            item.name,
+                            item.size || '-',
+                            item.weight.toFixed(2),
+                            item.weight.toFixed(2),
+                            item.purity.toFixed(0),
+                            item.weight.toFixed(2),
+                            1,
+                            item.mcRate.toFixed(2),
+                            item.rate.toFixed(0),
+                            itemTotal.toFixed(2)
+                        ];
+                    });
 
-                // Right side
-                doc.setFontSize(9);
-                doc.setFont(undefined, 'bold');
-                doc.text('GRAND TOTAL', 110, finalY + 5);
-                doc.setFontSize(8);
-                doc.text('TOTAL:', 110, finalY + 11);
-                doc.setFont(undefined, 'normal');
-                doc.text(total.toFixed(2), 190, finalY + 11, { align: 'right' });
-                doc.setFont(undefined, 'bold');
-                doc.text('GST:', 110, finalY + 16);
-                doc.setFont(undefined, 'normal');
-                doc.text(gst.toFixed(2), 190, finalY + 16, { align: 'right' });
-                doc.setFont(undefined, 'bold');
-                doc.text('NET TOTAL:', 110, finalY + 21);
-                doc.text(netTotal.toFixed(2), 190, finalY + 21, { align: 'right' });
+                    // Grand Total Data
+                    const grandTotalData = [
+                        [''],
+                        ['COUNT:', totalPCS, '', '', '', '', '', 'GRAND TOTAL'],
+                        ['Total Weight:', `${totalWeight.toFixed(2)} gm`, '', '', '', '', '', 'TOTAL:', total.toFixed(2)],
+                        ['MC:', totalMC.toFixed(2), '', '', '', '', '', 'GST (3%):', gst.toFixed(2)],
+                        ['', '', '', '', '', '', '', 'NET TOTAL:', netTotal.toFixed(2)]
+                    ];
 
-                doc.save(`Bill_${billNo}_${date.replace(/\//g, '-')}.pdf`);
+                    // Combine all data
+                    const allData = [
+                        ...headerData,
+                        ...itemsHeader,
+                        ...itemsData,
+                        ...grandTotalData
+                    ];
 
-                billCounter++;
-                localStorage.setItem('billCounter', billCounter);
+                    // Create worksheet
+                    const ws = XLSX.utils.aoa_to_sheet(allData);
 
-                closeModals();
-                alert(`Sales Bill PDF generated successfully!\nBill No: ${billNo}\nQuotation: ${selectedQuotationForBill.quotationNo}`);
+                    // Column widths
+                    ws['!cols'] = [
+                        { wch: 5 },   // #
+                        { wch: 20 },  // SKU
+                        { wch: 15 },  // STYLE CODE
+                        { wch: 35 },  // Short Name
+                        { wch: 10 },  // SIZE
+                        { wch: 12 },  // NET.WT
+                        { wch: 12 },  // AVG.WT
+                        { wch: 10 },  // % Pure
+                        { wch: 10 },  // G.WT
+                        { wch: 8 },   // PCS
+                        { wch: 12 },  // MC/gm
+                        { wch: 12 },  // RATE
+                        { wch: 15 }   // Amount
+                    ];
 
-                // Clear selection
-                clearBillSelection();
-            }
+                    XLSX.utils.book_append_sheet(wb, ws, 'Bill');
+                    XLSX.writeFile(wb, `Bill_${billNo}_${date.replace(/\//g, '-')}.xlsx`);
 
-            function generateSalesBillExcel() {
-                const total = billItems.reduce((sum, item) => sum + item.amount, 0);
-                const gst = total * 0.03;
-                const netTotal = total + gst;
-                const billNo = `B${String(billCounter).padStart(4, '0')}`;
+                    billCounter++;
+                    localStorage.setItem('billCounter', billCounter);
 
-                // SAVE BILL TO HISTORY
-                const billRecord = {
-                    id: Date.now(),
-                    billNo: billNo,
-                    quotationNo: selectedQuotationForBill.quotationNo,
-                    date: new Date().toISOString(),
-                    customer: selectedQuotationForBill.customer,
-                    items: JSON.parse(JSON.stringify(billItems)),
-                    total: total,
-                    gst: gst,
-                    netTotal: netTotal,
-                    rateSlab: currentBillRateSlab
-                };
+                    closeModals();
+                    alert(`Sales Bill Excel generated!\nBill No: ${billNo}\nQuotation: ${selectedQuotationForBill.quotationNo}`);
 
-                savedBills.unshift(billRecord);
-                localStorage.setItem('savedBills', JSON.stringify(savedBills));
-
-                // Excel generation
-                const totalWeight = billItems.reduce((sum, item) => sum + item.weight, 0);
-                const totalMC = billItems.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
-                const totalPCS = billItems.length;
-                const date = new Date().toLocaleDateString('en-GB');
-                const customer = selectedQuotationForBill.customer;
-
-                const wb = XLSX.utils.book_new();
-
-                const headerData = [
-                    ['To:', '', '', '', '', '', 'BILL No:', billNo],
-                    [customer.name.toUpperCase(), '', '', '', '', '', 'Date:', date],
-                    [customer.address1, '', '', '', '', '', 'Quotation:', selectedQuotationForBill.quotationNo],
-                    [customer.address2, '', '', '', '', '', '', ''],
-                    [customer.city, '', '', '', '', '', '', ''],
-                    [`Mob: ${customer.mobile}`, '', '', '', '', '', '', ''],
-                    ['']
-                ];
-
-                const itemsHeader = [[
-                    '#', 'SKU', 'STYLE CODE', 'Short Name', 'SIZE',
-                    'NET.WT', 'AVG.WT', '% Pure', 'G.WT', 'PCS',
-                    'MC/gm', 'RATE', 'Amount'
-                ]];
-
-                const itemsData = billItems.map((item, idx) => [
-                    idx + 1,
-                    item.sku || '-',
-                    item.styleCode || '-',
-                    item.name,
-                    item.size || '-',
-                    item.weight.toFixed(2),
-                    item.weight.toFixed(2),
-                    item.purity.toFixed(0),
-                    item.weight.toFixed(2),
-                    1,
-                    item.mcRate.toFixed(2),
-                    item.rate.toFixed(0),
-                    item.amount.toFixed(2)
-                ]);
-
-                const grandTotalData = [
-                    [''],
-                    ['COUNT:', totalPCS, '', '', '', '', '', 'GRAND TOTAL'],
-                    ['Total Weight:', `${totalWeight.toFixed(2)} gm`, '', '', '', '', '', 'TOTAL:', total.toFixed(2)],
-                    ['MC:', totalMC.toFixed(2), '', '', '', '', '', 'GST:', gst.toFixed(2)],
-                    ['', '', '', '', '', '', '', 'NET TOTAL:', netTotal.toFixed(2)]
-                ];
-
-                const allData = [
-                    ...headerData,
-                    ...itemsHeader,
-                    ...itemsData,
-                    ...grandTotalData
-                ];
-
-                const ws = XLSX.utils.aoa_to_sheet(allData);
-                ws['!cols'] = [
-                    { wch: 5 }, { wch: 20 }, { wch: 15 }, { wch: 35 }, { wch: 10 },
-                    { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 8 },
-                    { wch: 12 }, { wch: 12 }, { wch: 15 }
-                ];
-
-                XLSX.utils.book_append_sheet(wb, ws, 'Bill');
-                XLSX.writeFile(wb, `Bill_${billNo}_${date.replace(/\//g, '-')}.xlsx`);
-
-                billCounter++;
-                localStorage.setItem('billCounter', billCounter);
-
-                closeModals();
-                alert(`Sales Bill Excel generated successfully!\nBill No: ${billNo}\nQuotation: ${selectedQuotationForBill.quotationNo}`);
-
-                // Clear selection
-                clearBillSelection();
-            }
+                    clearBillSelection();
+                }
 
                         // ========== BILL HISTORY MANAGEMENT ==========
+    function loadBillHistory() {
+        // Populate customer filter
+        const customerFilter = document.getElementById('billCustomerFilter');
+        customerFilter.innerHTML = '<option value="all">All Customers</option>';
 
-                            function loadBillHistory() {
-                                const tbody = document.getElementById('billHistoryTableBody');
-                                tbody.innerHTML = '';
+        const uniqueCustomers = [...new Set(savedBills.map(b => b.customer.name))];
+        uniqueCustomers.forEach(name => {
+            const option = document.createElement('option');
+            option.value = name;
+            option.textContent = name;
+            customerFilter.appendChild(option);
+        });
 
-                                if (savedBills.length === 0) {
-                                    tbody.innerHTML = `
-            <tr>
-                <td colspan="6" class="px-4 py-8 text-center text-gray-500">
-                    No bills generated yet
-                </td>
-            </tr>
-        `;
-                                    return;
-                                }
+        // Update statistics
+        updateBillStatistics();
 
-                                savedBills.forEach((bill, index) => {
-                                    const row = document.createElement('tr');
-                                    row.className = 'border-b hover:bg-gray-50';
-
-                                    const date = new Date(bill.date);
-                                    const formattedDate = date.toLocaleDateString('en-GB');
-                                    const formattedTime = date.toLocaleTimeString('en-GB', {
-                                        hour: '2-digit',
-                                        minute: '2-digit'
-                                    });
-
-                                    row.innerHTML = `
-            <td class="px-4 py-3 font-semibold text-blue-600">${bill.billNo}</td>
-            <td class="px-4 py-3">
-                <div>${formattedDate}</div>
-                <div class="text-xs text-gray-500">${formattedTime}</div>
-            </td>
-            <td class="px-4 py-3">
-                <div class="font-medium">${bill.customer.name}</div>
-                <div class="text-xs text-gray-500">${bill.customer.mobile}</div>
-            </td>
-            <td class="px-4 py-3 text-center">
-                <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
-                    ${bill.items.length} items
-                </span>
-            </td>
-            <td class="px-4 py-3 text-right font-semibold">₹${bill.netTotal.toFixed(2)}</td>
-            <td class="px-4 py-3 text-center">
-                <button onclick="viewBill(${index})" 
-                        class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-sm mr-1">
-                    📄 View
-                </button>
-                <button onclick="reprintBill(${index})" 
-                        class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 text-sm">
-                    🖨️ Reprint
-                </button>
-            </td>
-        `;
-
-                                    tbody.appendChild(row);
-                                });
-                            }
+        // Display bills
+        displayBills(savedBills);
+    }
 
                             function viewBill(index) {
                                     const bill = savedBills[index];
@@ -3078,54 +3107,98 @@
             alert(`Successfully uploaded ${bulkUploadCustomerData.length} customers!`);
         }
 
-        function handleBarcodeScan(barcode) {
-                if (!barcode) return;
+    function handleBarcodeScan(barcode) {
+        if (!barcode) return;
 
-                const product = products.find(p => p.barcode === barcode);
-                if (product) {
-                    // Product found - populate form
-                    document.getElementById('itemSku').value = product.sku || '';
-                    document.getElementById('itemStyleCode').value = product.styleCode || '';
-                    document.getElementById('itemName').value = product.shortName;
-                    document.getElementById('itemSize').value = product.size || '';
-                    document.getElementById('itemWeight').value = product.avgWt || '';
-                    document.getElementById('itemPurity').value = product.purity;
-                    document.getElementById('itemMetalType').value = product.metalType;
+        const product = products.find(p => p.barcode === barcode);
+        if (product) {
+            // Check if item already exists in current bill
+            const existingItemIndex = items.findIndex(item =>
+                item.sku === (product.sku || '') &&
+                item.styleCode === (product.styleCode || '') &&
+                item.name === product.shortName
+            );
 
-                    // Get metal rate and apply rate slab discount to MC
-                    const metalRate = rates[product.metalType] || rates.silver;
-                    document.getElementById('itemRate').value = metalRate;
+            if (existingItemIndex >= 0) {
+                // Item already exists - alert and focus on that item
+                alert(`⚠️ Item already added!\n${product.shortName}\nSKU: ${product.sku || 'N/A'}`);
 
-                    // Store original MC rate and apply rate slab discount
-                    const originalMCRate = product.mcRate;
-                    const adjustedMCRate = getAdjustedMCRate(originalMCRate);
-                    document.getElementById('itemMcRate').value = adjustedMCRate;
-                    document.getElementById('itemMcRate').setAttribute('data-original-mc', originalMCRate);
+                // Flash the existing row
+                const existingRow = document.getElementById('itemsTableBody').children[existingItemIndex];
+                existingRow.style.backgroundColor = '#fff3cd';
+                setTimeout(() => {
+                    existingRow.style.backgroundColor = '';
+                }, 1000);
 
-                    updateItemAmount();
-                    document.getElementById('itemWeight').focus();
-                    document.getElementById('itemWeight').select();
-
-                    // Success feedback - green flash
-                    const barcodeInput = document.getElementById('barcodeInput');
-                    barcodeInput.style.backgroundColor = '#d4edda';
-                    barcodeInput.style.borderColor = '#28a745';
-                    setTimeout(() => {
-                        barcodeInput.style.backgroundColor = '';
-                        barcodeInput.style.borderColor = '';
-                    }, 300);
-                } else {
-                    alert('Product not found! Please add this product first.');
-                    // Error feedback - red flash
-                    const barcodeInput = document.getElementById('barcodeInput');
-                    barcodeInput.style.backgroundColor = '#f8d7da';
-                    barcodeInput.style.borderColor = '#dc3545';
-                    setTimeout(() => {
-                        barcodeInput.style.backgroundColor = '';
-                        barcodeInput.style.borderColor = '';
-                    }, 500);
-                }
+                // Clear scanner and refocus
+                document.getElementById('barcodeInput').value = '';
+                document.getElementById('barcodeInput').focus();
+                return;
             }
+
+            // Auto-populate form
+            document.getElementById('itemSku').value = product.sku || '';
+            document.getElementById('itemStyleCode').value = product.styleCode || '';
+            document.getElementById('itemName').value = product.shortName;
+            document.getElementById('itemSize').value = product.size || '';
+            document.getElementById('itemWeight').value = product.avgWt || '';
+            document.getElementById('itemPurity').value = product.purity;
+            document.getElementById('itemMetalType').value = product.metalType;
+
+            const metalRate = rates[product.metalType] || rates.silver;
+            document.getElementById('itemRate').value = metalRate;
+
+            const originalMCRate = product.mcRate;
+            const adjustedMCRate = getAdjustedMCRate(originalMCRate);
+            document.getElementById('itemMcRate').value = adjustedMCRate;
+            document.getElementById('itemMcRate').setAttribute('data-original-mc', originalMCRate);
+
+            updateItemAmount();
+
+            // AUTO-ADD ITEM IMMEDIATELY
+            const item = {
+                sku: product.sku || '',
+                styleCode: product.styleCode || '',
+                name: product.shortName,
+                size: product.size || '',
+                weight: product.avgWt || 0,
+                purity: product.purity,
+                rate: metalRate,
+                mcRate: adjustedMCRate,
+                originalMcRate: originalMCRate,
+                metalType: product.metalType,
+                id: Date.now()
+            };
+
+            // Calculate amount
+            const metalValue = (item.weight * item.rate * item.purity) / 100;
+            const mcCharges = item.weight * item.mcRate;
+            item.amount = metalValue + mcCharges;
+
+            items.push(item);
+            updateItemsTable();
+            updateSummary();
+            clearItemForm();
+
+            // Success feedback
+            const barcodeInput = document.getElementById('barcodeInput');
+            barcodeInput.style.backgroundColor = '#d4edda';
+            barcodeInput.style.borderColor = '#28a745';
+            setTimeout(() => {
+                barcodeInput.style.backgroundColor = '';
+                barcodeInput.style.borderColor = '';
+            }, 300);
+        } else {
+            alert('Product not found! Please add this product first.');
+            const barcodeInput = document.getElementById('barcodeInput');
+            barcodeInput.style.backgroundColor = '#f8d7da';
+            barcodeInput.style.borderColor = '#dc3545';
+            setTimeout(() => {
+                barcodeInput.style.backgroundColor = '';
+                barcodeInput.style.borderColor = '';
+            }, 500);
+        }
+    }
 
             function handleProductBarcodeScan(barcode) {
                     if (!barcode) return;
@@ -3203,27 +3276,52 @@
                 clearItemForm();
             }
 
-        function updateItemsTable() {
-            const tbody = document.getElementById('itemsTableBody');
-                    tbody.innerHTML = '';
-                    items.forEach((item, index) => {
-                        const row = document.createElement('tr');
-                        row.className = 'border-b hover:bg-gray-50';
-                        row.innerHTML = `
-                    <td class="px-4 py-3">${index + 1}</td>
-                    <td class="px-4 py-3 font-medium">${item.name}</td>
-                    <td class="px-4 py-3 text-right">${item.weight}</td>
-                    <td class="px-4 py-3 text-right">₹${item.rate}</td>
-                    <td class="px-4 py-3 text-right">₹${item.mcRate}</td>
-                    <td class="px-4 py-3 text-right font-semibold">₹${item.amount.toFixed(2)}</td>
-                    <td class="px-4 py-3 text-center">
-                        <button onclick="removeItem(${item.id})" class="text-red-600 hover:text-red-800">🗑️</button>
-                    </td>
-                `;
-                        tbody.appendChild(row);
-                    });
-                    document.getElementById('itemsTableContainer').classList.toggle('hidden', items.length === 0);
-                }
+    function updateItemsTable() {
+        const tbody = document.getElementById('itemsTableBody');
+        tbody.innerHTML = '';
+
+        items.forEach((item, index) => {
+            const row = document.createElement('tr');
+            row.className = 'border-b hover:bg-gray-50';
+            row.innerHTML = `
+            <td class="px-4 py-3">${index + 1}</td>
+            <td class="px-4 py-3">
+                <div class="font-medium">${item.name}</div>
+                <div class="text-xs text-gray-500">SKU: ${item.sku || 'N/A'} | Style: ${item.styleCode || 'N/A'}</div>
+            </td>
+            <td class="px-4 py-3">
+                <input type="number" step="0.01" value="${item.weight}" 
+                    onchange="editItemWeight(${item.id}, this.value)"
+                    class="w-20 px-2 py-1 border rounded text-right">
+            </td>
+            <td class="px-4 py-3 text-right">₹${item.rate}</td>
+            <td class="px-4 py-3 text-right">₹${item.mcRate.toFixed(2)}</td>
+            <td class="px-4 py-3 text-right font-semibold">₹${item.amount.toFixed(2)}</td>
+            <td class="px-4 py-3 text-center">
+                <button onclick="removeItem(${item.id})" 
+                    class="text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50">🗑️</button>
+            </td>
+        `;
+            tbody.appendChild(row);
+        });
+
+        document.getElementById('itemsTableContainer').classList.toggle('hidden', items.length === 0);
+    }
+
+    function editItemWeight(itemId, newWeight) {
+            const item = items.find(i => i.id === itemId);
+            if (!item) return;
+
+            item.weight = parseFloat(newWeight) || 0;
+
+            // Recalculate amount
+            const metalValue = (item.weight * item.rate * item.purity) / 100;
+            const mcCharges = item.weight * item.mcRate;
+            item.amount = metalValue + mcCharges;
+
+            updateItemsTable();
+            updateSummary();
+        }
 
                 function removeItem(id) {
                     items = items.filter(item => item.id !== id);
@@ -3272,85 +3370,92 @@
                 }
 
     function generateQuotePDF() {
-            // Calculate totals ONCE
-            const total = items.reduce((sum, item) => sum + item.amount, 0);
-            const gst = total * 0.03;
-            const netTotal = total + gst;
-            const quotationNo = `Q${String(quotationCounter).padStart(4, '0')}`;
+        // Calculate totals ONCE
+        const total = items.reduce((sum, item) => sum + item.amount, 0);
+        const gst = total * 0.03;
+        const netTotal = total + gst;
+        const quotationNo = `Q${String(quotationCounter).padStart(4, '0')}`;
 
-            // SAVE QUOTATION TO HISTORY
-            const quotationRecord = {
-                id: Date.now(),
-                quotationNo: quotationNo,
-                date: new Date().toISOString(),
-                customer: {
-                    name: currentCustomer.name,
-                    address1: currentCustomer.address1,
-                    address2: currentCustomer.address2,
-                    city: currentCustomer.city,
-                    mobile: currentCustomer.mobile
-                },
-                items: JSON.parse(JSON.stringify(items)), // Deep copy
-                total: total,
-                gst: gst,
-                netTotal: netTotal,
-                rateSlab: currentRateSlab
-            };
+        // SAVE QUOTATION TO HISTORY
+        const quotationRecord = {
+            id: Date.now(),
+            quotationNo: quotationNo,
+            date: new Date().toISOString(),
+            customer: {
+                name: currentCustomer.name,
+                address1: currentCustomer.address1,
+                address2: currentCustomer.address2,
+                city: currentCustomer.city,
+                mobile: currentCustomer.mobile
+            },
+            items: JSON.parse(JSON.stringify(items)),
+            total: total,
+            gst: gst,
+            netTotal: netTotal,
+            rateSlab: currentRateSlab,
+            isBilled: false 
+        };
 
-            savedQuotations.unshift(quotationRecord); // Add to beginning
-            localStorage.setItem('savedQuotations', JSON.stringify(savedQuotations));
+        savedQuotations.unshift(quotationRecord);
+        localStorage.setItem('savedQuotations', JSON.stringify(savedQuotations));
 
-            // PDF Generation
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF('p', 'mm', 'a4');
+        // PDF Generation
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('p', 'mm', 'a4');
 
-            const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
-            const totalMC = items.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
-            const totalPCS = items.length;
-            const date = new Date().toLocaleDateString('en-GB');
+        const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
+        const totalMC = items.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
+        const totalPCS = items.length;
+        const date = new Date().toLocaleDateString('en-GB');
 
-            // ========== CUSTOMER INFO - TOP LEFT ==========
-            doc.setFontSize(9);
-            doc.setFont(undefined, 'normal');
-            doc.text('To:', 15, 15);
+        // Customer info
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'normal');
+        doc.text('To:', 15, 15);
 
-            doc.setFont(undefined, 'bold');
-            doc.setFontSize(10);
-            doc.text(currentCustomer.name.toUpperCase(), 15, 20);
+        doc.setFont(undefined, 'bold');
+        doc.setFontSize(10);
+        doc.text(currentCustomer.name.toUpperCase(), 15, 20);
 
-            doc.setFontSize(8);
-            doc.setFont(undefined, 'normal');
-            let yPos = 24;
-            if (currentCustomer.address1) {
-                doc.text(currentCustomer.address1, 15, yPos);
-                yPos += 4;
-            }
-            if (currentCustomer.address2) {
-                doc.text(currentCustomer.address2, 15, yPos);
-                yPos += 4;
-            }
-            if (currentCustomer.city) {
-                doc.text(currentCustomer.city, 15, yPos);
-                yPos += 4;
-            }
-            doc.text(`Mob: ${currentCustomer.mobile}`, 15, yPos);
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'normal');
+        let yPos = 24;
+        if (currentCustomer.address1) {
+            doc.text(currentCustomer.address1, 15, yPos);
+            yPos += 4;
+        }
+        if (currentCustomer.address2) {
+            doc.text(currentCustomer.address2, 15, yPos);
+            yPos += 4;
+        }
+        if (currentCustomer.city) {
+            doc.text(currentCustomer.city, 15, yPos);
+            yPos += 4;
+        }
+        doc.text(`Mob: ${currentCustomer.mobile}`, 15, yPos);
 
-            // ========== QUOTATION INFO - TOP RIGHT ==========
-            doc.setFontSize(8);
-            doc.setFont(undefined, 'bold');
-            doc.text('EST. No:', 160, 15);
-            doc.setFont(undefined, 'normal');
-            doc.text(quotationNo, 180, 15);
+        // Quotation info
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'bold');
+        doc.text('EST. No:', 160, 15);
+        doc.setFont(undefined, 'normal');
+        doc.text(quotationNo, 180, 15);
 
-            doc.setFont(undefined, 'bold');
-            doc.text('Date:', 160, 20);
-            doc.setFont(undefined, 'normal');
-            doc.text(date, 180, 20);
+        doc.setFont(undefined, 'bold');
+        doc.text('Date:', 160, 20);
+        doc.setFont(undefined, 'normal');
+        doc.text(date, 180, 20);
 
-            // ========== ITEMS TABLE ==========
-            const tableStartY = yPos + 8;
+        // Items table - CORRECTED CALCULATION
+        const tableStartY = yPos + 8;
 
-            const tableData = items.map((item, idx) => [
+        const tableData = items.map((item, idx) => {
+            // CORRECT CALCULATION: Metal Value + MC Charges
+            const metalValue = (item.weight * item.rate * item.purity) / 100;
+            const mcCharges = item.weight * item.mcRate;
+            const itemTotal = metalValue + mcCharges;
+
+            return [
                 idx + 1,
                 item.sku || '-',
                 item.styleCode || '-',
@@ -3358,119 +3463,123 @@
                 item.size || '-',
                 item.weight.toFixed(2),
                 item.weight.toFixed(2),
-                item.purity.toFixed(0),
+                item.purity.toFixed(1),
                 item.weight.toFixed(2),
                 '1',
                 item.mcRate.toFixed(2),
-                item.rate.toFixed(0),
-                item.amount.toFixed(2)
-            ]);
+                item.rate.toFixed(2),
+                itemTotal.toFixed(2)
+            ];
+        });
 
-            doc.autoTable({
-                startY: tableStartY,
-                head: [[
-                    '#',
-                    'SKU',
-                    'STYLE CODE',
-                    'Short Name',
-                    'SIZE',
-                    'NET.WT',
-                    'AVG.WT',
-                    '% Pure',
-                    'G.WT',
-                    'PCS',
-                    'MC/gm',
-                    'RATE',
-                    'Amount'
-                ]],
-                body: tableData,
-                theme: 'grid',
-                headStyles: {
-                    fillColor: [211, 211, 211],
-                    textColor: 0,
-                    fontSize: 7,
-                    fontStyle: 'bold',
-                    halign: 'center',
-                    valign: 'middle',
-                    cellPadding: 1.5
-                },
-                bodyStyles: {
-                    fontSize: 7,
-                    cellPadding: 1,
-                    valign: 'middle'
-                },
-                columnStyles: {
-                    0: { cellWidth: 8, halign: 'center' },
-                    1: { cellWidth: 20, halign: 'left', fontSize: 6.5 },
-                    2: { cellWidth: 16, halign: 'center', fontSize: 6.5 },
-                    3: { cellWidth: 38, halign: 'left' },
-                    4: { cellWidth: 12, halign: 'center' },
-                    5: { cellWidth: 13, halign: 'right' },
-                    6: { cellWidth: 13, halign: 'right' },
-                    7: { cellWidth: 11, halign: 'center' },
-                    8: { cellWidth: 11, halign: 'right' },
-                    9: { cellWidth: 9, halign: 'center' },
-                    10: { cellWidth: 12, halign: 'right' },
-                    11: { cellWidth: 12, halign: 'right' },
-                    12: { cellWidth: 16, halign: 'right' }
-                },
-                margin: { left: 15, right: 14 }
-            });
+        doc.autoTable({
+            startY: tableStartY,
+            head: [[
+                '#',
+                'SKU',
+                'STYLE CODE',
+                'Short Name',
+                'SIZE',
+                'NET.WT',
+                'AVG.WT',
+                '% Pure',
+                'G.WT',
+                'PCS',
+                'MC/gm',
+                'RATE',
+                'Amount'
+            ]],
+            body: tableData,
+            theme: 'grid',
+            headStyles: {
+                fillColor: [211, 211, 211],
+                textColor: 0,
+                fontSize: 7,
+                fontStyle: 'bold',
+                halign: 'center',
+                valign: 'middle',
+                cellPadding: 1.5
+            },
+            bodyStyles: {
+                fontSize: 7,
+                cellPadding: 1,
+                valign: 'middle'
+            },
+            columnStyles: {
+                0: { cellWidth: 8, halign: 'center' },
+                1: { cellWidth: 20, halign: 'left', fontSize: 6.5 },
+                2: { cellWidth: 16, halign: 'center', fontSize: 6.5 },
+                3: { cellWidth: 38, halign: 'left' },
+                4: { cellWidth: 12, halign: 'center' },
+                5: { cellWidth: 13, halign: 'right' },
+                6: { cellWidth: 13, halign: 'right' },
+                7: { cellWidth: 11, halign: 'center' },
+                8: { cellWidth: 11, halign: 'right' },
+                9: { cellWidth: 9, halign: 'center' },
+                10: { cellWidth: 12, halign: 'right' },
+                11: { cellWidth: 12, halign: 'right' },
+                12: { cellWidth: 16, halign: 'right' }
+            },
+            margin: { left: 15, right: 14 }
+        });
 
-            // ========== GRAND TOTAL SECTION ==========
-            const finalY = doc.lastAutoTable.finalY + 8;
+        // Grand total section
+        const finalY = doc.lastAutoTable.finalY + 8;
 
-            doc.setDrawColor(0);
-            doc.setLineWidth(0.5);
-            doc.rect(15, finalY, 180, 25);
-            doc.line(105, finalY, 105, finalY + 25);
+        doc.setDrawColor(0);
+        doc.setLineWidth(0.5);
+        doc.rect(15, finalY, 180, 25);
+        doc.line(105, finalY, 105, finalY + 25);
 
-            // LEFT SIDE
-            doc.setFontSize(8);
-            doc.setFont(undefined, 'bold');
-            doc.text('COUNT:', 18, finalY + 6);
-            doc.setFont(undefined, 'normal');
-            doc.text(totalPCS.toString(), 45, finalY + 6);
+        // Left side
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'bold');
+        doc.text('COUNT:', 18, finalY + 6);
+        doc.setFont(undefined, 'normal');
+        doc.text(totalPCS.toString(), 45, finalY + 6);
 
-            doc.setFont(undefined, 'bold');
-            doc.text('Total Weight:', 18, finalY + 12);
-            doc.setFont(undefined, 'normal');
-            doc.text(`${totalWeight.toFixed(2)} gm`, 45, finalY + 12);
+        doc.setFont(undefined, 'bold');
+        doc.text('Total Weight:', 18, finalY + 12);
+        doc.setFont(undefined, 'normal');
+        doc.text(`${totalWeight.toFixed(2)} gm`, 45, finalY + 12);
 
-            doc.setFont(undefined, 'bold');
-            doc.text('MC:', 18, finalY + 18);
-            doc.setFont(undefined, 'normal');
-            doc.text(totalMC.toFixed(2), 45, finalY + 18);
+        doc.setFont(undefined, 'bold');
+        doc.text('MC:', 18, finalY + 18);
+        doc.setFont(undefined, 'normal');
+        doc.text(totalMC.toFixed(2), 45, finalY + 18);
 
-            // RIGHT SIDE
-            doc.setFontSize(9);
-            doc.setFont(undefined, 'bold');
-            doc.text('GRAND TOTAL', 110, finalY + 5);
+        // Right side
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'bold');
+        doc.text('GRAND TOTAL', 110, finalY + 5);
 
-            doc.setFontSize(8);
-            doc.text('TOTAL:', 110, finalY + 11);
-            doc.setFont(undefined, 'normal');
-            doc.text(total.toFixed(2), 190, finalY + 11, { align: 'right' });
+        doc.setFontSize(8);
+        doc.text('TOTAL:', 110, finalY + 11);
+        doc.setFont(undefined, 'normal');
+        doc.text(total.toFixed(2), 190, finalY + 11, { align: 'right' });
 
-            doc.setFont(undefined, 'bold');
-            doc.text('GST:', 110, finalY + 16);
-            doc.setFont(undefined, 'normal');
-            doc.text(gst.toFixed(2), 190, finalY + 16, { align: 'right' });
+        doc.setFont(undefined, 'bold');
+        doc.text('GST:', 110, finalY + 16);
+        doc.setFont(undefined, 'normal');
+        doc.text(gst.toFixed(2), 190, finalY + 16, { align: 'right' });
 
-            doc.setFont(undefined, 'bold');
-            doc.text('NET TOTAL:', 110, finalY + 21);
-            doc.setFont(undefined, 'bold');
-            doc.text(netTotal.toFixed(2), 190, finalY + 21, { align: 'right' });
+        doc.setFont(undefined, 'bold');
+        doc.text('NET TOTAL:', 110, finalY + 21);
+        doc.setFont(undefined, 'bold');
+        doc.text(netTotal.toFixed(2), 190, finalY + 21, { align: 'right' });
 
-            doc.save(`Quotation_${quotationNo}_${date.replace(/\//g, '-')}.pdf`);
+        doc.save(`Quotation_${quotationNo}_${date.replace(/\//g, '-')}.pdf`);
 
-            quotationCounter++;
-            localStorage.setItem('quotationCounter', quotationCounter);
-            document.getElementById('quotationNo').textContent = `Quotation No: Q${String(quotationCounter).padStart(4, '0')}`;
+        quotationCounter++;
+        localStorage.setItem('quotationCounter', quotationCounter);
+        document.getElementById('quotationNo').textContent = `Quotation No: Q${String(quotationCounter).padStart(4, '0')}`;
 
-            closeModals();
-            alert('PDF Quotation generated!');
-        }
+        closeModals();
+        alert('PDF Quotation generated!');
+
+        // Clear billing form after successful quotation
+        clearAll();
+    }
 
         function generateQuoteExcel() {
                 // Calculate totals ONCE
@@ -3495,7 +3604,8 @@
                     total: total,
                     gst: gst,
                     netTotal: netTotal,
-                    rateSlab: currentRateSlab
+                    rateSlab: currentRateSlab,
+                    isBilled: false
                 };
 
                 savedQuotations.unshift(quotationRecord);
@@ -4307,6 +4417,178 @@
                                 XLSX.writeFile(wb, `Quotation_${q.quotationNo}_REPRINT.xlsx`);
                                 alert('Quotation Excel downloaded!');
                             } 
+                            function filterBills() {
+                                    const searchTerm = document.getElementById('billSearch').value.toLowerCase();
+                                    const customerFilter = document.getElementById('billCustomerFilter').value;
+                                    const dateFilter = document.getElementById('billDateFilter').value;
+
+                                    let filtered = savedBills;
+
+                                    // Search filter
+                                    if (searchTerm) {
+                                        filtered = filtered.filter(b =>
+                                            b.billNo.toLowerCase().includes(searchTerm) ||
+                                            b.customer.name.toLowerCase().includes(searchTerm) ||
+                                            b.customer.mobile.includes(searchTerm)
+                                        );
+                                    }
+
+                                    // Customer filter
+                                    if (customerFilter !== 'all') {
+                                        filtered = filtered.filter(b => b.customer.name === customerFilter);
+                                    }
+
+                                    // Date filter
+                                    if (dateFilter !== 'all') {
+                                        const today = new Date();
+                                        today.setHours(0, 0, 0, 0);
+
+                                        filtered = filtered.filter(b => {
+                                            const bDate = new Date(b.date);
+                                            bDate.setHours(0, 0, 0, 0);
+
+                                            if (dateFilter === 'today') {
+                                                return bDate.getTime() === today.getTime();
+                                            } else if (dateFilter === 'week') {
+                                                const weekAgo = new Date(today);
+                                                weekAgo.setDate(weekAgo.getDate() - 7);
+                                                return bDate >= weekAgo;
+                                            } else if (dateFilter === 'month') {
+                                                const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+                                                return bDate >= monthStart;
+                                            }
+                                            return true;
+                                        });
+                                    }
+
+                                    displayBills(filtered);
+                                }
+
+                                function displayBills(bills) {
+                                    const tbody = document.getElementById('billsTableBody');
+                                    const emptyState = document.getElementById('billsEmptyState');
+
+                                    tbody.innerHTML = '';
+
+                                    if (bills.length === 0) {
+                                        emptyState.classList.remove('hidden');
+                                        return;
+                                    }
+
+                                    emptyState.classList.add('hidden');
+
+                                    bills.forEach((bill, index) => {
+                                        const row = document.createElement('tr');
+                                        row.className = 'border-b hover:bg-gray-50';
+
+                                        const date = new Date(bill.date);
+                                        const formattedDate = date.toLocaleDateString('en-GB');
+                                        const formattedTime = date.toLocaleTimeString('en-GB', {
+                                            hour: '2-digit',
+                                            minute: '2-digit'
+                                        });
+
+                                        row.innerHTML = `
+            <td class="px-4 py-3 font-semibold text-green-600">${bill.billNo}</td>
+            <td class="px-4 py-3">
+                <div>${formattedDate}</div>
+                <div class="text-xs text-gray-500">${formattedTime}</div>
+            </td>
+            <td class="px-4 py-3">
+                <div class="font-medium">${bill.customer.name}</div>
+                <div class="text-xs text-gray-500">${bill.customer.mobile}</div>
+            </td>
+            <td class="px-4 py-3 text-center">
+                <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-sm">
+                    ${bill.items.length} items
+                </span>
+            </td>
+            <td class="px-4 py-3 text-right">₹${bill.total.toFixed(2)}</td>
+            <td class="px-4 py-3 text-right">₹${bill.gst.toFixed(2)}</td>
+            <td class="px-4 py-3 text-right font-bold">₹${bill.netTotal.toFixed(2)}</td>
+            <td class="px-4 py-3 text-center">
+                <div class="flex gap-2 justify-center">
+                    <button onclick="viewBill(${savedBills.indexOf(bill)})" 
+                         class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-sm">👁️ View
+                    </button>
+            <button onclick="reprintBill(${savedBills.indexOf(bill)})" 
+                    class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 text-sm">
+                🖨️ Reprint
+         </button>
+        </div>
+    </td>
+        `;
+
+                                        tbody.appendChild(row);
+                                    });
+                                }
+
+                                function updateBillStatistics() {
+                                    const today = new Date();
+                                    today.setHours(0, 0, 0, 0);
+
+                                    const thisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+                                    const todayBills = savedBills.filter(b => {
+                                        const bDate = new Date(b.date);
+                                        bDate.setHours(0, 0, 0, 0);
+                                        return bDate.getTime() === today.getTime();
+                                    });
+
+                                    const monthBills = savedBills.filter(b => {
+                                        const bDate = new Date(b.date);
+                                        return bDate >= thisMonth;
+                                    });
+
+                                    const totalValue = savedBills.reduce((sum, b) => sum + b.netTotal, 0);
+
+                                    document.getElementById('billTotalCount').textContent = savedBills.length;
+                                    document.getElementById('billTotalValue').textContent = `₹${totalValue.toFixed(0)}`;
+                                    document.getElementById('billMonthCount').textContent = monthBills.length;
+                                    document.getElementById('billTodayCount').textContent = todayBills.length;
+                                }
+
+                                function downloadAllBills() {
+                                    if (savedBills.length === 0) {
+                                        alert('No bills to export!');
+                                        return;
+                                    }
+
+                                    const data = savedBills.map(b => ({
+                                        'Bill No': b.billNo,
+                                        'Date': new Date(b.date).toLocaleDateString('en-GB'),
+                                        'Customer': b.customer.name,
+                                        'Mobile': b.customer.mobile,
+                                        'Items': b.items.length,
+                                        'Total': b.total.toFixed(2),
+                                        'GST': b.gst.toFixed(2),
+                                        'Net Total': b.netTotal.toFixed(2),
+                                        'Quotation': b.quotationNo
+                                    }));
+
+                                    const ws = XLSX.utils.json_to_sheet(data);
+                                    const wb = XLSX.utils.book_new();
+                                    XLSX.utils.book_append_sheet(wb, ws, 'Bills');
+                                    XLSX.writeFile(wb, `All_Bills_${new Date().toISOString().split('T')[0]}.xlsx`);
+                                    alert('All bills exported successfully!');
+                                }
+
+                                function clearOldBills() {
+                                    const months = prompt('Delete bills older than how many months? (Enter number)');
+                                    if (!months || isNaN(months)) return;
+
+                                    const cutoffDate = new Date();
+                                    cutoffDate.setMonth(cutoffDate.getMonth() - parseInt(months));
+
+                                    const before = savedBills.length;
+                                    savedBills = savedBills.filter(b => new Date(b.date) >= cutoffDate);
+                                    const after = savedBills.length;
+
+                                    localStorage.setItem('savedBills', JSON.stringify(savedBills));
+                                    loadBillHistory();
+
+                                    alert(`Deleted ${before - after} old bills`);
+                                }
 
             </script>
     </body>
