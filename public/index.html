@@ -1558,19 +1558,19 @@
             }
 
             function generateSalesBill() {
-    if (billItems.length === 0) {
-        alert('⚠️ Please load a quotation first');
-        return;
-    }
-    if (!selectedQuotationForBill) {
-        alert('⚠️ No quotation selected');
-        return;
-    }
-    // Show format selection modal
-    document.getElementById('modalOverlay').classList.remove('hidden');
-    document.getElementById('modalOverlay').classList.add('flex');
-    document.getElementById('billFormatModal').classList.remove('hidden');
-}
+                    if (billItems.length === 0) {
+                        alert('⚠️ Please load a quotation first');
+                        return;
+                    }
+                    if (!selectedQuotationForBill) {
+                        alert('⚠️ No quotation selected');
+                        return;
+                    }
+                    // Show format selection modal
+                    document.getElementById('modalOverlay').classList.remove('hidden');
+                    document.getElementById('modalOverlay').classList.add('flex');
+                    document.getElementById('billFormatModal').classList.remove('hidden');
+                }
 
     function generateSalesBillPDF() {
         const total = billItems.reduce((sum, item) => sum + item.amount, 0);
