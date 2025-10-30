@@ -1,8 +1,8 @@
-1)Estimation rate correction by uploading all the estimation and sales bills.
-2)The add button (Items should be automatically added and upon added they should be editable)
-3)Bill sample files upload 
-4)Items in quotation should not be repeated with same sku ,if scanned twice or repeated then it should alert us 
-5)Sample bill and bill pdf format and 
+1)Change the UI entirely of the billing page , make the products and their details visible while scanning .
+2)Remove generate excel functions from bills 
+3)Resolve all the errors .
+4)Approval system 
+5)Sample bill and bill pdf format 
 6)Some buttons in the sales bill history is not working 
 
 
