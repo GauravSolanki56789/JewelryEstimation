@@ -1381,6 +1381,33 @@
         let rolData = JSON.parse(localStorage.getItem('rolData') || '[]');
         let bulkUploadROLData = [];
 
+        // Product inventory tracking
+let soldProducts = JSON.parse(localStorage.getItem('soldProducts') || '[]');
+
+// Function to mark product as sold
+function markProductAsSold(barcode, billNo) {
+    soldProducts.push({
+        barcode: barcode,
+        billNo: billNo,
+        soldDate: new Date().toISOString()
+    });
+    localStorage.setItem('soldProducts', JSON.stringify(soldProducts));
+}
+
+// Function to check if product is sold
+function isProductSold(barcode) {
+    return soldProducts.find(sp => sp.barcode === barcode);
+}
+
+// Function to remove sold product from inventory
+function removeProductFromInventory(barcode) {
+    const productIndex = products.findIndex(p => p.barcode === barcode);
+    if (productIndex >= 0) {
+        products.splice(productIndex, 1);
+        localStorage.setItem('products', JSON.stringify(products));
+    }
+}
+
         let savedQuotations = JSON.parse(localStorage.getItem('savedQuotations') || '[]');
         let currentViewingQuotation = null;
         // New variables added for sales bill
@@ -1570,331 +1597,333 @@
                     document.getElementById('billFormatModal').classList.remove('hidden');
                 }
 
-    function generateSalesBillPDF() {
-        const total = billItems.reduce((sum, item) => sum + item.amount, 0);
-        const gst = total * 0.03;
-        const netTotal = total + gst;
-        const billNo = `SCB${String(billCounter).padStart(4, '0')}`;
+function generateSalesBillPDF() {
+    const total = billItems.reduce((sum, item) => sum + item.amount, 0);
+    const gst = total * 0.03;
+    const netTotal = total + gst;
+    const billNo = `SCB${String(billCounter).padStart(4, '0')}`;
 
-        // SAVE BILL TO HISTORY
-        const billRecord = {
-            id: Date.now(),
-            billNo: billNo,
-            quotationNo: selectedQuotationForBill.quotationNo,
-            date: new Date().toISOString(),
-            customer: selectedQuotationForBill.customer,
-            items: JSON.parse(JSON.stringify(billItems)),
-            total: total,
-            gst: gst,
-            netTotal: netTotal,
-            rateSlab: currentBillRateSlab
-        };
+    // SAVE BILL TO HISTORY
+    const billRecord = {
+        id: Date.now(),
+        billNo: billNo,
+        quotationNo: selectedQuotationForBill.quotationNo,
+        date: new Date().toISOString(),
+        customer: selectedQuotationForBill.customer,
+        items: JSON.parse(JSON.stringify(billItems)),
+        total: total,
+        gst: gst,
+        netTotal: netTotal,
+        rateSlab: currentBillRateSlab
+    };
 
-        savedBills.unshift(billRecord);
-        localStorage.setItem('savedBills', JSON.stringify(savedBills));
+    savedBills.unshift(billRecord);
+    localStorage.setItem('savedBills', JSON.stringify(savedBills));
 
-        // MARK QUOTATION AS BILLED
-        const quotIndex = savedQuotations.findIndex(q => q.id === selectedQuotationForBill.id);
-        if (quotIndex >= 0) {
-            savedQuotations[quotIndex].isBilled = true;
-            savedQuotations[quotIndex].billNo = billNo;
-            savedQuotations[quotIndex].billDate = new Date().toISOString();
-            localStorage.setItem('savedQuotations', JSON.stringify(savedQuotations));
+    // ⭐ MARK ALL PRODUCTS AS SOLD AND REMOVE FROM INVENTORY
+    billItems.forEach(item => {
+        if (item.barcode) {
+            markProductAsSold(item.barcode, billNo);
+            removeProductFromInventory(item.barcode);
         }
+    });
 
-        // ========== PDF GENERATION - MATCHING SAMPLE FORMAT ==========
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF('p', 'mm', 'a4');
-
-        const date = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
-        const customer = selectedQuotationForBill.customer;
-
-        // Calculate totals
-        const totalWeight = billItems.reduce((sum, item) => sum + item.weight, 0);
-        const totalPCS = billItems.length;
-        const cgst = gst / 2;
-        const sgst = gst / 2;
-
-        // ========== HEADER SECTION ==========
-        doc.setFontSize(10);
-        doc.setFont(undefined, 'bold');
-        doc.text('JP JEWELLERY', 105, 15, { align: 'center' });
-
-        doc.setFontSize(8);
-        doc.setFont(undefined, 'normal');
-        doc.text('2ND FLOOR, OLD NO.34, NEW NO.21, BOTHRA EMPORIUM', 105, 20, { align: 'center' });
-        doc.text('VEERAPPAN STREET, SOWCARPET', 105, 24, { align: 'center' });
-        doc.text('CHENNAI 600079 | 044-43593474', 105, 28, { align: 'center' });
-
-        doc.setFont(undefined, 'bold');
-        doc.text('TAX INVOICE', 105, 35, { align: 'center' });
-        doc.text('33AADFJ4897R1ZJ', 105, 39, { align: 'center' });
-
-        // ========== BILL INFO ==========
-        doc.setFontSize(8);
-        doc.setFont(undefined, 'bold');
-        doc.text('INVOICE No.:', 15, 48);
-        doc.setFont(undefined, 'normal');
-        doc.text(billNo, 45, 48);
-
-        doc.setFont(undefined, 'bold');
-        doc.text('BILL DATE:', 150, 48);
-        doc.setFont(undefined, 'normal');
-        doc.text(date, 175, 48);
-
-        // ========== CUSTOMER INFO ==========
-        doc.setFont(undefined, 'bold');
-        doc.text('Billed To:', 15, 55);
-        doc.setFontSize(9);
-        doc.text(customer.name.toUpperCase(), 15, 60);
-
-        doc.setFontSize(7);
-        doc.setFont(undefined, 'normal');
-        let yCustomer = 64;
-        if (customer.address1) {
-            doc.text(customer.address1, 15, yCustomer);
-            yCustomer += 4;
-        }
-        if (customer.address2) {
-            doc.text(customer.address2, 15, yCustomer);
-            yCustomer += 4;
-        }
-        if (customer.city) {
-            doc.text(customer.city, 15, yCustomer);
-            yCustomer += 4;
-        }
-        doc.text(`MOB: ${customer.mobile}`, 15, yCustomer);
-
-        // ========== ITEMS TABLE ==========
-        const tableStartY = Math.max(yCustomer + 8, 85);
-
-        const tableData = billItems.map((item, idx) => {
-    // CORRECT CALCULATION: (Rate + MC) × Weight
-    const itemTotal = (item.rate + item.mcRate) * item.weight;
-    
-    return [
-        idx + 1,
-        item.name,
-        '711311', // HSN Code
-        totalPCS,
-        item.weight.toFixed(3),
-        item.purity.toFixed(1),
-        item.rate.toFixed(2),
-        itemTotal.toFixed(2)
-    ];
-});
-
-        doc.autoTable({
-            startY: tableStartY,
-            head: [['Sl', 'ITEM', 'HSN', 'PCS', 'Weight In Gms', 'Purity', 'Rate', 'TOTAL']],
-            body: tableData,
-            theme: 'grid',
-            headStyles: {
-                fillColor: [220, 220, 220],
-                textColor: 0,
-                fontSize: 7,
-                fontStyle: 'bold',
-                halign: 'center',
-                cellPadding: 2
-            },
-            bodyStyles: {
-                fontSize: 7,
-                cellPadding: 1.5
-            },
-            columnStyles: {
-                0: { cellWidth: 10, halign: 'center' },
-                1: { cellWidth: 60, halign: 'left' },
-                2: { cellWidth: 20, halign: 'center' },
-                3: { cellWidth: 15, halign: 'center' },
-                4: { cellWidth: 25, halign: 'right' },
-                5: { cellWidth: 20, halign: 'center' },
-                6: { cellWidth: 20, halign: 'right' },
-                7: { cellWidth: 25, halign: 'right' }
-            },
-            margin: { left: 15, right: 15 }
-        });
-
-        // ========== TOTALS SECTION ==========
-        const finalY = doc.lastAutoTable.finalY + 10;
-
-        doc.setFontSize(8);
-        doc.setFont(undefined, 'bold');
-
-        // Total PCS and Weight
-        doc.text(`Total PCS: ${totalPCS}`, 15, finalY);
-        doc.text(`${totalWeight.toFixed(3)}`, 50, finalY);
-
-        // Amounts on right side
-        const rightX = 150;
-        doc.text('GST Value:', rightX, finalY);
-        doc.setFont(undefined, 'normal');
-        doc.text(total.toFixed(2), 195, finalY, { align: 'right' });
-
-        doc.setFont(undefined, 'bold');
-        doc.text('CGST@1.50%:', rightX, finalY + 5);
-        doc.setFont(undefined, 'normal');
-        doc.text(cgst.toFixed(2), 195, finalY + 5, { align: 'right' });
-
-        doc.setFont(undefined, 'bold');
-        doc.text('SGST@1.50%:', rightX, finalY + 10);
-        doc.setFont(undefined, 'normal');
-        doc.text(sgst.toFixed(2), 195, finalY + 10, { align: 'right' });
-
-        // NET TOTAL - Larger font
-        doc.setFontSize(10);
-        doc.setFont(undefined, 'bold');
-        doc.text('Total Amount:', rightX, finalY + 17);
-        doc.text(netTotal.toFixed(2), 195, finalY + 17, { align: 'right' });
-
-        // ========== FOOTER ==========
-        const footerY = finalY + 25;
-        doc.setFontSize(7);
-        doc.setFont(undefined, 'normal');
-        doc.text('BANK NAME: HDFC BANK', 15, footerY);
-        doc.text('AC NAME: JPJEWELLERY', 15, footerY + 4);
-        doc.text('AC NO: 50200016402896', 15, footerY + 8);
-        doc.text('IFSC CODE: HDFC0000214', 15, footerY + 12);
-
-        doc.setFont(undefined, 'bold');
-        doc.text('For JP JEWELLERY', 150, footerY + 10);
-
-        // Save
-        doc.save(`Bill_${billNo}_${date.replace(/\//g, '-')}.pdf`);
-
-        closeModals();
-        alert(`Sales Bill PDF generated!\nBill No: ${billNo}\nQuotation: ${selectedQuotationForBill.quotationNo}`);
-
-        clearBillSelection();
-        incrementBillCounter();
+    // Update products table if on products tab
+    if (document.getElementById('productsTab').classList.contains('hidden') === false) {
+        updateProductsTable();
     }
 
+    // MARK QUOTATION AS BILLED
+    const quotIndex = savedQuotations.findIndex(q => q.id === selectedQuotationForBill.id);
+    if (quotIndex >= 0) {
+        savedQuotations[quotIndex].isBilled = true;
+        savedQuotations[quotIndex].billNo = billNo;
+        savedQuotations[quotIndex].billDate = new Date().toISOString();
+        localStorage.setItem('savedQuotations', JSON.stringify(savedQuotations));
+    }
+
+    // ========== PDF GENERATION - MATCHING SAMPLE FORMAT ==========
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p', 'mm', 'a4');
+
+    const date = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    const customer = selectedQuotationForBill.customer;
+
+    const totalWeight = billItems.reduce((sum, item) => sum + item.weight, 0);
+    const totalPCS = billItems.length;
+    const cgst = gst / 2;
+    const sgst = gst / 2;
+
+    // ========== HEADER SECTION ==========
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'bold');
+    doc.text('JP JEWELLERY', 105, 15, { align: 'center' });
+
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'normal');
+    doc.text('2ND FLOOR, OLD NO.34, NEW NO.21, BOTHRA EMPORIUM', 105, 20, { align: 'center' });
+    doc.text('VEERAPPAN STREET, SOWCARPET', 105, 24, { align: 'center' });
+    doc.text('CHENNAI 600079 | 044-43593474', 105, 28, { align: 'center' });
+
+    doc.setFont(undefined, 'bold');
+    doc.text('TAX INVOICE', 105, 35, { align: 'center' });
+    doc.text('33AADFJ4897R1ZJ', 105, 39, { align: 'center' });
+
+    // ========== BILL INFO ==========
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'bold');
+    doc.text('INVOICE No.:', 15, 48);
+    doc.setFont(undefined, 'normal');
+    doc.text(billNo, 45, 48);
+
+    doc.setFont(undefined, 'bold');
+    doc.text('BILL DATE:', 150, 48);
+    doc.setFont(undefined, 'normal');
+    doc.text(date, 175, 48);
+
+    // ========== CUSTOMER INFO ==========
+    doc.setFont(undefined, 'bold');
+    doc.text('Billed To:', 15, 55);
+    doc.setFontSize(9);
+    doc.text(customer.name.toUpperCase(), 15, 60);
+
+    doc.setFontSize(7);
+    doc.setFont(undefined, 'normal');
+    let yCustomer = 64;
+    if (customer.address1) {
+        doc.text(customer.address1, 15, yCustomer);
+        yCustomer += 4;
+    }
+    if (customer.address2) {
+        doc.text(customer.address2, 15, yCustomer);
+        yCustomer += 4;
+    }
+    if (customer.city) {
+        doc.text(customer.city, 15, yCustomer);
+        yCustomer += 4;
+    }
+    doc.text(`MOB: ${customer.mobile}`, 15, yCustomer);
+
+    // ========== ITEMS TABLE ==========
+    const tableStartY = Math.max(yCustomer + 8, 85);
+
+    const tableData = billItems.map((item, idx) => {
+        const itemTotal = (item.rate + item.mcRate) * item.weight;
+        
+        return [
+            idx + 1,
+            item.name,
+            '711311',
+            totalPCS,
+            item.weight.toFixed(3),
+            item.purity.toFixed(1),
+            item.rate.toFixed(2),
+            itemTotal.toFixed(2)
+        ];
+    });
+
+    doc.autoTable({
+        startY: tableStartY,
+        head: [['Sl', 'ITEM', 'HSN', 'PCS', 'Weight In Gms', 'Purity', 'Rate', 'TOTAL']],
+        body: tableData,
+        theme: 'grid',
+        headStyles: {
+            fillColor: [220, 220, 220],
+            textColor: 0,
+            fontSize: 7,
+            fontStyle: 'bold',
+            halign: 'center',
+            cellPadding: 2
+        },
+        bodyStyles: {
+            fontSize: 7,
+            cellPadding: 1.5
+        },
+        columnStyles: {
+            0: { cellWidth: 10, halign: 'center' },
+            1: { cellWidth: 60, halign: 'left' },
+            2: { cellWidth: 20, halign: 'center' },
+            3: { cellWidth: 15, halign: 'center' },
+            4: { cellWidth: 25, halign: 'right' },
+            5: { cellWidth: 20, halign: 'center' },
+            6: { cellWidth: 20, halign: 'right' },
+            7: { cellWidth: 25, halign: 'right' }
+        },
+        margin: { left: 15, right: 15 }
+    });
+
+    // ========== TOTALS SECTION ==========
+    const finalY = doc.lastAutoTable.finalY + 10;
+
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'bold');
+
+    doc.text(`Total PCS: ${totalPCS}`, 15, finalY);
+    doc.text(`${totalWeight.toFixed(3)}`, 50, finalY);
+
+    const rightX = 150;
+    doc.text('GST Value:', rightX, finalY);
+    doc.setFont(undefined, 'normal');
+    doc.text(total.toFixed(2), 195, finalY, { align: 'right' });
+
+    doc.setFont(undefined, 'bold');
+    doc.text('CGST@1.50%:', rightX, finalY + 5);
+    doc.setFont(undefined, 'normal');
+    doc.text(cgst.toFixed(2), 195, finalY + 5, { align: 'right' });
+
+    doc.setFont(undefined, 'bold');
+    doc.text('SGST@1.50%:', rightX, finalY + 10);
+    doc.setFont(undefined, 'normal');
+    doc.text(sgst.toFixed(2), 195, finalY + 10, { align: 'right' });
+
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'bold');
+    doc.text('Total Amount:', rightX, finalY + 17);
+    doc.text(netTotal.toFixed(2), 195, finalY + 17, { align: 'right' });
+
+    // ========== FOOTER ==========
+    const footerY = finalY + 25;
+    doc.setFontSize(7);
+    doc.setFont(undefined, 'normal');
+    doc.text('BANK NAME: HDFC BANK', 15, footerY);
+    doc.text('AC NAME: JPJEWELLERY', 15, footerY + 4);
+    doc.text('AC NO: 50200016402896', 15, footerY + 8);
+    doc.text('IFSC CODE: HDFC0000214', 15, footerY + 12);
+
+    doc.setFont(undefined, 'bold');
+    doc.text('For JP JEWELLERY', 150, footerY + 10);
+
+    doc.save(`Bill_${billNo}_${date.replace(/\//g, '-')}.pdf`);
+
+    closeModals();
+    alert(`✅ Sales Bill Generated!\n\nBill No: ${billNo}\nQuotation: ${selectedQuotationForBill.quotationNo}\n\n${billItems.length} products removed from inventory.`);
+
+    clearBillSelection();
+    incrementBillCounter();
+}
+
             function generateSalesBillExcel() {
-                    const total = billItems.reduce((sum, item) => sum + item.amount, 0);
-                    const gst = total * 0.03;
-                    const netTotal = total + gst;
-                    const billNo = `B${String(billCounter).padStart(4, '0')}`;
+    const total = billItems.reduce((sum, item) => sum + item.amount, 0);
+    const gst = total * 0.03;
+    const netTotal = total + gst;
+    const billNo = `SCB${String(billCounter).padStart(4, '0')}`;
 
-                    // SAVE BILL TO HISTORY
-                    const billRecord = {
-                        id: Date.now(),
-                        billNo: billNo,
-                        quotationNo: selectedQuotationForBill.quotationNo,
-                        date: new Date().toISOString(),
-                        customer: selectedQuotationForBill.customer,
-                        items: JSON.parse(JSON.stringify(billItems)),
-                        total: total,
-                        gst: gst,
-                        netTotal: netTotal,
-                        rateSlab: currentBillRateSlab
-                    };
+    // SAVE BILL TO HISTORY
+    const billRecord = {
+        id: Date.now(),
+        billNo: billNo,
+        quotationNo: selectedQuotationForBill.quotationNo,
+        date: new Date().toISOString(),
+        customer: selectedQuotationForBill.customer,
+        items: JSON.parse(JSON.stringify(billItems)),
+        total: total,
+        gst: gst,
+        netTotal: netTotal,
+        rateSlab: currentBillRateSlab
+    };
 
-                    savedBills.unshift(billRecord);
-                    localStorage.setItem('savedBills', JSON.stringify(savedBills));
+    savedBills.unshift(billRecord);
+    localStorage.setItem('savedBills', JSON.stringify(savedBills));
 
-                    // MARK QUOTATION AS BILLED
-                    const quotIndex = savedQuotations.findIndex(q => q.id === selectedQuotationForBill.id);
-                    if (quotIndex >= 0) {
-                        savedQuotations[quotIndex].isBilled = true;
-                        savedQuotations[quotIndex].billNo = billNo;
-                        savedQuotations[quotIndex].billDate = new Date().toISOString();
-                        localStorage.setItem('savedQuotations', JSON.stringify(savedQuotations));
-                    }
+    // ⭐ MARK ALL PRODUCTS AS SOLD AND REMOVE FROM INVENTORY
+    billItems.forEach(item => {
+        if (item.barcode) {
+            markProductAsSold(item.barcode, billNo);
+            removeProductFromInventory(item.barcode);
+        }
+    });
 
-                    // Excel Generation
-                    const totalWeight = billItems.reduce((sum, item) => sum + item.weight, 0);
-                    const totalMC = billItems.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
-                    const totalPCS = billItems.length;
-                    const date = new Date().toLocaleDateString('en-GB');
-                    const customer = selectedQuotationForBill.customer;
+    // Update products table if visible
+    if (document.getElementById('productsTab').classList.contains('hidden') === false) {
+        updateProductsTable();
+    }
 
-                    const wb = XLSX.utils.book_new();
+    // MARK QUOTATION AS BILLED
+    const quotIndex = savedQuotations.findIndex(q => q.id === selectedQuotationForBill.id);
+    if (quotIndex >= 0) {
+        savedQuotations[quotIndex].isBilled = true;
+        savedQuotations[quotIndex].billNo = billNo;
+        savedQuotations[quotIndex].billDate = new Date().toISOString();
+        localStorage.setItem('savedQuotations', JSON.stringify(savedQuotations));
+    }
 
-                    // Header Data
-                    const headerData = [
-                        ['To:', '', '', '', '', '', 'BILL No:', billNo],
-                        [customer.name.toUpperCase(), '', '', '', '', '', 'Date:', date],
-                        [customer.address1, '', '', '', '', '', 'Ref. Est:', selectedQuotationForBill.quotationNo],
-                        [customer.address2, '', '', '', '', '', '', ''],
-                        [customer.city, '', '', '', '', '', '', ''],
-                        [`Mob: ${customer.mobile}`, '', '', '', '', '', '', ''],
-                        ['']
-                    ];
+    // Excel Generation
+    const totalWeight = billItems.reduce((sum, item) => sum + item.weight, 0);
+    const totalMC = billItems.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
+    const totalPCS = billItems.length;
+    const date = new Date().toLocaleDateString('en-GB');
+    const customer = selectedQuotationForBill.customer;
 
-                    // Items Table Header
-                    const itemsHeader = [[
-                        '#', 'SKU', 'STYLE CODE', 'Short Name', 'SIZE',
-                        'NET.WT', 'AVG.WT', '% Pure', 'G.WT', 'PCS',
-                        'MC/gm', 'RATE', 'Amount'
-                    ]];
+    const wb = XLSX.utils.book_new();
 
-                    // Items Data with CORRECT calculation
-                    const itemsData = billItems.map((item, idx) => {
-                    // CORRECT CALCULATION: (Rate + MC) × Weight
-                    const itemTotal = (item.rate + item.mcRate) * item.weight;
-
-    return [
-        idx + 1,
-        item.sku || '-',
-        item.styleCode || '-',
-        item.name,
-        item.size || '-',
-        item.weight.toFixed(2),
-        item.weight.toFixed(2),
-        item.purity.toFixed(0),
-        item.weight.toFixed(2),
-        1,
-        item.mcRate.toFixed(2),
-        item.rate.toFixed(0),
-        itemTotal.toFixed(2)
+    const headerData = [
+        ['To:', '', '', '', '', '', 'BILL No:', billNo],
+        [customer.name.toUpperCase(), '', '', '', '', '', 'Date:', date],
+        [customer.address1, '', '', '', '', '', 'Ref. Est:', selectedQuotationForBill.quotationNo],
+        [customer.address2, '', '', '', '', '', '', ''],
+        [customer.city, '', '', '', '', '', '', ''],
+        [`Mob: ${customer.mobile}`, '', '', '', '', '', '', ''],
+        ['']
     ];
-});
 
-                    // Grand Total Data
-                    const grandTotalData = [
-                        [''],
-                        ['COUNT:', totalPCS, '', '', '', '', '', 'GRAND TOTAL'],
-                        ['Total Weight:', `${totalWeight.toFixed(2)} gm`, '', '', '', '', '', 'TOTAL:', total.toFixed(2)],
-                        ['MC:', totalMC.toFixed(2), '', '', '', '', '', 'GST (3%):', gst.toFixed(2)],
-                        ['', '', '', '', '', '', '', 'NET TOTAL:', netTotal.toFixed(2)]
-                    ];
+    const itemsHeader = [[
+        '#', 'SKU', 'STYLE CODE', 'Short Name', 'SIZE',
+        'NET.WT', 'AVG.WT', '% Pure', 'G.WT', 'PCS',
+        'MC/gm', 'RATE', 'Amount'
+    ]];
 
-                    // Combine all data
-                    const allData = [
-                        ...headerData,
-                        ...itemsHeader,
-                        ...itemsData,
-                        ...grandTotalData
-                    ];
+    const itemsData = billItems.map((item, idx) => {
+        const itemTotal = (item.rate + item.mcRate) * item.weight;
 
-                    // Create worksheet
-                    const ws = XLSX.utils.aoa_to_sheet(allData);
+        return [
+            idx + 1,
+            item.sku || '-',
+            item.styleCode || '-',
+            item.name,
+            item.size || '-',
+            item.weight.toFixed(2),
+            item.weight.toFixed(2),
+            item.purity.toFixed(0),
+            item.weight.toFixed(2),
+            1,
+            item.mcRate.toFixed(2),
+            item.rate.toFixed(0),
+            itemTotal.toFixed(2)
+        ];
+    });
 
-                    // Column widths
-                    ws['!cols'] = [
-                        { wch: 5 },   // #
-                        { wch: 20 },  // SKU
-                        { wch: 15 },  // STYLE CODE
-                        { wch: 35 },  // Short Name
-                        { wch: 10 },  // SIZE
-                        { wch: 12 },  // NET.WT
-                        { wch: 12 },  // AVG.WT
-                        { wch: 10 },  // % Pure
-                        { wch: 10 },  // G.WT
-                        { wch: 8 },   // PCS
-                        { wch: 12 },  // MC/gm
-                        { wch: 12 },  // RATE
-                        { wch: 15 }   // Amount
-                    ];
+    const grandTotalData = [
+        [''],
+        ['COUNT:', totalPCS, '', '', '', '', '', 'GRAND TOTAL'],
+        ['Total Weight:', `${totalWeight.toFixed(2)} gm`, '', '', '', '', '', 'TOTAL:', total.toFixed(2)],
+        ['MC:', totalMC.toFixed(2), '', '', '', '', '', 'GST (3%):', gst.toFixed(2)],
+        ['', '', '', '', '', '', '', 'NET TOTAL:', netTotal.toFixed(2)]
+    ];
 
-                    XLSX.utils.book_append_sheet(wb, ws, 'Bill');
-                    XLSX.writeFile(wb, `Bill_${billNo}_${date.replace(/\//g, '-')}.xlsx`);
+    const allData = [
+        ...headerData,
+        ...itemsHeader,
+        ...itemsData,
+        ...grandTotalData
+    ];
 
-                    closeModals();
-                    alert(`Sales Bill Excel generated!\nBill No: ${billNo}\nQuotation: ${selectedQuotationForBill.quotationNo}`);
+    const ws = XLSX.utils.aoa_to_sheet(allData);
 
-                    clearBillSelection();
-                    incrementBillCounter();
-                }
+    ws['!cols'] = [
+        { wch: 5 }, { wch: 20 }, { wch: 15 }, { wch: 35 }, { wch: 10 },
+        { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 8 },
+        { wch: 12 }, { wch: 12 }, { wch: 15 }
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Bill');
+    XLSX.writeFile(wb, `Bill_${billNo}_${date.replace(/\//g, '-')}.xlsx`);
+
+    closeModals();
+    alert(`✅ Sales Bill Excel Generated!\n\nBill No: ${billNo}\nQuotation: ${selectedQuotationForBill.quotationNo}\n\n${billItems.length} products removed from inventory.`);
+
+    clearBillSelection();
+    incrementBillCounter();
+}
 
     function incrementBillCounter() {
         billCounter++;
@@ -2376,9 +2405,7 @@
                     const newRate = rates[item.metalType];
                     if (newRate) {
                         item.rate = newRate;
-                        const metalValue = (item.weight * item.rate * item.purity) / 100;
-                        const mcCharges = item.weight * item.mcRate;
-                        item.amount = metalValue + mcCharges;
+                        item.amount = (item.rate + adjustedMCRate) * item.weight;
                         updatedCount++;
                     }
                 }
@@ -2462,9 +2489,7 @@
                         const originalMCRate = item.originalMcRate || item.mcRate;
                         const adjustedMCRate = getAdjustedMCRate(originalMCRate);
 
-                        const metalValue = (item.weight * item.rate * item.purity) / 100;
-                        const mcCharges = item.weight * adjustedMCRate;
-                        item.amount = metalValue + mcCharges;
+                        item.amount = (item.rate + adjustedMCRate) * item.weight;
                         item.mcRate = adjustedMCRate;
                         item.originalMcRate = originalMCRate; // Store original for future recalculations
                     });
@@ -3217,92 +3242,102 @@
         }
 
     function handleBarcodeScan(barcode) {
-        if (!barcode) return;
+    if (!barcode) return;
 
-        const product = products.find(p => p.barcode === barcode);
-        if (product) {
-            // Check if EXACT SAME BARCODE already exists in current bill
-const existingItemIndex = items.findIndex(item => item.barcode === barcode);
-
-if (existingItemIndex >= 0) {
-    // Same barcode already scanned - alert and focus on that item
-    alert(`⚠️ This exact item (Barcode: ${barcode}) is already added!\n${product.shortName}\nSKU: ${product.sku || 'N/A'}\n\nIf you need multiple pieces, edit the quantity manually.`);
-
-    // Flash the existing row
-    const existingRow = document.getElementById('itemsTableBody').children[existingItemIndex];
-    existingRow.style.backgroundColor = '#fff3cd';
-    setTimeout(() => {
-        existingRow.style.backgroundColor = '';
-    }, 1000);
-
-    // Clear scanner and refocus
-    document.getElementById('barcodeInput').value = '';
-    document.getElementById('barcodeInput').focus();
-    return;
-}
-
-            // Auto-populate form
-            document.getElementById('itemSku').value = product.sku || '';
-            document.getElementById('itemStyleCode').value = product.styleCode || '';
-            document.getElementById('itemName').value = product.shortName;
-            document.getElementById('itemSize').value = product.size || '';
-            document.getElementById('itemWeight').value = product.avgWt || '';
-            document.getElementById('itemPurity').value = product.purity;
-            document.getElementById('itemMetalType').value = product.metalType;
-
-            const metalRate = rates[product.metalType] || rates.silver;
-            document.getElementById('itemRate').value = metalRate;
-
-            const originalMCRate = product.mcRate;
-            const adjustedMCRate = getAdjustedMCRate(originalMCRate);
-            document.getElementById('itemMcRate').value = adjustedMCRate;
-            document.getElementById('itemMcRate').setAttribute('data-original-mc', originalMCRate);
-
-            updateItemAmount();
-
-            // AUTO-ADD ITEM IMMEDIATELY
-            const item = {
-                barcode: barcode,
-                sku: product.sku || '',
-                styleCode: product.styleCode || '',
-                name: product.shortName,
-                size: product.size || '',
-                weight: product.avgWt || 0,
-                purity: product.purity,
-                rate: metalRate,
-                mcRate: adjustedMCRate,
-                originalMcRate: originalMCRate,
-                metalType: product.metalType,
-                id: Date.now()
-            };
-
-            // Calculate amount
-            item.amount = (item.rate + item.mcRate) * item.weight;
-
-            items.push(item);
-            updateItemsTable();
-            updateSummary();
-            clearItemForm();
-
-            // Success feedback
-            const barcodeInput = document.getElementById('barcodeInput');
-            barcodeInput.style.backgroundColor = '#d4edda';
-            barcodeInput.style.borderColor = '#28a745';
-            setTimeout(() => {
-                barcodeInput.style.backgroundColor = '';
-                barcodeInput.style.borderColor = '';
-            }, 300);
-        } else {
-            alert('Product not found! Please add this product first.');
-            const barcodeInput = document.getElementById('barcodeInput');
-            barcodeInput.style.backgroundColor = '#f8d7da';
-            barcodeInput.style.borderColor = '#dc3545';
-            setTimeout(() => {
-                barcodeInput.style.backgroundColor = '';
-                barcodeInput.style.borderColor = '';
-            }, 500);
-        }
+    // Check if product is already sold
+    const soldInfo = isProductSold(barcode);
+    if (soldInfo) {
+        alert(`⚠️ PRODUCT ALREADY SOLD!\n\nBarcode: ${barcode}\nBill No: ${soldInfo.billNo}\nSold Date: ${new Date(soldInfo.soldDate).toLocaleDateString('en-GB')}\n\nThis product cannot be added to quotation.`);
+        
+        const barcodeInput = document.getElementById('barcodeInput');
+        barcodeInput.style.backgroundColor = '#f8d7da';
+        barcodeInput.style.borderColor = '#dc3545';
+        setTimeout(() => {
+            barcodeInput.style.backgroundColor = '';
+            barcodeInput.style.borderColor = '';
+        }, 1000);
+        return;
     }
+
+    const product = products.find(p => p.barcode === barcode);
+    if (product) {
+        // Check if EXACT SAME BARCODE already exists in current bill
+        const existingItemIndex = items.findIndex(item => item.barcode === barcode);
+
+        if (existingItemIndex >= 0) {
+            alert(`⚠️ This exact item (Barcode: ${barcode}) is already added!\n${product.shortName}\nSKU: ${product.sku || 'N/A'}\n\nIf you need multiple pieces, edit the quantity manually.`);
+
+            const existingRow = document.getElementById('itemsTableBody').children[existingItemIndex];
+            existingRow.style.backgroundColor = '#fff3cd';
+            setTimeout(() => {
+                existingRow.style.backgroundColor = '';
+            }, 1000);
+
+            document.getElementById('barcodeInput').value = '';
+            document.getElementById('barcodeInput').focus();
+            return;
+        }
+
+        // Auto-populate form
+        document.getElementById('itemSku').value = product.sku || '';
+        document.getElementById('itemStyleCode').value = product.styleCode || '';
+        document.getElementById('itemName').value = product.shortName;
+        document.getElementById('itemSize').value = product.size || '';
+        document.getElementById('itemWeight').value = product.avgWt || '';
+        document.getElementById('itemPurity').value = product.purity;
+        document.getElementById('itemMetalType').value = product.metalType;
+
+        const metalRate = rates[product.metalType] || rates.silver;
+        document.getElementById('itemRate').value = metalRate;
+
+        const originalMCRate = product.mcRate;
+        const adjustedMCRate = getAdjustedMCRate(originalMCRate);
+        document.getElementById('itemMcRate').value = adjustedMCRate;
+        document.getElementById('itemMcRate').setAttribute('data-original-mc', originalMCRate);
+
+        updateItemAmount();
+
+        // AUTO-ADD ITEM IMMEDIATELY
+        const item = {
+            barcode: barcode,
+            sku: product.sku || '',
+            styleCode: product.styleCode || '',
+            name: product.shortName,
+            size: product.size || '',
+            weight: product.avgWt || 0,
+            purity: product.purity,
+            rate: metalRate,
+            mcRate: adjustedMCRate,
+            originalMcRate: originalMCRate,
+            metalType: product.metalType,
+            id: Date.now()
+        };
+
+        item.amount = (item.rate + item.mcRate) * item.weight;
+
+        items.push(item);
+        updateItemsTable();
+        updateSummary();
+        clearItemForm();
+
+        const barcodeInput = document.getElementById('barcodeInput');
+        barcodeInput.style.backgroundColor = '#d4edda';
+        barcodeInput.style.borderColor = '#28a745';
+        setTimeout(() => {
+            barcodeInput.style.backgroundColor = '';
+            barcodeInput.style.borderColor = '';
+        }, 300);
+    } else {
+        alert('Product not found! Please add this product first.');
+        const barcodeInput = document.getElementById('barcodeInput');
+        barcodeInput.style.backgroundColor = '#f8d7da';
+        barcodeInput.style.borderColor = '#dc3545';
+        setTimeout(() => {
+            barcodeInput.style.backgroundColor = '';
+            barcodeInput.style.borderColor = '';
+        }, 500);
+    }
+}
 
             function handleProductBarcodeScan(barcode) {
                     if (!barcode) return;
@@ -3837,6 +3872,30 @@ if (existingItemIndex >= 0) {
                         document.getElementById('barcodeInput').focus();
                     }
                 }
+
+                function viewSoldProductsReport() {
+    if (soldProducts.length === 0) {
+        alert('No products have been sold yet.');
+        return;
+    }
+
+    const wb = XLSX.utils.book_new();
+    
+    const data = soldProducts.map(sp => {
+        const bill = savedBills.find(b => b.billNo === sp.billNo);
+        return {
+            'Barcode': sp.barcode,
+            'Bill No': sp.billNo,
+            'Sold Date': new Date(sp.soldDate).toLocaleDateString('en-GB'),
+            'Customer': bill ? bill.customer.name : 'N/A'
+        };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    XLSX.utils.book_append_sheet(wb, ws, 'Sold Products');
+    XLSX.writeFile(wb, `Sold_Products_${new Date().toISOString().split('T')[0]}.xlsx`);
+    alert(`Sold Products Report downloaded!\nTotal: ${soldProducts.length} products`);
+}
 
                 function closeModals() {
                         document.getElementById('modalOverlay').classList.add('hidden');
