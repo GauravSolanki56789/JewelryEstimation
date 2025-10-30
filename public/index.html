@@ -1510,9 +1510,7 @@
                     const adjustedMCRate = getBillAdjustedMCRate(originalMCRate);
 
                     // Recalculate amount
-                    const metalValue = (item.weight * item.rate * item.purity) / 100;
-                    const mcCharges = item.weight * adjustedMCRate;
-                    item.amount = metalValue + mcCharges;
+                    item.amount = (item.rate + adjustedMCRate) * item.weight;
                     item.mcRate = adjustedMCRate;
                     item.originalMcRate = originalMCRate;
                 });
@@ -1670,16 +1668,21 @@
         // ========== ITEMS TABLE ==========
         const tableStartY = Math.max(yCustomer + 8, 85);
 
-        const tableData = billItems.map((item, idx) => [
-            idx + 1,
-            item.name,
-            '711311', // HSN Code - you can make this dynamic if needed
-            totalPCS,
-            item.weight.toFixed(3),
-            item.purity.toFixed(1),
-            item.rate.toFixed(2),
-            item.amount.toFixed(2)
-        ]);
+        const tableData = billItems.map((item, idx) => {
+    // CORRECT CALCULATION: (Rate + MC) × Weight
+    const itemTotal = (item.rate + item.mcRate) * item.weight;
+    
+    return [
+        idx + 1,
+        item.name,
+        '711311', // HSN Code
+        totalPCS,
+        item.weight.toFixed(3),
+        item.purity.toFixed(1),
+        item.rate.toFixed(2),
+        itemTotal.toFixed(2)
+    ];
+});
 
         doc.autoTable({
             startY: tableStartY,
@@ -1826,26 +1829,25 @@
 
                     // Items Data with CORRECT calculation
                     const itemsData = billItems.map((item, idx) => {
-                        const metalValue = (item.weight * item.rate * item.purity) / 100;
-                        const mcCharges = item.weight * item.mcRate;
-                        const itemTotal = metalValue + mcCharges;
+                    // CORRECT CALCULATION: (Rate + MC) × Weight
+                    const itemTotal = (item.rate + item.mcRate) * item.weight;
 
-                        return [
-                            idx + 1,
-                            item.sku || '-',
-                            item.styleCode || '-',
-                            item.name,
-                            item.size || '-',
-                            item.weight.toFixed(2),
-                            item.weight.toFixed(2),
-                            item.purity.toFixed(0),
-                            item.weight.toFixed(2),
-                            1,
-                            item.mcRate.toFixed(2),
-                            item.rate.toFixed(0),
-                            itemTotal.toFixed(2)
-                        ];
-                    });
+    return [
+        idx + 1,
+        item.sku || '-',
+        item.styleCode || '-',
+        item.name,
+        item.size || '-',
+        item.weight.toFixed(2),
+        item.weight.toFixed(2),
+        item.purity.toFixed(0),
+        item.weight.toFixed(2),
+        1,
+        item.mcRate.toFixed(2),
+        item.rate.toFixed(0),
+        itemTotal.toFixed(2)
+    ];
+});
 
                     // Grand Total Data
                     const grandTotalData = [
@@ -2039,21 +2041,26 @@
 
                                         // Items table
                                         const tableStartY = yPos + 8;
-                                        const tableData = bill.items.map((item, idx) => [
-                                            idx + 1,
-                                            item.sku || '-',
-                                            item.styleCode || '-',
-                                            item.name,
-                                            item.size || '-',
-                                            item.weight.toFixed(2),
-                                            item.weight.toFixed(2),
-                                            item.purity.toFixed(0),
-                                            item.weight.toFixed(2),
-                                            '1',
-                                            item.mcRate.toFixed(2),
-                                            item.rate.toFixed(0),
-                                            item.amount.toFixed(2)
-                                        ]);
+                                        const tableData = bill.items.map((item, idx) => {
+    // CORRECT CALCULATION: (Rate + MC) × Weight
+    const itemTotal = (item.rate + item.mcRate) * item.weight;
+    
+    return [
+        idx + 1,
+        item.sku || '-',
+        item.styleCode || '-',
+        item.name,
+        item.size || '-',
+        item.weight.toFixed(2),
+        item.weight.toFixed(2),
+        item.purity.toFixed(0),
+        item.weight.toFixed(2),
+        '1',
+        item.mcRate.toFixed(2),
+        item.rate.toFixed(0),
+        itemTotal.toFixed(2)
+    ];
+});
 
                                         doc.autoTable({
                                             startY: tableStartY,
@@ -3214,29 +3221,25 @@
 
         const product = products.find(p => p.barcode === barcode);
         if (product) {
-            // Check if item already exists in current bill
-            const existingItemIndex = items.findIndex(item =>
-                item.sku === (product.sku || '') &&
-                item.styleCode === (product.styleCode || '') &&
-                item.name === product.shortName
-            );
+            // Check if EXACT SAME BARCODE already exists in current bill
+const existingItemIndex = items.findIndex(item => item.barcode === barcode);
 
-            if (existingItemIndex >= 0) {
-                // Item already exists - alert and focus on that item
-                alert(`⚠️ Item already added!\n${product.shortName}\nSKU: ${product.sku || 'N/A'}`);
+if (existingItemIndex >= 0) {
+    // Same barcode already scanned - alert and focus on that item
+    alert(`⚠️ This exact item (Barcode: ${barcode}) is already added!\n${product.shortName}\nSKU: ${product.sku || 'N/A'}\n\nIf you need multiple pieces, edit the quantity manually.`);
 
-                // Flash the existing row
-                const existingRow = document.getElementById('itemsTableBody').children[existingItemIndex];
-                existingRow.style.backgroundColor = '#fff3cd';
-                setTimeout(() => {
-                    existingRow.style.backgroundColor = '';
-                }, 1000);
+    // Flash the existing row
+    const existingRow = document.getElementById('itemsTableBody').children[existingItemIndex];
+    existingRow.style.backgroundColor = '#fff3cd';
+    setTimeout(() => {
+        existingRow.style.backgroundColor = '';
+    }, 1000);
 
-                // Clear scanner and refocus
-                document.getElementById('barcodeInput').value = '';
-                document.getElementById('barcodeInput').focus();
-                return;
-            }
+    // Clear scanner and refocus
+    document.getElementById('barcodeInput').value = '';
+    document.getElementById('barcodeInput').focus();
+    return;
+}
 
             // Auto-populate form
             document.getElementById('itemSku').value = product.sku || '';
@@ -3259,6 +3262,7 @@
 
             // AUTO-ADD ITEM IMMEDIATELY
             const item = {
+                barcode: barcode,
                 sku: product.sku || '',
                 styleCode: product.styleCode || '',
                 name: product.shortName,
@@ -3273,9 +3277,7 @@
             };
 
             // Calculate amount
-            const metalValue = (item.weight * item.rate * item.purity) / 100;
-            const mcCharges = item.weight * item.mcRate;
-            item.amount = metalValue + mcCharges;
+            item.amount = (item.rate + item.mcRate) * item.weight;
 
             items.push(item);
             updateItemsTable();
@@ -3337,14 +3339,13 @@
                 }
 
         function updateItemAmount() {
-            const weight = parseFloat(document.getElementById('itemWeight').value) || 0;
-            const rate = parseFloat(document.getElementById('itemRate').value) || 0;
-            const mcRate = parseFloat(document.getElementById('itemMcRate').value) || 0;
-            const purity = parseFloat(document.getElementById('itemPurity').value) || 100;
-            const metalValue = (weight * rate * purity) / 100;
-            const mcCharges = weight * mcRate;
-            const total = metalValue + mcCharges;
-            document.getElementById('itemAmount').textContent = `₹${total.toFixed(2)}`;
+           const weight = parseFloat(document.getElementById('itemWeight').value) || 0;
+           const rate = parseFloat(document.getElementById('itemRate').value) || 0;
+           const mcRate = parseFloat(document.getElementById('itemMcRate').value) || 0;
+    
+          // CORRECT FORMULA: (Rate + MC) × Weight
+          const total = (rate + mcRate) * weight;
+          document.getElementById('itemAmount').textContent = `₹${total.toFixed(2)}`;
         }
 
         function addItem() {
@@ -3367,9 +3368,7 @@
                 }
 
                 // Calculate amount correctly
-                const metalValue = (item.weight * item.rate * item.purity) / 100;
-                const mcCharges = item.weight * item.mcRate;
-                item.amount = metalValue + mcCharges;
+                item.amount = (item.rate + item.mcRate) * item.weight;
                 item.id = Date.now();
 
                 items.push(item);
@@ -3421,9 +3420,7 @@
             item.weight = parseFloat(newWeight) || 0;
 
             // Recalculate amount
-            const metalValue = (item.weight * item.rate * item.purity) / 100;
-            const mcCharges = item.weight * item.mcRate;
-            item.amount = metalValue + mcCharges;
+            item.amount = (item.rate + item.mcRate) * item.weight;
 
             updateItemsTable();
             updateSummary();
@@ -3437,9 +3434,7 @@
                 item.originalMcRate = item.mcRate; // Update original as well
 
                 // Recalculate amount
-                const metalValue = (item.weight * item.rate * item.purity) / 100;
-                const mcCharges = item.weight * item.mcRate;
-                item.amount = metalValue + mcCharges;
+                item.amount = (item.rate + item.mcRate) * item.weight;
 
                 updateItemsTable();
                 updateSummary();
@@ -3572,27 +3567,25 @@
         const tableStartY = yPos + 8;
 
         const tableData = items.map((item, idx) => {
-            // CORRECT CALCULATION: Metal Value + MC Charges
-            const metalValue = (item.weight * item.rate * item.purity) / 100;
-            const mcCharges = item.weight * item.mcRate;
-            const itemTotal = metalValue + mcCharges;
+    // CORRECT CALCULATION: (Rate + MC) × Weight
+    const itemTotal = (item.rate + item.mcRate) * item.weight;
 
-            return [
-                idx + 1,
-                item.sku || '-',
-                item.styleCode || '-',
-                item.name,
-                item.size || '-',
-                item.weight.toFixed(2),
-                item.weight.toFixed(2),
-                item.purity.toFixed(1),
-                item.weight.toFixed(2),
-                '1',
-                item.mcRate.toFixed(2),
-                item.rate.toFixed(2),
-                itemTotal.toFixed(2)
-            ];
-        });
+    return [
+        idx + 1,
+        item.sku || '-',
+        item.styleCode || '-',
+        item.name,
+        item.size || '-',
+        item.weight.toFixed(2),
+        item.weight.toFixed(2),
+        item.purity.toFixed(1),
+        item.weight.toFixed(2),
+        '1',
+        item.mcRate.toFixed(2),
+        item.rate.toFixed(2),
+        itemTotal.toFixed(2)
+    ];
+});
 
         doc.autoTable({
             startY: tableStartY,
@@ -3760,21 +3753,26 @@
                     'MC/gm', 'RATE', 'Amount'
                 ]];
 
-                const itemsData = items.map((item, idx) => [
-                    idx + 1,
-                    item.sku || '-',
-                    item.styleCode || '-',
-                    item.name,
-                    item.size || '-',
-                    item.weight.toFixed(2),
-                    item.weight.toFixed(2),
-                    item.purity.toFixed(0),
-                    item.weight.toFixed(2),
-                    1,
-                    item.mcRate.toFixed(2),
-                    item.rate.toFixed(0),
-                    item.amount.toFixed(2)
-                ]);
+                const itemsData = items.map((item, idx) => {
+    // CORRECT CALCULATION: (Rate + MC) × Weight
+    const itemTotal = (item.rate + item.mcRate) * item.weight;
+    
+    return [
+        idx + 1,
+        item.sku || '-',
+        item.styleCode || '-',
+        item.name,
+        item.size || '-',
+        item.weight.toFixed(2),
+        item.weight.toFixed(2),
+        item.purity.toFixed(0),
+        item.weight.toFixed(2),
+        1,
+        item.mcRate.toFixed(2),
+        item.rate.toFixed(0),
+        itemTotal.toFixed(2)
+    ];
+});
 
                 // ========== GRAND TOTAL SECTION ==========
                 const grandTotalData = [
@@ -4408,21 +4406,26 @@
 
                                 // Items table
                                 const tableStartY = yPos + 8;
-                                const tableData = q.items.map((item, idx) => [
-                                    idx + 1,
-                                    item.sku || '-',
-                                    item.styleCode || '-',
-                                    item.name,
-                                    item.size || '-',
-                                    item.weight.toFixed(2),
-                                    item.weight.toFixed(2),
-                                    item.purity.toFixed(0),
-                                    item.weight.toFixed(2),
-                                    '1',
-                                    item.mcRate.toFixed(2),
-                                    item.rate.toFixed(0),
-                                    item.amount.toFixed(2)
-                                ]);
+                                const tableData = q.items.map((item, idx) => {
+    // CORRECT CALCULATION: (Rate + MC) × Weight
+    const itemTotal = (item.rate + item.mcRate) * item.weight;
+    
+    return [
+        idx + 1,
+        item.sku || '-',
+        item.styleCode || '-',
+        item.name,
+        item.size || '-',
+        item.weight.toFixed(2),
+        item.weight.toFixed(2),
+        item.purity.toFixed(0),
+        item.weight.toFixed(2),
+        '1',
+        item.mcRate.toFixed(2),
+        item.rate.toFixed(0),
+        itemTotal.toFixed(2)
+    ];
+});
 
                                 doc.autoTable({
                                     startY: tableStartY,
@@ -4510,11 +4513,16 @@
                                 ];
 
                                 const itemsHeader = [['#', 'SKU', 'STYLE CODE', 'Short Name', 'SIZE', 'NET.WT', 'AVG.WT', '% Pure', 'G.WT', 'PCS', 'MC/gm', 'RATE', 'Amount']];
-                                const itemsData = q.items.map((item, idx) => [
-                                    idx + 1, item.sku || '-', item.styleCode || '-', item.name, item.size || '-',
-                                    item.weight.toFixed(2), item.weight.toFixed(2), item.purity.toFixed(0),
-                                    item.weight.toFixed(2), 1, item.mcRate.toFixed(2), item.rate.toFixed(0), item.amount.toFixed(2)
-                                ]);
+                                const itemsData = q.items.map((item, idx) => {
+    // CORRECT CALCULATION: (Rate + MC) × Weight
+    const itemTotal = (item.rate + item.mcRate) * item.weight;
+    
+    return [
+        idx + 1, item.sku || '-', item.styleCode || '-', item.name, item.size || '-',
+        item.weight.toFixed(2), item.weight.toFixed(2), item.purity.toFixed(0),
+        item.weight.toFixed(2), 1, item.mcRate.toFixed(2), item.rate.toFixed(0), itemTotal.toFixed(2)
+    ];
+});
 
                                 const totalWeight = q.items.reduce((sum, item) => sum + item.weight, 0);
                                 const totalMC = q.items.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
