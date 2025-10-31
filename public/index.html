@@ -3,11 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jewelry Estimation Software - Complete</title>
+    <title>Jewellery Estimation Software - Complete</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <style>
+    /* Smooth transitions */
+    * {
+        transition: background-color 0.2s ease;
+    }
+    
+    /* Table hover effects */
+    tbody tr:hover {
+        background-color: #f9fafb !important;
+    }
+    
+    /* Modal backdrop blur */
+    #modalOverlay {
+        backdrop-filter: blur(2px);
+    }
+    
+    /* Print styles for ledger */
+    @media print {
+        .no-print {
+            display: none !important;
+        }
+        
+        body {
+            background: white !important;
+        }
+    }
+</style>
 </head>
 <body class="bg-gradient-to-br from-amber-50 to-orange-50 min-h-screen">
     <div id="app" class="max-w-7xl mx-auto p-4">
@@ -16,7 +43,7 @@
             <div class="bg-gradient-to-r from-amber-600 to-orange-600 text-white p-6">
                 <div class="flex justify-between items-center flex-wrap gap-4">
                     <div>
-                        <h1 class="text-3xl font-bold mb-2">💎 Jewelry Estimation Software</h1>
+                        <h1 class="text-3xl font-bold mb-2">💎 Jewellery Estimation Software</h1>
                         <p class="text-amber-100" id="quotationNo">Quotation No: Q0001</p>
                     </div>
                     <div class="flex gap-3 flex-wrap">
@@ -1504,7 +1531,7 @@ function removeProductFromInventory(barcode) {
                 });
             }
 
-            function loadQuotationForBill() {
+function loadQuotationForBill() {
     const idx = document.getElementById('selectQuotationForBill').value;
 
     if (idx === '') {
@@ -1524,7 +1551,8 @@ function removeProductFromInventory(barcode) {
     
     // Check if already billed
     if (selectedQuotationForBill.isBilled) {
-        alert(`⚠️ This quotation (${selectedQuotationForBill.quotationNo}) has already been billed!\nBill No: ${selectedQuotationForBill.billNo || 'Unknown'}\nBill Date: ${new Date(selectedQuotationForBill.billDate).toLocaleDateString('en-GB')}\n\nPlease select a different quotation.`);
+        const billDate = new Date(selectedQuotationForBill.billDate).toLocaleDateString('en-GB');
+        alert(`⚠️ This quotation (${selectedQuotationForBill.quotationNo}) has already been billed!\n\nBill No: ${selectedQuotationForBill.billNo || 'Unknown'}\nBill Date: ${billDate}\n\nPlease select a different quotation.`);
         document.getElementById('selectQuotationForBill').value = '';
         
         // Clear all sections
@@ -1562,7 +1590,7 @@ function removeProductFromInventory(barcode) {
     billItems = selectedQuotationForBill.items.map(item => ({
         ...item,
         originalMcRate: item.originalMcRate || item.mcRate,
-        barcode: item.barcode || null // Ensure barcode is included
+        barcode: item.barcode || null
     }));
 
     // Recalculate with current rates and rate slab
@@ -1688,6 +1716,8 @@ function generateSalesBillPDF() {
 
     const total = billItems.reduce((sum, item) => sum + item.amount, 0);
     const gst = total * 0.03;
+    const cgst = gst / 2;
+    const sgst = gst / 2;
     const netTotal = total + gst;
     const billNo = `SCB${String(billCounter).padStart(4, '0')}`;
     const date = new Date();
@@ -1724,7 +1754,7 @@ function generateSalesBillPDF() {
         reference: billNo
     });
 
-    // Update metal stock levels (deduct sold metals)
+    // Update metal stock levels
     billItems.forEach(item => {
         const weightInGrams = item.weight;
         if (item.metalType === 'gold') {
@@ -1735,7 +1765,7 @@ function generateSalesBillPDF() {
             accountBalances.platinumStock = Math.max(0, accountBalances.platinumStock - weightInGrams);
         }
 
-        // Mark product as sold and remove from inventory
+        // Mark product as sold
         if (item.barcode) {
             markProductAsSold(item.barcode, billNo);
             removeProductFromInventory(item.barcode);
@@ -1758,7 +1788,7 @@ function generateSalesBillPDF() {
         localStorage.setItem('savedQuotations', JSON.stringify(savedQuotations));
     }
 
-    // ========== PDF GENERATION ==========
+    // ========== PDF GENERATION (MATCHING SAMPLE) ==========
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'a4');
 
@@ -1766,10 +1796,8 @@ function generateSalesBillPDF() {
     const customer = selectedQuotationForBill.customer;
     const totalWeight = billItems.reduce((sum, item) => sum + item.weight, 0);
     const totalPCS = billItems.length;
-    const cgst = gst / 2;
-    const sgst = gst / 2;
 
-    // Header
+    // ========== HEADER ==========
     doc.setFontSize(10);
     doc.setFont(undefined, 'bold');
     doc.text('JP JEWELLERY', 105, 15, { align: 'center' });
@@ -1784,7 +1812,7 @@ function generateSalesBillPDF() {
     doc.text('TAX INVOICE', 105, 35, { align: 'center' });
     doc.text('33AADFJ4897R1ZJ', 105, 39, { align: 'center' });
 
-    // Bill Info
+    // ========== BILL INFO ==========
     doc.setFontSize(8);
     doc.text('INVOICE No.:', 15, 48);
     doc.setFont(undefined, 'normal');
@@ -1795,7 +1823,7 @@ function generateSalesBillPDF() {
     doc.setFont(undefined, 'normal');
     doc.text(formattedDate, 175, 48);
 
-    // Customer Info
+    // ========== CUSTOMER INFO ==========
     doc.setFont(undefined, 'bold');
     doc.setFontSize(9);
     doc.text(customer.name.toUpperCase(), 15, 60);
@@ -1817,20 +1845,19 @@ function generateSalesBillPDF() {
     }
     doc.text(`MOB: ${customer.mobile}`, 15, yCustomer);
 
-    // Items Table
+    // ========== ITEMS TABLE ==========
     const tableStartY = Math.max(yCustomer + 8, 85);
 
     const tableData = billItems.map((item, idx) => {
-        const itemTotal = (item.rate + item.mcRate) * item.weight;
         return [
             idx + 1,
             item.name,
-            '711311',
+            '711311', // HSN Code
             totalPCS,
             item.weight.toFixed(3),
             item.purity.toFixed(1),
             item.rate.toFixed(2),
-            itemTotal.toFixed(2)
+            item.amount.toFixed(2)
         ];
     });
 
@@ -1864,7 +1891,7 @@ function generateSalesBillPDF() {
         margin: { left: 15, right: 15 }
     });
 
-    // Totals Section
+    // ========== TOTALS SECTION ==========
     const finalY = doc.lastAutoTable.finalY + 10;
 
     doc.setFontSize(8);
@@ -1892,7 +1919,7 @@ function generateSalesBillPDF() {
     doc.text('Total Amount:', rightX, finalY + 17);
     doc.text(netTotal.toFixed(2), 195, finalY + 17, { align: 'right' });
 
-    // Footer
+    // ========== FOOTER ==========
     const footerY = finalY + 25;
     doc.setFontSize(7);
     doc.setFont(undefined, 'normal');
@@ -6394,7 +6421,7 @@ function viewCustomerLedger(customerMobile) {
     displayCustomerLedgerTransactions(customerMobile, 'month');
 }
 
-function displayCustomerLedgerTransactions(customerMobile, period = 'all') {
+function displayCustomerLedgerTransactions(customerMobile, period = 'month') {
     const tbody = document.getElementById('customerLedgerTableBody');
     if (!tbody) return;
     
@@ -6407,39 +6434,34 @@ function displayCustomerLedgerTransactions(customerMobile, period = 'all') {
         txn.customerMobile === customerMobile
     );
     
-    // Filter by period
-    if (period !== 'all') {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
+    // Filter by period - DEFAULT TO THIS MONTH
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (period === 'month') {
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
         customerBills = customerBills.filter(bill => {
             const billDate = new Date(bill.date);
-            billDate.setHours(0, 0, 0, 0);
-            
-            if (period === 'month') {
-                const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-                return billDate >= monthStart;
-            } else if (period === 'year') {
-                const yearStart = new Date(today.getFullYear(), 0, 1);
-                return billDate >= yearStart;
-            }
-            return true;
+            return billDate >= monthStart;
         });
         
         paymentTransactions = paymentTransactions.filter(txn => {
             const txnDate = new Date(txn.date);
-            txnDate.setHours(0, 0, 0, 0);
-            
-            if (period === 'month') {
-                const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-                return txnDate >= monthStart;
-            } else if (period === 'year') {
-                const yearStart = new Date(today.getFullYear(), 0, 1);
-                return txnDate >= yearStart;
-            }
-            return true;
+            return txnDate >= monthStart;
+        });
+    } else if (period === 'year') {
+        const yearStart = new Date(today.getFullYear(), 0, 1);
+        customerBills = customerBills.filter(bill => {
+            const billDate = new Date(bill.date);
+            return billDate >= yearStart;
+        });
+        
+        paymentTransactions = paymentTransactions.filter(txn => {
+            const txnDate = new Date(txn.date);
+            return txnDate >= yearStart;
         });
     }
+    // 'all' - no filtering
     
     // Combine and sort all transactions by date
     const allTransactions = [];
@@ -6522,7 +6544,7 @@ function displayCustomerLedgerTransactions(customerMobile, period = 'all') {
     
     // Add closing balance row
     const closingRow = document.createElement('tr');
-    closingRow.className = 'bg-gray-100 font-bold';
+    closingRow.className = 'bg-gray-100 font-bold border-t-2 border-gray-400';
     closingRow.innerHTML = `
         <td colspan="3" class="px-4 py-3 text-right">Closing Balance:</td>
         <td class="px-4 py-3 text-right">-</td>
@@ -6647,7 +6669,7 @@ function recordPayment(customerMobile) {
 function savePayment(customerMobile) {
     const amount = parseFloat(document.getElementById('paymentAmount').value);
     const method = document.getElementById('paymentMethod').value;
-    const reference = document.getElementById('paymentReference').value.trim();
+    const reference = document.getElementById('paymentReference').value.trim() || `PAY${Date.now()}`;
     const date = document.getElementById('paymentDate').value;
     const notes = document.getElementById('paymentNotes').value.trim();
     
@@ -6657,13 +6679,34 @@ function savePayment(customerMobile) {
     }
     
     const customer = savedBills.find(b => b.customer.mobile === customerMobile)?.customer;
+    if (!customer) {
+        alert('Customer not found!');
+        return;
+    }
     
-    // Update bills with payment
+    // Calculate outstanding balance
+    const customerBills = savedBills.filter(bill => bill.customer.mobile === customerMobile);
+    const totalAmount = customerBills.reduce((sum, bill) => sum + bill.netTotal, 0);
+    const totalPaid = customerBills.reduce((sum, bill) => sum + (bill.paidAmount || 0), 0);
+    const balance = totalAmount - totalPaid;
+    
+    if (amount > balance) {
+        if (!confirm(`Payment amount (₹${amount.toFixed(2)}) exceeds outstanding balance (₹${balance.toFixed(2)}).\n\nDo you want to record this as an advance payment?`)) {
+            return;
+        }
+    }
+    
+    // Update bills with payment (allocate to oldest bills first)
     let remainingAmount = amount;
     const updatedBills = [];
     
-    savedBills.forEach(bill => {
-        if (bill.customer.mobile === customerMobile && remainingAmount > 0) {
+    // Sort bills by date (oldest first)
+    const sortedBills = savedBills
+        .filter(bill => bill.customer.mobile === customerMobile)
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+    sortedBills.forEach(bill => {
+        if (remainingAmount > 0) {
             const billBalance = bill.netTotal - (bill.paidAmount || 0);
             if (billBalance > 0) {
                 const paymentForBill = Math.min(remainingAmount, billBalance);
@@ -6685,7 +6728,7 @@ function savePayment(customerMobile) {
         description: `Payment received from ${customer.name}${notes ? ' - ' + notes : ''}`,
         category: 'Payment Received',
         paymentMethod: method,
-        reference: reference || `PAY${Date.now()}`,
+        reference: reference,
         billsUpdated: updatedBills.join(', ')
     });
     
@@ -6696,9 +6739,9 @@ function savePayment(customerMobile) {
     
     closePaymentModal();
     updateLedgerDashboard();
-    viewCustomerLedger(customerMobile);
+    viewCustomerLedger(customerMobile); // Refresh the ledger view
     
-    alert(`✅ Payment recorded successfully!\n\nAmount: ₹${amount.toFixed(2)}\nMethod: ${method}\n\nCustomer account updated.`);
+    alert(`✅ Payment recorded successfully!\n\nAmount: ₹${amount.toFixed(2)}\nMethod: ${method}\nReference: ${reference}\n\nBills Updated: ${updatedBills.join(', ') || 'None (Advance)'}\n\nCustomer account updated.`);
 }
 
 function closePaymentModal() {
