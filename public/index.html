@@ -2401,6 +2401,8 @@ function generateSalesBillPDF() {
 
                 // Initial focus on barcode scanner
                 document.getElementById('barcodeInput').focus();
+                // Initialize ledger dashboard
+                updateLedgerDashboard();
             });
 
             function updateBillCustomerDropdown() {
@@ -2471,7 +2473,8 @@ function generateSalesBillPDF() {
                 } else if (tab === 'ledger') {
                     document.getElementById('ledgerTab').classList.remove('hidden');
                     document.getElementById('btnLedger').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
-                    loadLedgerCustomers();
+                    updateLedgerDashboard();
+                    showLedgerTransactions(); // Show transactions by default
                 }
             }
 
@@ -5325,6 +5328,1167 @@ function generateSalesBillPDF() {
             if (ledgerTransactions.length === 0) {
                 alert('No transactions to export!');
                 return;
+            }
+
+        // ========== EXPENSE MANAGEMENT ==========
+
+            function showLedgerExpenses() {
+                const container = document.getElementById('ledgerSubtabs');
+
+                container.innerHTML = `
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-800">💸 Expense Management</h3>
+                <div class="flex gap-2">
+                    <button onclick="downloadExpenseReport()" 
+                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                        📥 Download Report
+                    </button>
+                    <button onclick="showAddExpenseModal()" 
+                        class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                        ➕ Add Expense
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Expense Summary Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div class="bg-red-50 p-4 rounded-lg border-2 border-red-200">
+                    <p class="text-sm text-gray-600">Today's Expenses</p>
+                    <p class="text-2xl font-bold text-red-600" id="expensesToday">₹0</p>
+                </div>
+                <div class="bg-orange-50 p-4 rounded-lg border-2 border-orange-200">
+                    <p class="text-sm text-gray-600">This Month</p>
+                    <p class="text-2xl font-bold text-orange-600" id="expensesMonth">₹0</p>
+                </div>
+                <div class="bg-purple-50 p-4 rounded-lg border-2 border-purple-200">
+                    <p class="text-sm text-gray-600">This Year</p>
+                    <p class="text-2xl font-bold text-purple-600" id="expensesYear">₹0</p>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg border-2 border-gray-300">
+                    <p class="text-sm text-gray-600">Total Expenses</p>
+                    <p class="text-2xl font-bold text-gray-700" id="expensesTotal">₹0</p>
+                </div>
+            </div>
+            
+            <!-- Filter Section -->
+            <div class="bg-gray-50 p-4 rounded-lg mb-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <input type="text" id="expenseSearch" placeholder="🔍 Search expenses..." 
+                        onkeyup="filterExpenses()"
+                        class="px-4 py-2 border rounded-lg">
+                    <select id="expenseCategoryFilter" onchange="filterExpenses()"
+                        class="px-4 py-2 border rounded-lg">
+                        <option value="all">All Categories</option>
+                        ${expenseCategories.map(cat => `<option value="${cat}">${cat}</option>`).join('')}
+                    </select>
+                    <select id="expenseDateFilter" onchange="filterExpenses()"
+                        class="px-4 py-2 border rounded-lg">
+                        <option value="all">All Time</option>
+                        <option value="today">Today</option>
+                        <option value="week">This Week</option>
+                        <option value="month">This Month</option>
+                        <option value="year">This Year</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Expenses Table -->
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-sm font-semibold">Date</th>
+                            <th class="px-4 py-3 text-left text-sm font-semibold">Category</th>
+                            <th class="px-4 py-3 text-left text-sm font-semibold">Description</th>
+                            <th class="px-4 py-3 text-right text-sm font-semibold">Amount</th>
+                            <th class="px-4 py-3 text-left text-sm font-semibold">Payment Mode</th>
+                            <th class="px-4 py-3 text-center text-sm font-semibold">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="expensesTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    `;
+
+                updateExpenseSummary();
+                displayExpenses(expenses);
+            }
+
+            function updateExpenseSummary() {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+                const yearStart = new Date(today.getFullYear(), 0, 1);
+
+                const todayExpenses = expenses.filter(e => {
+                    const eDate = new Date(e.date);
+                    eDate.setHours(0, 0, 0, 0);
+                    return eDate.getTime() === today.getTime();
+                }).reduce((sum, e) => sum + e.amount, 0);
+
+                const monthExpenses = expenses.filter(e => new Date(e.date) >= monthStart)
+                    .reduce((sum, e) => sum + e.amount, 0);
+
+                const yearExpenses = expenses.filter(e => new Date(e.date) >= yearStart)
+                    .reduce((sum, e) => sum + e.amount, 0);
+
+                const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+
+                document.getElementById('expensesToday').textContent = `₹${todayExpenses.toFixed(2)}`;
+                document.getElementById('expensesMonth').textContent = `₹${monthExpenses.toFixed(2)}`;
+                document.getElementById('expensesYear').textContent = `₹${yearExpenses.toFixed(2)}`;
+                document.getElementById('expensesTotal').textContent = `₹${totalExpenses.toFixed(2)}`;
+            }
+
+            function displayExpenses(expenseList) {
+                const tbody = document.getElementById('expensesTableBody');
+                if (!tbody) return;
+
+                tbody.innerHTML = '';
+
+                if (expenseList.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500">No expenses recorded</td></tr>';
+                    return;
+                }
+
+                expenseList.forEach((expense, index) => {
+                    const date = new Date(expense.date);
+                    const row = document.createElement('tr');
+                    row.className = 'border-b hover:bg-gray-50';
+
+                    row.innerHTML = `
+            <td class="px-4 py-3 text-sm">
+                ${date.toLocaleDateString('en-GB')}<br>
+                <span class="text-xs text-gray-500">${date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+            </td>
+            <td class="px-4 py-3">
+                <span class="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-semibold">
+                    ${expense.category}
+                </span>
+            </td>
+            <td class="px-4 py-3 text-sm">${expense.description}</td>
+            <td class="px-4 py-3 text-right font-bold text-red-600">₹${expense.amount.toFixed(2)}</td>
+            <td class="px-4 py-3 text-sm">
+                <span class="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs">
+                    ${expense.paymentMode || 'Cash'}
+                </span>
+            </td>
+            <td class="px-4 py-3 text-center">
+                <button onclick="deleteExpense(${expense.id})" 
+                    class="text-red-600 hover:text-red-800 font-medium">
+                    🗑️
+                </button>
+            </td>
+        `;
+
+                    tbody.appendChild(row);
+                });
+            }
+
+            function filterExpenses() {
+                const searchTerm = document.getElementById('expenseSearch').value.toLowerCase();
+                const categoryFilter = document.getElementById('expenseCategoryFilter').value;
+                const dateFilter = document.getElementById('expenseDateFilter').value;
+
+                let filtered = expenses;
+
+                // Category filter
+                if (categoryFilter !== 'all') {
+                    filtered = filtered.filter(e => e.category === categoryFilter);
+                }
+
+                // Date filter
+                if (dateFilter !== 'all') {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+
+                    filtered = filtered.filter(e => {
+                        const eDate = new Date(e.date);
+                        eDate.setHours(0, 0, 0, 0);
+
+                        if (dateFilter === 'today') {
+                            return eDate.getTime() === today.getTime();
+                        } else if (dateFilter === 'week') {
+                            const weekAgo = new Date(today);
+                            weekAgo.setDate(weekAgo.getDate() - 7);
+                            return eDate >= weekAgo;
+                        } else if (dateFilter === 'month') {
+                            const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+                            return eDate >= monthStart;
+                        } else if (dateFilter === 'year') {
+                            const yearStart = new Date(today.getFullYear(), 0, 1);
+                            return eDate >= yearStart;
+                        }
+                        return true;
+                    });
+                }
+
+                // Search filter
+                if (searchTerm) {
+                    filtered = filtered.filter(e =>
+                        e.description.toLowerCase().includes(searchTerm) ||
+                        e.category.toLowerCase().includes(searchTerm)
+                    );
+                }
+
+                displayExpenses(filtered);
+            }
+
+            function showAddExpenseModal() {
+                const modal = document.createElement('div');
+                modal.id = 'addExpenseModal';
+                modal.className = 'fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50';
+                modal.innerHTML = `
+        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full" onclick="event.stopPropagation()">
+            <h3 class="text-xl font-bold mb-4">💸 Add Expense</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Category *</label>
+                    <select id="expenseCategory" class="w-full px-3 py-2 border rounded-lg">
+                        ${expenseCategories.map(cat => `<option value="${cat}">${cat}</option>`).join('')}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Description *</label>
+                    <input type="text" id="expenseDescription" 
+                        placeholder="Enter expense details"
+                        class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Amount (₹) *</label>
+                    <input type="number" step="0.01" id="expenseAmount" 
+                        placeholder="0.00"
+                        class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Payment Mode</label>
+                    <select id="expensePaymentMode" class="w-full px-3 py-2 border rounded-lg">
+                        <option value="Cash">Cash</option>
+                        <option value="Bank Transfer">Bank Transfer</option>
+                        <option value="UPI">UPI</option>
+                        <option value="Card">Card</option>
+                        <option value="Cheque">Cheque</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Date</label>
+                    <input type="date" id="expenseDate" 
+                        value="${new Date().toISOString().split('T')[0]}"
+                        class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="saveExpense()" 
+                        class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium">
+                        💾 Save Expense
+                    </button>
+                    <button onclick="closeExpenseModal()" 
+                        class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+
+                document.body.appendChild(modal);
+            }
+
+            function saveExpense() {
+                const category = document.getElementById('expenseCategory').value;
+                const description = document.getElementById('expenseDescription').value.trim();
+                const amount = parseFloat(document.getElementById('expenseAmount').value);
+                const paymentMode = document.getElementById('expensePaymentMode').value;
+                const date = document.getElementById('expenseDate').value;
+
+                if (!description || !amount || amount <= 0) {
+                    alert('Please fill all required fields with valid values');
+                    return;
+                }
+
+                const expense = {
+                    id: Date.now(),
+                    category: category,
+                    description: description,
+                    amount: amount,
+                    paymentMode: paymentMode,
+                    date: new Date(date).toISOString()
+                };
+
+                expenses.unshift(expense);
+                localStorage.setItem('expenses', JSON.stringify(expenses));
+
+                // Record in ledger
+                recordLedgerTransaction(transactionTypes.EXPENSE, {
+                    amount: -amount, // Negative for expense
+                    description: `${category} - ${description}`,
+                    category: category,
+                    paymentMethod: paymentMode,
+                    reference: `EXP${expense.id}`
+                });
+
+                closeExpenseModal();
+                showLedgerExpenses(); // Refresh display
+                updateLedgerDashboard();
+                alert('Expense recorded successfully!');
+            }
+
+            function deleteExpense(id) {
+                if (!confirm('Delete this expense?')) return;
+
+                const expense = expenses.find(e => e.id === id);
+                if (!expense) return;
+
+                expenses = expenses.filter(e => e.id !== id);
+                localStorage.setItem('expenses', JSON.stringify(expenses));
+
+                // Remove from ledger
+                ledgerTransactions = ledgerTransactions.filter(t => t.reference !== `EXP${id}`);
+                localStorage.setItem('ledgerTransactions', JSON.stringify(ledgerTransactions));
+
+                // Update balances
+                accountBalances.cash += expense.amount; // Add back the expense amount
+                localStorage.setItem('accountBalances', JSON.stringify(accountBalances));
+
+                showLedgerExpenses();
+                updateLedgerDashboard();
+                alert('Expense deleted!');
+            }
+
+            function closeExpenseModal() {
+                const modal = document.getElementById('addExpenseModal');
+                if (modal) modal.remove();
+            }
+
+            function downloadExpenseReport() {
+                if (expenses.length === 0) {
+                    alert('No expenses to export!');
+                    return;
+                }
+
+            // ========== METAL PURCHASE MANAGEMENT ==========
+
+                function showLedgerPurchases() {
+                    const container = document.getElementById('ledgerSubtabs');
+
+                    container.innerHTML = `
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-800">🛒 Metal Purchase Management</h3>
+                <div class="flex gap-2">
+                    <button onclick="downloadPurchaseReport()" 
+                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                        📥 Download Report
+                    </button>
+                    <button onclick="showAddPurchaseModal()" 
+                        class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                        ➕ Add Purchase
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Purchase Summary -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div class="bg-yellow-50 p-4 rounded-lg border-2 border-yellow-300">
+                    <p class="text-sm text-gray-600">Gold Purchased</p>
+                    <p class="text-2xl font-bold text-yellow-600" id="goldPurchased">0g</p>
+                    <p class="text-xs text-gray-500 mt-1" id="goldPurchasedValue">₹0</p>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg border-2 border-gray-300">
+                    <p class="text-sm text-gray-600">Silver Purchased</p>
+                    <p class="text-2xl font-bold text-gray-600" id="silverPurchased">0g</p>
+                    <p class="text-xs text-gray-500 mt-1" id="silverPurchasedValue">₹0</p>
+                </div>
+                <div class="bg-purple-50 p-4 rounded-lg border-2 border-purple-300">
+                    <p class="text-sm text-gray-600">Platinum Purchased</p>
+                    <p class="text-2xl font-bold text-purple-600" id="platinumPurchased">0g</p>
+                    <p class="text-xs text-gray-500 mt-1" id="platinumPurchasedValue">₹0</p>
+                </div>
+            </div>
+            
+            <!-- Filter Section -->
+            <div class="bg-gray-50 p-4 rounded-lg mb-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <input type="text" id="purchaseSearch" placeholder="🔍 Search purchases..." 
+                        onkeyup="filterPurchases()"
+                        class="px-4 py-2 border rounded-lg">
+                    <select id="purchaseMetalFilter" onchange="filterPurchases()"
+                        class="px-4 py-2 border rounded-lg">
+                        <option value="all">All Metals</option>
+                        <option value="gold">Gold</option>
+                        <option value="silver">Silver</option>
+                        <option value="platinum">Platinum</option>
+                    </select>
+                    <select id="purchaseDateFilter" onchange="filterPurchases()"
+                        class="px-4 py-2 border rounded-lg">
+                        <option value="all">All Time</option>
+                        <option value="month">This Month</option>
+                        <option value="year">This Year</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Purchases Table -->
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-sm font-semibold">Date</th>
+                            <th class="px-4 py-3 text-left text-sm font-semibold">Supplier</th>
+                            <th class="px-4 py-3 text-left text-sm font-semibold">Metal</th>
+                            <th class="px-4 py-3 text-right text-sm font-semibold">Weight (g)</th>
+                            <th class="px-4 py-3 text-right text-sm font-semibold">Rate/g</th>
+                            <th class="px-4 py-3 text-right text-sm font-semibold">Total Amount</th>
+                            <th class="px-4 py-3 text-center text-sm font-semibold">Payment</th>
+                            <th class="px-4 py-3 text-center text-sm font-semibold">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="purchasesTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    `;
+
+                    updatePurchaseSummary();
+                    displayPurchases(metalPurchases);
+                }
+
+                function updatePurchaseSummary() {
+                    const goldData = metalPurchases.filter(p => p.metalType === 'gold');
+                    const silverData = metalPurchases.filter(p => p.metalType === 'silver');
+                    const platinumData = metalPurchases.filter(p => p.metalType === 'platinum');
+
+                    const goldWeight = goldData.reduce((sum, p) => sum + p.weight, 0);
+                    const goldValue = goldData.reduce((sum, p) => sum + p.totalAmount, 0);
+
+                    const silverWeight = silverData.reduce((sum, p) => sum + p.weight, 0);
+                    const silverValue = silverData.reduce((sum, p) => sum + p.totalAmount, 0);
+
+                    const platinumWeight = platinumData.reduce((sum, p) => sum + p.weight, 0);
+                    const platinumValue = platinumData.reduce((sum, p) => sum + p.totalAmount, 0);
+
+                    document.getElementById('goldPurchased').textContent = `${goldWeight.toFixed(2)}g`;
+                    document.getElementById('goldPurchasedValue').textContent = `Value: ₹${goldValue.toFixed(2)}`;
+
+                    document.getElementById('silverPurchased').textContent = `${silverWeight.toFixed(2)}g`;
+                    document.getElementById('silverPurchasedValue').textContent = `Value: ₹${silverValue.toFixed(2)}`;
+
+                    document.getElementById('platinumPurchased').textContent = `${platinumWeight.toFixed(2)}g`;
+                    document.getElementById('platinumPurchasedValue').textContent = `Value: ₹${platinumValue.toFixed(2)}`;
+                }
+
+                function displayPurchases(purchaseList) {
+                    const tbody = document.getElementById('purchasesTableBody');
+                    if (!tbody) return;
+
+                    tbody.innerHTML = '';
+
+                    if (purchaseList.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-gray-500">No purchases recorded</td></tr>';
+                        return;
+                    }
+
+                    purchaseList.forEach(purchase => {
+                        const date = new Date(purchase.date);
+                        const row = document.createElement('tr');
+                        row.className = 'border-b hover:bg-gray-50';
+
+                        const metalColors = {
+                            'gold': 'bg-yellow-100 text-yellow-800',
+                            'silver': 'bg-gray-100 text-gray-800',
+                            'platinum': 'bg-purple-100 text-purple-800'
+                        };
+
+                        row.innerHTML = `
+            <td class="px-4 py-3 text-sm">
+                ${date.toLocaleDateString('en-GB')}<br>
+                <span class="text-xs text-gray-500">${date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+            </td>
+            <td class="px-4 py-3 text-sm font-medium">${purchase.supplier}</td>
+            <td class="px-4 py-3">
+                <span class="px-2 py-1 rounded text-xs font-semibold capitalize ${metalColors[purchase.metalType]}">
+                    ${purchase.metalType}
+                </span>
+            </td>
+            <td class="px-4 py-3 text-right font-bold">${purchase.weight.toFixed(2)}g</td>
+            <td class="px-4 py-3 text-right">₹${purchase.ratePerGram.toFixed(2)}</td>
+            <td class="px-4 py-3 text-right font-bold text-purple-600">₹${purchase.totalAmount.toFixed(2)}</td>
+            <td class="px-4 py-3 text-center">
+                <span class="px-2 py-1 rounded text-xs ${purchase.paymentStatus === 'paid' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}">
+                    ${purchase.paymentStatus.toUpperCase()}
+                </span>
+            </td>
+            <td class="px-4 py-3 text-center">
+                <button onclick="deletePurchase(${purchase.id})" 
+                    class="text-red-600 hover:text-red-800 font-medium">
+                    🗑️
+                </button>
+            </td>
+        `;
+
+                        tbody.appendChild(row);
+                    });
+                }
+
+                function filterPurchases() {
+                    const searchTerm = document.getElementById('purchaseSearch').value.toLowerCase();
+                    const metalFilter = document.getElementById('purchaseMetalFilter').value;
+                    const dateFilter = document.getElementById('purchaseDateFilter').value;
+
+                    let filtered = metalPurchases;
+
+                    // Metal filter
+                    if (metalFilter !== 'all') {
+                        filtered = filtered.filter(p => p.metalType === metalFilter);
+                    }
+
+                    // Date filter
+                    if (dateFilter !== 'all') {
+                        const today = new Date();
+                        filtered = filtered.filter(p => {
+                            const pDate = new Date(p.date);
+
+                            if (dateFilter === 'month') {
+                                const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+                                return pDate >= monthStart;
+                            } else if (dateFilter === 'year') {
+                                const yearStart = new Date(today.getFullYear(), 0, 1);
+                                return pDate >= yearStart;
+                            }
+                            return true;
+                        });
+                    }
+
+                    // Search filter
+                    if (searchTerm) {
+                        filtered = filtered.filter(p =>
+                            p.supplier.toLowerCase().includes(searchTerm) ||
+                            p.invoiceNo.toLowerCase().includes(searchTerm)
+                        );
+                    }
+
+                    displayPurchases(filtered);
+                }
+
+                function showAddPurchaseModal() {
+                    const modal = document.createElement('div');
+                    modal.id = 'addPurchaseModal';
+                    modal.className = 'fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50';
+                    modal.innerHTML = `
+        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full" onclick="event.stopPropagation()">
+            <h3 class="text-xl font-bold mb-4">🛒 Add Metal Purchase</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Supplier Name *</label>
+                    <input type="text" id="purchaseSupplier" 
+                        placeholder="Enter supplier name"
+                        class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Metal Type *</label>
+                    <select id="purchaseMetalType" class="w-full px-3 py-2 border rounded-lg">
+                        <option value="gold">Gold</option>
+                        <option value="silver">Silver</option>
+                        <option value="platinum">Platinum</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Weight (grams) *</label>
+                    <input type="number" step="0.01" id="purchaseWeight" 
+                        placeholder="0.00"
+                        class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Rate per gram (₹) *</label>
+                    <input type="number" step="0.01" id="purchaseRate" 
+                        placeholder="0.00"
+                        class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Total Amount</label>
+                    <input type="number" step="0.01" id="purchaseTotalAmount" 
+                        readonly
+                        class="w-full px-3 py-2 bg-gray-100 border rounded-lg font-bold">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Invoice No</label>
+                    <input type="text" id="purchaseInvoiceNo" 
+                        placeholder="INV-001"
+                        class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Payment Status</label>
+                    <select id="purchasePaymentStatus" class="w-full px-3 py-2 border rounded-lg">
+                        <option value="paid">Paid</option>
+                        <option value="pending">Pending</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Date</label>
+                    <input type="date" id="purchaseDate" 
+                        value="${new Date().toISOString().split('T')[0]}"
+                        class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="savePurchase()" 
+                        class="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium">
+                        💾 Save Purchase
+                    </button>
+                    <button onclick="closePurchaseModal()" 
+                        class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+
+                    document.body.appendChild(modal);
+
+                    // Auto-calculate total amount
+                    document.getElementById('purchaseWeight').addEventListener('input', calculatePurchaseTotal);
+                    document.getElementById('purchaseRate').addEventListener('input', calculatePurchaseTotal);
+                }
+
+                function calculatePurchaseTotal() {
+                    const weight = parseFloat(document.getElementById('purchaseWeight').value) || 0;
+                    const rate = parseFloat(document.getElementById('purchaseRate').value) || 0;
+                    const total = weight * rate;
+                    document.getElementById('purchaseTotalAmount').value = total.toFixed(2);
+                }
+
+                function savePurchase() {
+                    const supplier = document.getElementById('purchaseSupplier').value.trim();
+                    const metalType = document.getElementById('purchaseMetalType').value;
+                    const weight = parseFloat(document.getElementById('purchaseWeight').value);
+                    const ratePerGram = parseFloat(document.getElementById('purchaseRate').value);
+                    const invoiceNo = document.getElementById('purchaseInvoiceNo').value.trim() || `PUR${Date.now()}`;
+                    const paymentStatus = document.getElementById('purchasePaymentStatus').value;
+                    const date = document.getElementById('purchaseDate').value;
+
+                    if (!supplier || !weight || weight <= 0 || !ratePerGram || ratePerGram <= 0) {
+                        alert('Please fill all required fields with valid values');
+                        return;
+                    }
+
+                    const totalAmount = weight * ratePerGram;
+
+                    const purchase = {
+                        id: Date.now(),
+                        supplier: supplier,
+                        metalType: metalType,
+                        weight: weight,
+                        ratePerGram: ratePerGram,
+                        totalAmount: totalAmount,
+                        invoiceNo: invoiceNo,
+                        paymentStatus: paymentStatus,
+                        date: new Date(date).toISOString()
+                    };
+
+                    metalPurchases.unshift(purchase);
+                    localStorage.setItem('metalPurchases', JSON.stringify(metalPurchases));
+
+                    // Update metal stock
+                    if (metalType === 'gold') {
+                        accountBalances.goldStock += weight;
+                    } else if (metalType === 'silver') {
+                        accountBalances.silverStock += weight;
+                    } else if (metalType === 'platinum') {
+                        accountBalances.platinumStock += weight;
+                    }
+
+                    // Update payables if payment is pending
+                    if (paymentStatus === 'pending') {
+                        accountBalances.payables += totalAmount;
+                    } else {
+                        accountBalances.cash -= totalAmount;
+                    }
+
+                    localStorage.setItem('accountBalances', JSON.stringify(accountBalances));
+
+                    // Record in ledger
+                    recordLedgerTransaction(transactionTypes.PURCHASE, {
+                        amount: -totalAmount,
+                        description: `${metalType.toUpperCase()} Purchase - ${weight}g from ${supplier}`,
+                        category: 'Metal Purchase',
+                        paymentMethod: paymentStatus === 'paid' ? 'Cash' : 'Credit',
+                        reference: invoiceNo,
+                        supplier: supplier,
+                        metalType: metalType,
+                        weight: weight
+                    });
+
+                    closePurchaseModal();
+                    showLedgerPurchases();
+                    updateLedgerDashboard();
+                    alert('Purchase recorded successfully!');
+                }
+
+                function deletePurchase(id) {
+                    if (!confirm('Delete this purchase? This will also update your metal stock.')) return;
+
+                    const purchase = metalPurchases.find(p => p.id === id);
+                    if (!purchase) return;
+
+                    metalPurchases = metalPurchases.filter(p => p.id !== id);
+                    localStorage.setItem('metalPurchases', JSON.stringify(metalPurchases));
+
+                    // Remove from stock
+                    if (purchase.metalType === 'gold') {
+                        accountBalances.goldStock = Math.max(0, accountBalances.goldStock - purchase.weight);
+                    } else if (purchase.metalType === 'silver') {
+                        accountBalances.silverStock = Math.max(0, accountBalances.silverStock - purchase.weight);
+                    } else if (purchase.metalType === 'platinum') {
+                        accountBalances.platinumStock = Math.max(0, accountBalances.platinumStock - purchase.weight);
+                    }
+
+                    // Update balances
+                    if (purchase.paymentStatus === 'pending') {
+                        accountBalances.payables -= purchase.totalAmount;
+                    } else {
+                        accountBalances.cash += purchase.totalAmount;
+                    }
+
+                    localStorage.setItem('accountBalances', JSON.stringify(accountBalances));
+
+                    // Remove from ledger
+                    ledgerTransactions = ledgerTransactions.filter(t => t.reference !== purchase.invoiceNo);
+                    localStorage.setItem('ledgerTransactions', JSON.stringify(ledgerTransactions));
+
+                    showLedgerPurchases();
+                    updateLedgerDashboard();
+                    alert('Purchase deleted!');
+                }
+
+                function closePurchaseModal() {
+                    const modal = document.getElementById('addPurchaseModal');
+                    if (modal) modal.remove();
+                }
+
+                function downloadPurchaseReport() {
+                    if (metalPurchases.length === 0) {
+                        alert('No purchases to export!');
+                        return;
+                    }
+
+                // ========== FINANCIAL REPORTS ==========
+
+                    function showLedgerReports() {
+                        const container = document.getElementById('ledgerSubtabs');
+
+                        container.innerHTML = `
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+            <h3 class="text-xl font-bold text-gray-800 mb-6">📊 Financial Reports</h3>
+            
+            <!-- Report Type Selector -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <button onclick="generateProfitLossReport()" 
+                    class="p-6 bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl hover:shadow-lg transition">
+                    <div class="text-4xl mb-2">📈</div>
+                    <div class="font-bold text-lg">Profit & Loss</div>
+                    <div class="text-sm opacity-90">Income Statement</div>
+                </button>
+                <button onclick="generateBalanceSheet()" 
+                    class="p-6 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl hover:shadow-lg transition">
+                    <div class="text-4xl mb-2">⚖️</div>
+                    <div class="font-bold text-lg">Balance Sheet</div>
+                    <div class="text-sm opacity-90">Financial Position</div>
+                </button>
+                <button onclick="generateCashFlowReport()" 
+                    class="p-6 bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl hover:shadow-lg transition">
+                    <div class="text-4xl mb-2">💰</div>
+                    <div class="font-bold text-lg">Cash Flow</div>
+                    <div class="text-sm opacity-90">Money Movement</div>
+                </button>
+            </div>
+            
+            <!-- Report Display Area -->
+            <div id="reportDisplayArea" class="mt-6"></div>
+        </div>
+    `;
+                    }
+
+                    function generateProfitLossReport() {
+                        const reportArea = document.getElementById('reportDisplayArea');
+
+                        // Calculate revenue (sales)
+                        const totalRevenue = savedBills.reduce((sum, bill) => sum + bill.netTotal, 0);
+
+                        // Calculate COGS (Cost of Goods Sold) - Based on metal purchases
+                        const totalCOGS = metalPurchases.reduce((sum, p) => sum + p.totalAmount, 0);
+
+                        // Calculate operating expenses
+                        const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+
+                        // Calculate gross profit
+                        const grossProfit = totalRevenue - totalCOGS;
+                        const grossProfitMargin = totalRevenue > 0 ? (grossProfit / totalRevenue * 100) : 0;
+
+                        // Calculate net profit
+                        const netProfit = grossProfit - totalExpenses;
+                        const netProfitMargin = totalRevenue > 0 ? (netProfit / totalRevenue * 100) : 0;
+
+                        // Expense breakdown
+                        const expenseByCategory = {};
+                        expenses.forEach(e => {
+                            if (!expenseByCategory[e.category]) {
+                                expenseByCategory[e.category] = 0;
+                            }
+                            expenseByCategory[e.category] += e.amount;
+                        });
+
+                        reportArea.innerHTML = `
+        <div class="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-xl border-2 border-green-200">
+            <div class="flex justify-between items-center mb-6">
+                <h4 class="text-2xl font-bold text-gray-800">📈 Profit & Loss Statement</h4>
+                <button onclick="downloadPLReport()" 
+                    class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                    📥 Download PDF
+                </button>
+            </div>
+            
+            <!-- Revenue Section -->
+            <div class="bg-white p-4 rounded-lg mb-4">
+                <h5 class="font-bold text-lg text-gray-700 mb-3">Revenue</h5>
+                <div class="space-y-2">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Sales Revenue</span>
+                        <span class="font-bold text-green-600">₹${totalRevenue.toFixed(2)}</span>
+                    </div>
+                    <div class="border-t pt-2 flex justify-between">
+                        <span class="font-bold">Total Revenue</span>
+                        <span class="font-bold text-green-600 text-lg">₹${totalRevenue.toFixed(2)}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- COGS Section -->
+            <div class="bg-white p-4 rounded-lg mb-4">
+                <h5 class="font-bold text-lg text-gray-700 mb-3">Cost of Goods Sold (COGS)</h5>
+                <div class="space-y-2">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Metal Purchases</span>
+                        <span class="font-bold text-red-600">₹${totalCOGS.toFixed(2)}</span>
+                    </div>
+                    <div class="border-t pt-2 flex justify-between">
+                        <span class="font-bold">Total COGS</span>
+                        <span class="font-bold text-red-600 text-lg">₹${totalCOGS.toFixed(2)}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Gross Profit -->
+            <div class="bg-white p-4 rounded-lg mb-4 border-2 border-green-300">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <span class="font-bold text-xl">Gross Profit</span>
+                        <span class="text-sm text-gray-500 ml-2">(${grossProfitMargin.toFixed(2)}% margin)</span>
+                    </div>
+                    <span class="font-bold text-green-600 text-2xl">₹${grossProfit.toFixed(2)}</span>
+                </div>
+            </div>
+            
+            <!-- Operating Expenses -->
+            <div class="bg-white p-4 rounded-lg mb-4">
+                <h5 class="font-bold text-lg text-gray-700 mb-3">Operating Expenses</h5>
+                <div class="space-y-2">
+                    ${Object.keys(expenseByCategory).map(category => `
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">${category}</span>
+                            <span class="text-red-600">₹${expenseByCategory[category].toFixed(2)}</span>
+                        </div>
+                    `).join('')}
+                    <div class="border-t pt-2 flex justify-between">
+                        <span class="font-bold">Total Operating Expenses</span>
+                        <span class="font-bold text-red-600 text-lg">₹${totalExpenses.toFixed(2)}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Net Profit -->
+            <div class="bg-gradient-to-r from-green-600 to-emerald-600 p-6 rounded-lg text-white">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <span class="font-bold text-2xl">Net Profit</span>
+                        <span class="text-sm opacity-90 ml-2">(${netProfitMargin.toFixed(2)}% margin)</span>
+                    </div>
+                    <span class="font-bold text-4xl">₹${netProfit.toFixed(2)}</span>
+                </div>
+            </div>
+        </div>
+    `;
+                    }
+
+                    function generateBalanceSheet() {
+                        const reportArea = document.getElementById('reportDisplayArea');
+
+                        // Assets
+                        const cashAsset = accountBalances.cash;
+                        const bankAsset = accountBalances.bank;
+                        const receivables = accountBalances.receivables;
+
+                        // Metal inventory value (at current rates)
+                        const goldValue = accountBalances.goldStock * rates.gold;
+                        const silverValue = accountBalances.silverStock * rates.silver;
+                        const platinumValue = accountBalances.platinumStock * rates.platinum;
+                        const inventoryValue = goldValue + silverValue + platinumValue;
+
+                        const totalAssets = cashAsset + bankAsset + receivables + inventoryValue;
+
+                        // Liabilities
+                        const payables = accountBalances.payables;
+                        const totalLiabilities = payables;
+
+                        // Equity
+                        const equity = totalAssets - totalLiabilities;
+
+                        reportArea.innerHTML = `
+        <div class="bg-gradient-to-br from-blue-50 to-cyan-50 p-6 rounded-xl border-2 border-blue-200">
+            <div class="flex justify-between items-center mb-6">
+                <h4 class="text-2xl font-bold text-gray-800">⚖️ Balance Sheet</h4>
+                <button onclick="downloadBalanceSheet()" 
+                    class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    📥 Download PDF
+                </button>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Assets -->
+                <div>
+                    <div class="bg-white p-4 rounded-lg mb-4">
+                        <h5 class="font-bold text-lg text-gray-700 mb-4 border-b pb-2">Assets</h5>
+                        
+                        <div class="mb-4">
+                            <p class="font-semibold text-gray-700 mb-2">Current Assets</p>
+                            <div class="space-y-2 ml-4">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Cash</span>
+                                    <span class="font-semibold">₹${cashAsset.toFixed(2)}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Bank</span>
+                                    <span class="font-semibold">₹${bankAsset.toFixed(2)}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Accounts Receivable</span>
+                                    <span class="font-semibold">₹${receivables.toFixed(2)}</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <p class="font-semibold text-gray-700 mb-2">Inventory</p>
+                            <div class="space-y-2 ml-4">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Gold (${accountBalances.goldStock.toFixed(2)}g)</span>
+                                    <span class="font-semibold">₹${goldValue.toFixed(2)}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Silver (${accountBalances.silverStock.toFixed(2)}g)</span>
+                                    <span class="font-semibold">₹${silverValue.toFixed(2)}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Platinum (${accountBalances.platinumStock.toFixed(2)}g)</span>
+                                    <span class="font-semibold">₹${platinumValue.toFixed(2)}</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="border-t-2 border-blue-300 pt-3 flex justify-between">
+                            <span class="font-bold text-lg">Total Assets</span>
+                            <span class="font-bold text-blue-600 text-xl">₹${totalAssets.toFixed(2)}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Liabilities & Equity -->
+                <div>
+                    <div class="bg-white p-4 rounded-lg mb-4">
+                        <h5 class="font-bold text-lg text-gray-700 mb-4 border-b pb-2">Liabilities</h5>
+                        
+                        <div class="mb-4">
+                            <p class="font-semibold text-gray-700 mb-2">Current Liabilities</p>
+                            <div class="space-y-2 ml-4">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Accounts Payable</span>
+                                    <span class="font-semibold">₹${payables.toFixed(2)}</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="border-t pt-3 mb-4 flex justify-between">
+                            <span class="font-bold">Total Liabilities</span>
+                            <span class="font-bold text-red-600">₹${totalLiabilities.toFixed(2)}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white p-4 rounded-lg">
+                        <h5 class="font-bold text-lg text-gray-700 mb-4 border-b pb-2">Equity</h5>
+                        
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Owner's Equity</span>
+                            <span class="font-semibold">₹${equity.toFixed(2)}</span>
+                        </div>
+                        
+                        <div class="border-t-2 border-blue-300 mt-3 pt-3 flex justify-between">
+                            <span class="font-bold">Total Equity</span>
+                            <span class="font-bold text-green-600">₹${equity.toFixed(2)}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-gradient-to-r from-blue-600 to-cyan-600 p-4 rounded-lg mt-4 text-white">
+                        <div class="flex justify-between">
+                            <span class="font-bold">Total Liabilities + Equity</span>
+                            <span class="font-bold text-xl">₹${(totalLiabilities + equity).toFixed(2)}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+                    }
+
+                    function generateCashFlowReport() {
+                        const reportArea = document.getElementById('reportDisplayArea');
+
+                        // Operating Activities
+                        const cashFromSales = savedBills.reduce((sum, b) => sum + b.netTotal, 0);
+                        const cashForPurchases = metalPurchases.filter(p => p.paymentStatus === 'paid')
+                            .reduce((sum, p) => sum + p.totalAmount, 0);
+                        const cashForExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+                        const netOperatingCash = cashFromSales - cashForPurchases - cashForExpenses;
+
+                        // Investing Activities (if any)
+                        const netInvestingCash = 0;
+
+                        // Financing Activities (if any)
+                        const netFinancingCash = 0;
+
+                        // Net change in cash
+                        const netCashChange = netOperatingCash + netInvestingCash + netFinancingCash;
+
+                        reportArea.innerHTML = `
+        <div class="bg-gradient-to-br from-purple-50 to-pink-50 p-6 rounded-xl border-2 border-purple-200">
+            <div class="flex justify-between items-center mb-6">
+                <h4 class="text-2xl font-bold text-gray-800">💰 Cash Flow Statement</h4>
+                <button onclick="downloadCashFlowReport()" 
+                    class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                    📥 Download PDF
+                </button>
+            </div>
+            
+            <!-- Operating Activities -->
+            <div class="bg-white p-4 rounded-lg mb-4">
+                <h5 class="font-bold text-lg text-gray-700 mb-3">Operating Activities</h5>
+                <div class="space-y-2">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Cash received from customers</span>
+                        <span class="font-semibold text-green-600">₹${cashFromSales.toFixed(2)}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Cash paid for metal purchases</span>
+                        <span class="font-semibold text-red-600">-₹${cashForPurchases.toFixed(2)}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Cash paid for operating expenses</span>
+                        <span class="font-semibold text-red-600">-₹${cashForExpenses.toFixed(2)}</span>
+                    </div>
+                    <div class="border-t-2 border-purple-300 pt-2 flex justify-between">
+                        <span class="font-bold">Net Cash from Operating Activities</span>
+                        <span class="font-bold ${netOperatingCash >= 0 ? 'text-green-600' : 'text-red-600'} text-lg">
+                            ₹${netOperatingCash.toFixed(2)}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Investing Activities -->
+            <div class="bg-white p-4 rounded-lg mb-4">
+                <h5 class="font-bold text-lg text-gray-700 mb-3">Investing Activities</h5>
+                <div class="space-y-2">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">No investing activities</span>
+                        <span class="font-semibold">₹0.00</span>
+                    </div>
+                    <div class="border-t-2 border-purple-300 pt-2 flex justify-between">
+                        <span class="font-bold">Net Cash from Investing Activities</span>
+                        <span class="font-bold text-lg">₹${netInvestingCash.toFixed(2)}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Financing Activities -->
+            <div class="bg-white p-4 rounded-lg mb-4">
+                <h5 class="font-bold text-lg text-gray-700 mb-3">Financing Activities</h5>
+                <div class="space-y-2">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">No financing activities</span>
+                        <span class="font-semibold">₹0.00</span>
+                    </div>
+                    <div class="border-t-2 border-purple-300 pt-2 flex justify-between">
+                        <span class="font-bold">Net Cash from Financing Activities</span>
+                        <span class="font-bold text-lg">₹${netFinancingCash.toFixed(2)}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Net Change -->
+            <div class="bg-gradient-to-r from-purple-600 to-pink-600 p-6 rounded-lg text-white">
+                <div class="flex justify-between items-center">
+                    <span class="font-bold text-2xl">Net Change in Cash</span>
+                    <span class="font-bold text-4xl">₹${netCashChange.toFixed(2)}</span>
+                </div>
+            </div>
+        </div>
+    `;
+                    }
+
+                    // Download functions for reports
+                    function downloadPLReport() {
+                        alert('Profit & Loss Report PDF download functionality - Implement jsPDF generation here');
+                    }
+
+                    function downloadBalanceSheet() {
+                        alert('Balance Sheet PDF download functionality - Implement jsPDF generation here');
+                    }
+
+                    function downloadCashFlowReport() {
+                        alert('Cash Flow Report PDF download functionality - Implement jsPDF generation here');
+                    }
+
+                    const data = metalPurchases.map(p => ({
+                        'Date': new Date(p.date).toLocaleDateString('en-GB'),
+                        'Supplier': p.supplier,
+                        'Metal Type': p.metalType.toUpperCase(),
+                        'Weight (g)': p.weight.toFixed(2),
+                        'Rate/g': p.ratePerGram.toFixed(2),
+                        'Total Amount': p.totalAmount.toFixed(2),
+                        'Invoice No': p.invoiceNo,
+                        'Payment Status': p.paymentStatus.toUpperCase()
+                    }));
+
+                    const ws = XLSX.utils.json_to_sheet(data);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, 'Metal Purchases');
+                    XLSX.writeFile(wb, `Metal_Purchases_${new Date().toISOString().split('T')[0]}.xlsx`);
+                    alert('Purchase report downloaded!');
+                }
+
+                const data = expenses.map(e => ({
+                    'Date': new Date(e.date).toLocaleDateString('en-GB'),
+                    'Category': e.category,
+                    'Description': e.description,
+                    'Amount': e.amount.toFixed(2),
+                    'Payment Mode': e.paymentMode || 'Cash'
+                }));
+
+                const ws = XLSX.utils.json_to_sheet(data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Expenses');
+                XLSX.writeFile(wb, `Expense_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
+                alert('Expense report downloaded!');
             }
 
             const data = ledgerTransactions.map(txn => ({
