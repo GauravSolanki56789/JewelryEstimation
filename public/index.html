@@ -671,75 +671,82 @@
         </div>
 
         <!-- Accounts Ledger Tab -->
-        <div id="ledgerTab" class="space-y-6 hidden">
-            <!-- Dashboard Overview -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <div class="bg-gradient-to-br from-green-500 to-green-600 text-white p-6 rounded-xl shadow-lg">
-                    <p class="text-sm opacity-90">Cash Balance</p>
-                    <p class="text-3xl font-bold" id="ledgerCashBalance">₹0</p>
-                    <p class="text-xs mt-1">💵 Available Cash</p>
-                </div>
-                <div class="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-xl shadow-lg">
-                    <p class="text-sm opacity-90">Bank Balance</p>
-                    <p class="text-3xl font-bold" id="ledgerBankBalance">₹0</p>
-                    <p class="text-xs mt-1">🏦 Total in Banks</p>
-                </div>
-                <div class="bg-gradient-to-br from-orange-500 to-orange-600 text-white p-6 rounded-xl shadow-lg">
-                    <p class="text-sm opacity-90">Receivables</p>
-                    <p class="text-3xl font-bold" id="ledgerReceivables">₹0</p>
-                    <p class="text-xs mt-1">📥 To Collect</p>
-                </div>
-                <div class="bg-gradient-to-br from-red-500 to-red-600 text-white p-6 rounded-xl shadow-lg">
-                    <p class="text-sm opacity-90">Payables</p>
-                    <p class="text-3xl font-bold" id="ledgerPayables">₹0</p>
-                    <p class="text-xs mt-1">📤 To Pay</p>
-                </div>
+<div id="ledgerTab" class="space-y-6 hidden">
+    <!-- Dashboard Overview -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-gradient-to-br from-green-500 to-green-600 text-white p-6 rounded-xl shadow-lg">
+            <p class="text-sm opacity-90">Cash Balance</p>
+            <p class="text-3xl font-bold" id="ledgerCashBalance">₹0</p>
+            <p class="text-xs mt-1">💵 Available Cash</p>
+        </div>
+        <div class="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-xl shadow-lg">
+            <p class="text-sm opacity-90">Bank Balance</p>
+            <p class="text-3xl font-bold" id="ledgerBankBalance">₹0</p>
+            <p class="text-xs mt-1">🏦 Total in Banks</p>
+        </div>
+        <div class="bg-gradient-to-br from-orange-500 to-orange-600 text-white p-6 rounded-xl shadow-lg">
+            <p class="text-sm opacity-90">Receivables</p>
+            <p class="text-3xl font-bold" id="ledgerReceivables">₹0</p>
+            <p class="text-xs mt-1">📥 To Collect</p>
+        </div>
+        <div class="bg-gradient-to-br from-red-500 to-red-600 text-white p-6 rounded-xl shadow-lg">
+            <p class="text-sm opacity-90">Payables</p>
+            <p class="text-3xl font-bold" id="ledgerPayables">₹0</p>
+            <p class="text-xs mt-1">📤 To Pay</p>
+        </div>
+    </div>
+
+    <!-- Metal Stock Overview -->
+    <div class="bg-white p-6 rounded-xl shadow-lg mb-6">
+        <h3 class="text-xl font-bold text-gray-800 mb-4">📊 Metal Inventory (Weight)</h3>
+        <div class="grid grid-cols-3 gap-4">
+            <div class="bg-yellow-50 p-4 rounded-lg border-2 border-yellow-300">
+                <p class="text-sm text-gray-600">Gold Stock</p>
+                <p class="text-2xl font-bold text-yellow-600" id="ledgerGoldStock">0g</p>
+                <p class="text-xs text-gray-500 mt-1" id="ledgerGoldValue">Value: ₹0</p>
             </div>
-        
-            <!-- Metal Stock Overview -->
-            <div class="bg-white p-6 rounded-xl shadow-lg mb-6">
-                <h3 class="text-xl font-bold text-gray-800 mb-4">📊 Metal Inventory (Weight)</h3>
-                <div class="grid grid-cols-3 gap-4">
-                    <div class="bg-yellow-50 p-4 rounded-lg border-2 border-yellow-300">
-                        <p class="text-sm text-gray-600">Gold Stock</p>
-                        <p class="text-2xl font-bold text-yellow-600" id="ledgerGoldStock">0g</p>
-                    </div>
-                    <div class="bg-gray-50 p-4 rounded-lg border-2 border-gray-300">
-                        <p class="text-sm text-gray-600">Silver Stock</p>
-                        <p class="text-2xl font-bold text-gray-600" id="ledgerSilverStock">0g</p>
-                    </div>
-                    <div class="bg-purple-50 p-4 rounded-lg border-2 border-purple-300">
-                        <p class="text-sm text-gray-600">Platinum Stock</p>
-                        <p class="text-2xl font-bold text-purple-600" id="ledgerPlatinumStock">0g</p>
-                    </div>
-                </div>
+            <div class="bg-gray-50 p-4 rounded-lg border-2 border-gray-300">
+                <p class="text-sm text-gray-600">Silver Stock</p>
+                <p class="text-2xl font-bold text-gray-600" id="ledgerSilverStock">0g</p>
+                <p class="text-xs text-gray-500 mt-1" id="ledgerSilverValue">Value: ₹0</p>
             </div>
-        
-            <!-- Quick Actions -->
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-                <button onclick="showTab('ledger-transactions')"
-                    class="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
-                    📋 All Transactions
-                </button>
-                <button onclick="showTab('ledger-expenses')"
-                    class="px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium">
-                    💸 Expenses
-                </button>
-                <button onclick="showTab('ledger-purchases')"
-                    class="px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium">
-                    🛒 Metal Purchases
-                </button>
-                <button onclick="showTab('ledger-reports')"
-                    class="px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
-                    📊 Reports
-                </button>
-            </div>
-        
-            <!-- Subtabs Container -->
-            <div id="ledgerSubtabs">
-                <!-- Will be populated by subtab functions -->
+            <div class="bg-purple-50 p-4 rounded-lg border-2 border-purple-300">
+                <p class="text-sm text-gray-600">Platinum Stock</p>
+                <p class="text-2xl font-bold text-purple-600" id="ledgerPlatinumStock">0g</p>
+                <p class="text-xs text-gray-500 mt-1" id="ledgerPlatinumValue">Value: ₹0</p>
             </div>
         </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+        <button onclick="showLedgerCustomerAccounts()"
+            class="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
+            👥 Customer Accounts
+        </button>
+        <button onclick="showLedgerTransactions()"
+            class="px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium">
+            📋 All Transactions
+        </button>
+        <button onclick="showLedgerExpenses()"
+            class="px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium">
+            💸 Expenses
+        </button>
+        <button onclick="showLedgerPurchases()"
+            class="px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
+            🛒 Metal Purchases
+        </button>
+        <button onclick="showLedgerReports()"
+            class="px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
+            📊 Financial Reports
+        </button>
+    </div>
+
+    <!-- Subtabs Container -->
+    <div id="ledgerSubtabs">
+        <!-- Will be populated by subtab functions -->
+    </div>
+</div>
 
     </div>
 
@@ -972,28 +979,25 @@
         </div>
     </div>
 
-    <!-- Quotation Format Selection Modal -->
-    <div id="quotationFormatModal"
-        class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
-        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full pointer-events-auto"
-            onclick="event.stopPropagation()">
-            <h3 class="text-xl font-bold mb-4">📄 Choose Quotation Format</h3>
-            <div class="space-y-3">
-                <button onclick="generateQuotePDF()"
-                    class="w-full px-6 py-4 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold text-lg flex items-center justify-center gap-2">
-                    <span>📕</span> Download as PDF
-                </button>
-                <button onclick="generateQuoteExcel()"
-                    class="w-full px-6 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-lg flex items-center justify-center gap-2">
-                    <span>📗</span> Download as Excel
-                </button>
-                <button onclick="closeModals()"
-                    class="w-full px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
-                    Cancel
-                </button>
-            </div>
+<!-- Quotation Format Selection Modal -->
+<div id="quotationFormatModal"
+    class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
+    <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full pointer-events-auto"
+        onclick="event.stopPropagation()">
+        <h3 class="text-xl font-bold mb-4">📄 Generate Quotation</h3>
+        <p class="text-gray-600 mb-4">Quotation will be saved and PDF will be downloaded.</p>
+        <div class="space-y-3">
+            <button onclick="generateQuotePDF()"
+                class="w-full px-6 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-lg flex items-center justify-center gap-2">
+                <span>📕</span> Generate PDF Quotation
+            </button>
+            <button onclick="closeModals()"
+                class="w-full px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                Cancel
+            </button>
         </div>
     </div>
+</div>
 
 <!-- Stock Report Format Selection Modal -->
 <div id="stockReportModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
@@ -1150,43 +1154,37 @@
             </div>
     
             <!-- Actions -->
-            <div class="flex gap-3 mt-4">
-                <button onclick="reprintQuotationPDF()"
-                    class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold">
-                    📕 Download PDF
-                </button>
-                <button onclick="reprintQuotationExcel()"
-                    class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">
-                    📗 Download Excel
-                </button>
-                <button onclick="closeModals()" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
-                    Close
-                </button>
-            </div>
+            <!-- Actions -->
+<div class="flex gap-3 mt-4">
+    <button onclick="reprintQuotationPDF()"
+        class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold">
+        📕 Download PDF
+    </button>
+    <button onclick="closeModals()" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+        Close
+    </button>
+</div>
         </div>
     </div>
 
-    <!-- Bill Format Selection Modal -->
-    <div id="billFormatModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
-        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full pointer-events-auto"
-            onclick="event.stopPropagation()">
-            <h3 class="text-xl font-bold mb-4">💰 Choose Bill Format</h3>
-            <div class="space-y-3">
-                <button onclick="generateSalesBillPDF()"
-                    class="w-full px-6 py-4 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold text-lg flex items-center justify-center gap-2">
-                    <span>📕</span> Download as PDF
-                </button>
-                <button onclick="generateSalesBillExcel()"
-                    class="w-full px-6 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-lg flex items-center justify-center gap-2">
-                    <span>📗</span> Download as Excel
-                </button>
-                <button onclick="closeModals()"
-                    class="w-full px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
-                    Cancel
-                </button>
-            </div>
+<!-- Bill Format Selection Modal -->
+<div id="billFormatModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
+    <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full pointer-events-auto"
+        onclick="event.stopPropagation()">
+        <h3 class="text-xl font-bold mb-4">💰 Generate Sales Bill</h3>
+        <p class="text-gray-600 mb-4">Bill will be saved and PDF will be downloaded.</p>
+        <div class="space-y-3">
+            <button onclick="generateSalesBillPDF()"
+                class="w-full px-6 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-lg flex items-center justify-center gap-2">
+                <span>📕</span> Generate PDF Bill
+            </button>
+            <button onclick="closeModals()"
+                class="w-full px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                Cancel
+            </button>
         </div>
     </div>
+</div>
  
     <!-- View Bill Details Modal -->
     <div id="viewBillModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
@@ -1297,27 +1295,24 @@
     </div>
 
     <!-- Reprint Format Modal -->
-    <div id="reprintFormatModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
-        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full pointer-events-auto"
-            onclick="event.stopPropagation()">
-            <h3 class="text-xl font-bold mb-4">🖨️ Reprint Bill Format</h3>
-            <input type="hidden" id="reprintBillIndex" value="">
-            <div class="space-y-3">
-                <button onclick="reprintBillPDF()"
-                    class="w-full px-6 py-4 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold text-lg flex items-center justify-center gap-2">
-                    <span>📕</span> Download as PDF
-                </button>
-                <button onclick="reprintBillExcel()"
-                    class="w-full px-6 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-lg flex items-center justify-center gap-2">
-                    <span>📗</span> Download as Excel
-                </button>
-                <button onclick="closeModals()"
-                    class="w-full px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
-                    Cancel
-                </button>
-            </div>
+<div id="reprintFormatModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
+    <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full pointer-events-auto"
+        onclick="event.stopPropagation()">
+        <h3 class="text-xl font-bold mb-4">🖨️ Reprint Bill</h3>
+        <p class="text-gray-600 mb-4">Bill will be downloaded as PDF</p>
+        <input type="hidden" id="reprintBillIndex" value="">
+        <div class="space-y-3">
+            <button onclick="reprintBillPDF()"
+                class="w-full px-6 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-lg flex items-center justify-center gap-2">
+                <span>📕</span> Download PDF
+            </button>
+            <button onclick="closeModals()"
+                class="w-full px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                Cancel
+            </button>
         </div>
     </div>
+</div>
 
     <script>
         let items = [];
@@ -1510,58 +1505,74 @@ function removeProductFromInventory(barcode) {
             }
 
             function loadQuotationForBill() {
-                const idx = document.getElementById('selectQuotationForBill').value;
+    const idx = document.getElementById('selectQuotationForBill').value;
 
-                if (idx === '') {
-                    // Hide all sections
-                    document.getElementById('selectedQuotationDetails').classList.add('hidden');
-                    document.getElementById('billRatesSection').classList.add('hidden');
-                    document.getElementById('billRateSlabSection').classList.add('hidden');
-                    document.getElementById('billItemsTableContainer').classList.add('hidden');
-                    document.getElementById('billSummarySection').classList.add('hidden');
-                    document.getElementById('billActionsSection').classList.add('hidden');
-                    selectedQuotationForBill = null;
-                    billItems = [];
-                    return;
-                }
+    if (idx === '') {
+        // Hide all sections
+        document.getElementById('selectedQuotationDetails').classList.add('hidden');
+        document.getElementById('billRatesSection').classList.add('hidden');
+        document.getElementById('billRateSlabSection').classList.add('hidden');
+        document.getElementById('billItemsTableContainer').classList.add('hidden');
+        document.getElementById('billSummarySection').classList.add('hidden');
+        document.getElementById('billActionsSection').classList.add('hidden');
+        selectedQuotationForBill = null;
+        billItems = [];
+        return;
+    }
 
-                selectedQuotationForBill = savedQuotations[idx];
-                 if (selectedQuotationForBill.isBilled) {
-                    alert(`⚠️ This quotation (${selectedQuotationForBill.quotationNo}) has already been billed!\nBill No: ${selectedQuotationForBill.billNo || 'Unknown'}\n\nPlease select a different quotation.`);
-                    document.getElementById('selectQuotationForBill').value = '';
-                    return;
-                }
+    selectedQuotationForBill = savedQuotations[idx];
+    
+    // Check if already billed
+    if (selectedQuotationForBill.isBilled) {
+        alert(`⚠️ This quotation (${selectedQuotationForBill.quotationNo}) has already been billed!\nBill No: ${selectedQuotationForBill.billNo || 'Unknown'}\nBill Date: ${new Date(selectedQuotationForBill.billDate).toLocaleDateString('en-GB')}\n\nPlease select a different quotation.`);
+        document.getElementById('selectQuotationForBill').value = '';
+        
+        // Clear all sections
+        document.getElementById('selectedQuotationDetails').classList.add('hidden');
+        document.getElementById('billRatesSection').classList.add('hidden');
+        document.getElementById('billRateSlabSection').classList.add('hidden');
+        document.getElementById('billItemsTableContainer').classList.add('hidden');
+        document.getElementById('billSummarySection').classList.add('hidden');
+        document.getElementById('billActionsSection').classList.add('hidden');
+        selectedQuotationForBill = null;
+        billItems = [];
+        return;
+    }
 
-                // Display quotation details
-                document.getElementById('selectedQuotNo').textContent = selectedQuotationForBill.quotationNo;
-                document.getElementById('selectedQuotCustomer').textContent = selectedQuotationForBill.customer.name;
-                document.getElementById('selectedQuotAmount').textContent = `₹${selectedQuotationForBill.netTotal.toFixed(2)}`;
-                document.getElementById('selectedQuotItems').textContent =
-                    selectedQuotationForBill.items.map(item => item.name).join(', ');
+    // Display quotation details
+    document.getElementById('selectedQuotNo').textContent = selectedQuotationForBill.quotationNo;
+    document.getElementById('selectedQuotCustomer').textContent = selectedQuotationForBill.customer.name;
+    document.getElementById('selectedQuotAmount').textContent = `₹${selectedQuotationForBill.netTotal.toFixed(2)}`;
+    document.getElementById('selectedQuotItems').textContent =
+        selectedQuotationForBill.items.map(item => `${item.name} (${item.weight.toFixed(2)}g)`).join(', ');
 
-                document.getElementById('selectedQuotationDetails').classList.remove('hidden');
+    document.getElementById('selectedQuotationDetails').classList.remove('hidden');
 
-                // Show current rates
-                updateBillRatesDisplay();
-                document.getElementById('billRatesSection').classList.remove('hidden');
+    // Show current rates
+    updateBillRatesDisplay();
+    document.getElementById('billRatesSection').classList.remove('hidden');
 
-                // Show rate slab section
-                document.getElementById('billRateSlab').value = 'R';
-                currentBillRateSlab = 'R';
-                updateBillRateSlabInfo();
-                document.getElementById('billRateSlabSection').classList.remove('hidden');
+    // Show rate slab section
+    document.getElementById('billRateSlab').value = selectedQuotationForBill.rateSlab || 'R';
+    currentBillRateSlab = selectedQuotationForBill.rateSlab || 'R';
+    updateBillRateSlabInfo();
+    document.getElementById('billRateSlabSection').classList.remove('hidden');
 
-                // Load items from quotation
-                billItems = JSON.parse(JSON.stringify(selectedQuotationForBill.items));
+    // Load items from quotation with current rates
+    billItems = selectedQuotationForBill.items.map(item => ({
+        ...item,
+        originalMcRate: item.originalMcRate || item.mcRate,
+        barcode: item.barcode || null // Ensure barcode is included
+    }));
 
-                // Recalculate with current rates and rate slab
-                recalculateBillItems();
+    // Recalculate with current rates and rate slab
+    recalculateBillItems();
 
-                // Show items table and summary
-                document.getElementById('billItemsTableContainer').classList.remove('hidden');
-                document.getElementById('billSummarySection').classList.remove('hidden');
-                document.getElementById('billActionsSection').classList.remove('hidden');
-            }
+    // Show items table and summary
+    document.getElementById('billItemsTableContainer').classList.remove('hidden');
+    document.getElementById('billSummarySection').classList.remove('hidden');
+    document.getElementById('billActionsSection').classList.remove('hidden');
+}
 
             function updateBillRatesDisplay() {
                 document.getElementById('billGoldRate').textContent = `₹${rates.gold}/gm`;
@@ -1666,25 +1677,35 @@ function removeProductFromInventory(barcode) {
                 }
 
 function generateSalesBillPDF() {
+    if (billItems.length === 0) {
+        alert('⚠️ No items to bill');
+        return;
+    }
+    if (!selectedQuotationForBill) {
+        alert('⚠️ No quotation selected');
+        return;
+    }
+
     const total = billItems.reduce((sum, item) => sum + item.amount, 0);
     const gst = total * 0.03;
     const netTotal = total + gst;
     const billNo = `SCB${String(billCounter).padStart(4, '0')}`;
+    const date = new Date();
 
     // SAVE BILL TO HISTORY
     const billRecord = {
         id: Date.now(),
         billNo: billNo,
         quotationNo: selectedQuotationForBill.quotationNo,
-        date: new Date().toISOString(),
+        date: date.toISOString(),
         customer: selectedQuotationForBill.customer,
         items: JSON.parse(JSON.stringify(billItems)),
         total: total,
         gst: gst,
         netTotal: netTotal,
         rateSlab: currentBillRateSlab,
-        paymentStatus: 'unpaid', // NEW: Track payment status
-        paidAmount: 0 // NEW: Track partial payments
+        paymentStatus: 'unpaid',
+        paidAmount: 0
     };
 
     savedBills.unshift(billRecord);
@@ -1699,7 +1720,7 @@ function generateSalesBillPDF() {
         items: billItems.length,
         description: `Sales Bill ${billNo} - ${selectedQuotationForBill.customer.name}`,
         category: 'Sales Revenue',
-        paymentMethod: 'Credit', // Can be changed to Cash/Card/UPI later
+        paymentMethod: 'Credit',
         reference: billNo
     });
 
@@ -1713,20 +1734,18 @@ function generateSalesBillPDF() {
         } else if (item.metalType === 'platinum') {
             accountBalances.platinumStock = Math.max(0, accountBalances.platinumStock - weightInGrams);
         }
-    });
 
-    localStorage.setItem('accountBalances', JSON.stringify(accountBalances));
-
-    // ⭐ MARK ALL PRODUCTS AS SOLD AND REMOVE FROM INVENTORY
-    billItems.forEach(item => {
+        // Mark product as sold and remove from inventory
         if (item.barcode) {
             markProductAsSold(item.barcode, billNo);
             removeProductFromInventory(item.barcode);
         }
     });
 
-    // Update products table if on products tab
-    if (document.getElementById('productsTab').classList.contains('hidden') === false) {
+    localStorage.setItem('accountBalances', JSON.stringify(accountBalances));
+
+    // Update products table if visible
+    if (!document.getElementById('productsTab').classList.contains('hidden')) {
         updateProductsTable();
     }
 
@@ -1735,23 +1754,22 @@ function generateSalesBillPDF() {
     if (quotIndex >= 0) {
         savedQuotations[quotIndex].isBilled = true;
         savedQuotations[quotIndex].billNo = billNo;
-        savedQuotations[quotIndex].billDate = new Date().toISOString();
+        savedQuotations[quotIndex].billDate = date.toISOString();
         localStorage.setItem('savedQuotations', JSON.stringify(savedQuotations));
     }
 
-    // ========== PDF GENERATION - MATCHING SAMPLE FORMAT ==========
+    // ========== PDF GENERATION ==========
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'a4');
 
-    const date = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    const formattedDate = date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
     const customer = selectedQuotationForBill.customer;
-
     const totalWeight = billItems.reduce((sum, item) => sum + item.weight, 0);
     const totalPCS = billItems.length;
     const cgst = gst / 2;
     const sgst = gst / 2;
 
-    // ========== HEADER SECTION ==========
+    // Header
     doc.setFontSize(10);
     doc.setFont(undefined, 'bold');
     doc.text('JP JEWELLERY', 105, 15, { align: 'center' });
@@ -1766,9 +1784,8 @@ function generateSalesBillPDF() {
     doc.text('TAX INVOICE', 105, 35, { align: 'center' });
     doc.text('33AADFJ4897R1ZJ', 105, 39, { align: 'center' });
 
-    // ========== BILL INFO ==========
+    // Bill Info
     doc.setFontSize(8);
-    doc.setFont(undefined, 'bold');
     doc.text('INVOICE No.:', 15, 48);
     doc.setFont(undefined, 'normal');
     doc.text(billNo, 45, 48);
@@ -1776,11 +1793,10 @@ function generateSalesBillPDF() {
     doc.setFont(undefined, 'bold');
     doc.text('BILL DATE:', 150, 48);
     doc.setFont(undefined, 'normal');
-    doc.text(date, 175, 48);
+    doc.text(formattedDate, 175, 48);
 
-    // ========== CUSTOMER INFO ==========
+    // Customer Info
     doc.setFont(undefined, 'bold');
-    doc.text('Billed To:', 15, 55);
     doc.setFontSize(9);
     doc.text(customer.name.toUpperCase(), 15, 60);
 
@@ -1801,12 +1817,11 @@ function generateSalesBillPDF() {
     }
     doc.text(`MOB: ${customer.mobile}`, 15, yCustomer);
 
-    // ========== ITEMS TABLE ==========
+    // Items Table
     const tableStartY = Math.max(yCustomer + 8, 85);
 
     const tableData = billItems.map((item, idx) => {
         const itemTotal = (item.rate + item.mcRate) * item.weight;
-        
         return [
             idx + 1,
             item.name,
@@ -1849,12 +1864,11 @@ function generateSalesBillPDF() {
         margin: { left: 15, right: 15 }
     });
 
-    // ========== TOTALS SECTION ==========
+    // Totals Section
     const finalY = doc.lastAutoTable.finalY + 10;
 
     doc.setFontSize(8);
     doc.setFont(undefined, 'bold');
-
     doc.text(`Total PCS: ${totalPCS}`, 15, finalY);
     doc.text(`${totalWeight.toFixed(3)}`, 50, finalY);
 
@@ -1878,7 +1892,7 @@ function generateSalesBillPDF() {
     doc.text('Total Amount:', rightX, finalY + 17);
     doc.text(netTotal.toFixed(2), 195, finalY + 17, { align: 'right' });
 
-    // ========== FOOTER ==========
+    // Footer
     const footerY = finalY + 25;
     doc.setFontSize(7);
     doc.setFont(undefined, 'normal');
@@ -1890,136 +1904,14 @@ function generateSalesBillPDF() {
     doc.setFont(undefined, 'bold');
     doc.text('For JP JEWELLERY', 150, footerY + 10);
 
-    doc.save(`Bill_${billNo}_${date.replace(/\//g, '-')}.pdf`);
+    doc.save(`Bill_${billNo}_${formattedDate.replace(/\//g, '-')}.pdf`);
 
     closeModals();
-    alert(`✅ Sales Bill Generated!\n\nBill No: ${billNo}\nQuotation: ${selectedQuotationForBill.quotationNo}\n\n${billItems.length} products removed from inventory.`);
+    alert(`✅ Sales Bill Generated!\n\nBill No: ${billNo}\nQuotation: ${selectedQuotationForBill.quotationNo}\nCustomer: ${customer.name}\n\n${billItems.length} products removed from inventory.\n\nTransaction recorded in Accounts Ledger.`);
 
     clearBillSelection();
-    incrementBillCounter();
-}
-
-            function generateSalesBillExcel() {
-    const total = billItems.reduce((sum, item) => sum + item.amount, 0);
-    const gst = total * 0.03;
-    const netTotal = total + gst;
-    const billNo = `SCB${String(billCounter).padStart(4, '0')}`;
-
-    // SAVE BILL TO HISTORY
-    const billRecord = {
-        id: Date.now(),
-        billNo: billNo,
-        quotationNo: selectedQuotationForBill.quotationNo,
-        date: new Date().toISOString(),
-        customer: selectedQuotationForBill.customer,
-        items: JSON.parse(JSON.stringify(billItems)),
-        total: total,
-        gst: gst,
-        netTotal: netTotal,
-        rateSlab: currentBillRateSlab
-    };
-
-    savedBills.unshift(billRecord);
-    localStorage.setItem('savedBills', JSON.stringify(savedBills));
-
-    // ⭐ MARK ALL PRODUCTS AS SOLD AND REMOVE FROM INVENTORY
-    billItems.forEach(item => {
-        if (item.barcode) {
-            markProductAsSold(item.barcode, billNo);
-            removeProductFromInventory(item.barcode);
-        }
-    });
-
-    // Update products table if visible
-    if (document.getElementById('productsTab').classList.contains('hidden') === false) {
-        updateProductsTable();
-    }
-
-    // MARK QUOTATION AS BILLED
-    const quotIndex = savedQuotations.findIndex(q => q.id === selectedQuotationForBill.id);
-    if (quotIndex >= 0) {
-        savedQuotations[quotIndex].isBilled = true;
-        savedQuotations[quotIndex].billNo = billNo;
-        savedQuotations[quotIndex].billDate = new Date().toISOString();
-        localStorage.setItem('savedQuotations', JSON.stringify(savedQuotations));
-    }
-
-    // Excel Generation
-    const totalWeight = billItems.reduce((sum, item) => sum + item.weight, 0);
-    const totalMC = billItems.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
-    const totalPCS = billItems.length;
-    const date = new Date().toLocaleDateString('en-GB');
-    const customer = selectedQuotationForBill.customer;
-
-    const wb = XLSX.utils.book_new();
-
-    const headerData = [
-        ['To:', '', '', '', '', '', 'BILL No:', billNo],
-        [customer.name.toUpperCase(), '', '', '', '', '', 'Date:', date],
-        [customer.address1, '', '', '', '', '', 'Ref. Est:', selectedQuotationForBill.quotationNo],
-        [customer.address2, '', '', '', '', '', '', ''],
-        [customer.city, '', '', '', '', '', '', ''],
-        [`Mob: ${customer.mobile}`, '', '', '', '', '', '', ''],
-        ['']
-    ];
-
-    const itemsHeader = [[
-        '#', 'SKU', 'STYLE CODE', 'Short Name', 'SIZE',
-        'NET.WT', 'AVG.WT', '% Pure', 'G.WT', 'PCS',
-        'MC/gm', 'RATE', 'Amount'
-    ]];
-
-    const itemsData = billItems.map((item, idx) => {
-        const itemTotal = (item.rate + item.mcRate) * item.weight;
-
-        return [
-            idx + 1,
-            item.sku || '-',
-            item.styleCode || '-',
-            item.name,
-            item.size || '-',
-            item.weight.toFixed(2),
-            item.weight.toFixed(2),
-            item.purity.toFixed(0),
-            item.weight.toFixed(2),
-            1,
-            item.mcRate.toFixed(2),
-            item.rate.toFixed(0),
-            itemTotal.toFixed(2)
-        ];
-    });
-
-    const grandTotalData = [
-        [''],
-        ['COUNT:', totalPCS, '', '', '', '', '', 'GRAND TOTAL'],
-        ['Total Weight:', `${totalWeight.toFixed(2)} gm`, '', '', '', '', '', 'TOTAL:', total.toFixed(2)],
-        ['MC:', totalMC.toFixed(2), '', '', '', '', '', 'GST (3%):', gst.toFixed(2)],
-        ['', '', '', '', '', '', '', 'NET TOTAL:', netTotal.toFixed(2)]
-    ];
-
-    const allData = [
-        ...headerData,
-        ...itemsHeader,
-        ...itemsData,
-        ...grandTotalData
-    ];
-
-    const ws = XLSX.utils.aoa_to_sheet(allData);
-
-    ws['!cols'] = [
-        { wch: 5 }, { wch: 20 }, { wch: 15 }, { wch: 35 }, { wch: 10 },
-        { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 8 },
-        { wch: 12 }, { wch: 12 }, { wch: 15 }
-    ];
-
-    XLSX.utils.book_append_sheet(wb, ws, 'Bill');
-    XLSX.writeFile(wb, `Bill_${billNo}_${date.replace(/\//g, '-')}.xlsx`);
-
-    closeModals();
-    alert(`✅ Sales Bill Excel Generated!\n\nBill No: ${billNo}\nQuotation: ${selectedQuotationForBill.quotationNo}\n\n${billItems.length} products removed from inventory.`);
-
-    clearBillSelection();
-    incrementBillCounter();
+    billCounter++;
+    localStorage.setItem('billCounter', billCounter);
 }
 
     function incrementBillCounter() {
@@ -2273,77 +2165,7 @@ function generateSalesBillPDF() {
                                         alert('Bill reprinted successfully (PDF)!');
                                     }
 
-                                    function reprintBillExcel() {
-                                            const index = parseInt(document.getElementById('reprintBillIndex').value);
-                                            const bill = savedBills[index];
-
-                                            const totalWeight = bill.items.reduce((sum, item) => sum + item.weight, 0);
-                                            const totalMC = bill.items.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
-                                            const totalPCS = bill.items.length;
-                                            const date = new Date(bill.date).toLocaleDateString('en-GB');
-
-                                            const wb = XLSX.utils.book_new();
-
-                                            const headerData = [
-                                                ['To:', '', '', '', '', '', 'BILL No:', bill.billNo],
-                                                [bill.customer.name.toUpperCase(), '', '', '', '', '', 'Date:', date],
-                                                [bill.customer.address1, '', '', '', '', '', 'REPRINT', ''],
-                                                [bill.customer.address2, '', '', '', '', '', '', ''],
-                                                [bill.customer.city, '', '', '', '', '', '', ''],
-                                                [`Mob: ${bill.customer.mobile}`, '', '', '', '', '', '', ''],
-                                                ['']
-                                            ];
-
-                                            const itemsHeader = [[
-                                                '#', 'SKU', 'STYLE CODE', 'Short Name', 'SIZE',
-                                                'NET.WT', 'AVG.WT', '% Pure', 'G.WT', 'PCS',
-                                                'MC/gm', 'RATE', 'Amount'
-                                            ]];
-
-                                            const itemsData = bill.items.map((item, idx) => [
-                                                idx + 1,
-                                                item.sku || '-',
-                                                item.styleCode || '-',
-                                                item.name,
-                                                item.size || '-',
-                                                item.weight.toFixed(2),
-                                                item.weight.toFixed(2),
-                                                item.purity.toFixed(0),
-                                                item.weight.toFixed(2),
-                                                1,
-                                                item.mcRate.toFixed(2),
-                                                item.rate.toFixed(0),
-                                                item.amount.toFixed(2)
-                                            ]);
-
-                                            const grandTotalData = [
-                                                [''],
-                                                ['COUNT:', totalPCS, '', '', '', '', '', 'GRAND TOTAL'],
-                                                ['Total Weight:', `${totalWeight.toFixed(2)} gm`, '', '', '', '', '', 'TOTAL:', bill.total.toFixed(2)],
-                                                ['MC:', totalMC.toFixed(2), '', '', '', '', '', 'GST:', bill.gst.toFixed(2)],
-                                                ['', '', '', '', '', '', '', 'NET TOTAL:', bill.netTotal.toFixed(2)]
-                                            ];
-
-                                            const allData = [
-                                                ...headerData,
-                                                ...itemsHeader,
-                                                ...itemsData,
-                                                ...grandTotalData
-                                            ];
-
-                                            const ws = XLSX.utils.aoa_to_sheet(allData);
-                                            ws['!cols'] = [
-                                                { wch: 5 }, { wch: 20 }, { wch: 15 }, { wch: 35 }, { wch: 10 },
-                                                { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 8 },
-                                                { wch: 12 }, { wch: 12 }, { wch: 15 }
-                                            ];
-
-                                            XLSX.utils.book_append_sheet(wb, ws, 'Bill');
-                                            XLSX.writeFile(wb, `Bill_${bill.billNo}_REPRINT_${date.replace(/\//g, '-')}.xlsx`);
-
-                                            closeModals();
-                                            alert('Bill reprinted successfully (Excel)!');
-                                        }
+        // INITIAL DATA LOAD
 
         if (products.length === 0) {
             products = [
@@ -2474,7 +2296,7 @@ function generateSalesBillPDF() {
                     document.getElementById('ledgerTab').classList.remove('hidden');
                     document.getElementById('btnLedger').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
                     updateLedgerDashboard();
-                    showLedgerTransactions(); // Show transactions by default
+                    showLedgerCustomerAccounts(); // Show customer accounts by default
                 }
             }
 
@@ -3830,135 +3652,6 @@ function generateSalesBillPDF() {
         // Clear billing form after successful quotation
         clearAll();
     }
-
-        function generateQuoteExcel() {
-                // Calculate totals ONCE
-                const total = items.reduce((sum, item) => sum + item.amount, 0);
-                const gst = total * 0.03;
-                const netTotal = total + gst;
-                const quotationNo = `Q${String(quotationCounter).padStart(4, '0')}`;
-
-                // SAVE QUOTATION TO HISTORY
-                const quotationRecord = {
-                    id: Date.now(),
-                    quotationNo: quotationNo,
-                    date: new Date().toISOString(),
-                    customer: {
-                        name: currentCustomer.name,
-                        address1: currentCustomer.address1,
-                        address2: currentCustomer.address2,
-                        city: currentCustomer.city,
-                        mobile: currentCustomer.mobile
-                    },
-                    items: JSON.parse(JSON.stringify(items)),
-                    total: total,
-                    gst: gst,
-                    netTotal: netTotal,
-                    rateSlab: currentRateSlab,
-                    isBilled: false
-                };
-
-                savedQuotations.unshift(quotationRecord);
-                localStorage.setItem('savedQuotations', JSON.stringify(savedQuotations));
-
-                // EXCEL GENERATION
-                const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
-                const totalMC = items.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
-                const totalPCS = items.length;
-                const date = new Date().toLocaleDateString('en-GB');
-
-                // Create workbook
-                const wb = XLSX.utils.book_new();
-
-                // ========== HEADER SECTION ==========
-                const headerData = [
-                    ['To:', '', '', '', '', '', 'EST. No:', quotationNo],
-                    [currentCustomer.name.toUpperCase(), '', '', '', '', '', 'Date:', date],
-                    [currentCustomer.address1, '', '', '', '', '', '', ''],
-                    [currentCustomer.address2, '', '', '', '', '', '', ''],
-                    [currentCustomer.city, '', '', '', '', '', '', ''],
-                    [`Mob: ${currentCustomer.mobile}`, '', '', '', '', '', '', ''],
-                    ['']
-                ];
-
-                // ========== ITEMS TABLE ==========
-                const itemsHeader = [[
-                    '#', 'SKU', 'STYLE CODE', 'Short Name', 'SIZE',
-                    'NET.WT', 'AVG.WT', '% Pure', 'G.WT', 'PCS',
-                    'MC/gm', 'RATE', 'Amount'
-                ]];
-
-                const itemsData = items.map((item, idx) => {
-    // CORRECT CALCULATION: (Rate + MC) × Weight
-    const itemTotal = (item.rate + item.mcRate) * item.weight;
-    
-    return [
-        idx + 1,
-        item.sku || '-',
-        item.styleCode || '-',
-        item.name,
-        item.size || '-',
-        item.weight.toFixed(2),
-        item.weight.toFixed(2),
-        item.purity.toFixed(0),
-        item.weight.toFixed(2),
-        1,
-        item.mcRate.toFixed(2),
-        item.rate.toFixed(0),
-        itemTotal.toFixed(2)
-    ];
-});
-
-                // ========== GRAND TOTAL SECTION ==========
-                const grandTotalData = [
-                    [''],
-                    ['COUNT:', totalPCS, '', '', '', '', '', 'GRAND TOTAL'],
-                    ['Total Weight:', `${totalWeight.toFixed(2)} gm`, '', '', '', '', '', 'TOTAL:', total.toFixed(2)],
-                    ['MC:', totalMC.toFixed(2), '', '', '', '', '', 'GST:', gst.toFixed(2)],
-                    ['', '', '', '', '', '', '', 'NET TOTAL:', netTotal.toFixed(2)]
-                ];
-
-                // ========== COMBINE ALL DATA ==========
-                const allData = [
-                    ...headerData,
-                    ...itemsHeader,
-                    ...itemsData,
-                    ...grandTotalData
-                ];
-
-                // Create worksheet
-                const ws = XLSX.utils.aoa_to_sheet(allData);
-
-                // ========== COLUMN WIDTHS ==========
-                ws['!cols'] = [
-                    { wch: 5 },   // #
-                    { wch: 20 },  // SKU
-                    { wch: 15 },  // STYLE CODE
-                    { wch: 35 },  // Short Name
-                    { wch: 10 },  // SIZE
-                    { wch: 12 },  // NET.WT
-                    { wch: 12 },  // AVG.WT
-                    { wch: 10 },  // % Pure
-                    { wch: 10 },  // G.WT
-                    { wch: 8 },   // PCS
-                    { wch: 12 },  // MC/gm
-                    { wch: 12 },  // RATE
-                    { wch: 15 }   // Amount
-                ];
-
-                // Add worksheet to workbook
-                XLSX.utils.book_append_sheet(wb, ws, 'Quotation');
-
-                // Save file
-                XLSX.writeFile(wb, `Quotation_${quotationNo}_${date.replace(/\//g, '-')}.xlsx`);
-
-                quotationCounter++;
-                localStorage.setItem('quotationCounter', quotationCounter);
-                document.getElementById('quotationNo').textContent = `Quotation No: Q${String(quotationCounter).padStart(4, '0')}`;
-
-                closeModals();
-                alert('Excel Quotation generated successfully!');
-            }
     
                function clearAll() {
                     if (items.length === 0 || confirm('Clear all items from bill?')) {
@@ -4654,58 +4347,7 @@ function generateSalesBillPDF() {
                                 alert('Quotation PDF downloaded!');
                             }
 
-                            function reprintQuotationExcel() {
-                                if (!currentViewingQuotation) return;
-
-                                const q = currentViewingQuotation;
-                                const date = new Date(q.date).toLocaleDateString('en-GB');
-                                const wb = XLSX.utils.book_new();
-
-                                const headerData = [
-                                    ['To:', '', '', '', '', '', 'EST. No:', q.quotationNo],
-                                    [q.customer.name.toUpperCase(), '', '', '', '', '', 'Date:', date],
-                                    [q.customer.address1, '', '', '', '', '', '', ''],
-                                    [q.customer.address2, '', '', '', '', '', '', ''],
-                                    [q.customer.city, '', '', '', '', '', '', ''],
-                                    [`Mob: ${q.customer.mobile}`, '', '', '', '', '', '', ''],
-                                    ['']
-                                ];
-
-                                const itemsHeader = [['#', 'SKU', 'STYLE CODE', 'Short Name', 'SIZE', 'NET.WT', 'AVG.WT', '% Pure', 'G.WT', 'PCS', 'MC/gm', 'RATE', 'Amount']];
-                                const itemsData = q.items.map((item, idx) => {
-    // CORRECT CALCULATION: (Rate + MC) × Weight
-    const itemTotal = (item.rate + item.mcRate) * item.weight;
-    
-    return [
-        idx + 1, item.sku || '-', item.styleCode || '-', item.name, item.size || '-',
-        item.weight.toFixed(2), item.weight.toFixed(2), item.purity.toFixed(0),
-        item.weight.toFixed(2), 1, item.mcRate.toFixed(2), item.rate.toFixed(0), itemTotal.toFixed(2)
-    ];
-});
-
-                                const totalWeight = q.items.reduce((sum, item) => sum + item.weight, 0);
-                                const totalMC = q.items.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
-
-                                const grandTotalData = [
-                                    [''],
-                                    ['COUNT:', q.items.length, '', '', '', '', '', 'GRAND TOTAL'],
-                                    ['Total Weight:', `${totalWeight.toFixed(2)} gm`, '', '', '', '', '', 'TOTAL:', q.total.toFixed(2)],
-                                    ['MC:', totalMC.toFixed(2), '', '', '', '', '', 'GST:', q.gst.toFixed(2)],
-                                    ['', '', '', '', '', '', '', 'NET TOTAL:', q.netTotal.toFixed(2)]
-                                ];
-
-                                const allData = [...headerData, ...itemsHeader, ...itemsData, ...grandTotalData];
-                                const ws = XLSX.utils.aoa_to_sheet(allData);
-                                ws['!cols'] = [
-                                    { wch: 5 }, { wch: 20 }, { wch: 15 }, { wch: 35 }, { wch: 10 },
-                                    { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 8 },
-                                    { wch: 12 }, { wch: 12 }, { wch: 15 }
-                                ];
-
-                                XLSX.utils.book_append_sheet(wb, ws, 'Quotation');
-                                XLSX.writeFile(wb, `Quotation_${q.quotationNo}_REPRINT.xlsx`);
-                                alert('Quotation Excel downloaded!');
-                            } 
+                            // ========== BILL HISTORY FUNCTIONS ==========
                             function filterBills() {
                                     const searchTerm = document.getElementById('billSearch').value.toLowerCase();
                                     const customerFilter = document.getElementById('billCustomerFilter').value;
@@ -5191,17 +4833,26 @@ function generateSalesBillPDF() {
     // ========== LEDGER DISPLAY FUNCTIONS ==========
 
         function updateLedgerDashboard() {
-            // Update balances
-            document.getElementById('ledgerCashBalance').textContent = `₹${accountBalances.cash.toFixed(2)}`;
-            document.getElementById('ledgerBankBalance').textContent = `₹${accountBalances.bank.toFixed(2)}`;
-            document.getElementById('ledgerReceivables').textContent = `₹${accountBalances.receivables.toFixed(2)}`;
-            document.getElementById('ledgerPayables').textContent = `₹${accountBalances.payables.toFixed(2)}`;
+    // Update balances
+    document.getElementById('ledgerCashBalance').textContent = `₹${accountBalances.cash.toFixed(2)}`;
+    document.getElementById('ledgerBankBalance').textContent = `₹${accountBalances.bank.toFixed(2)}`;
+    document.getElementById('ledgerReceivables').textContent = `₹${accountBalances.receivables.toFixed(2)}`;
+    document.getElementById('ledgerPayables').textContent = `₹${accountBalances.payables.toFixed(2)}`;
 
-            // Update metal stocks
-            document.getElementById('ledgerGoldStock').textContent = `${accountBalances.goldStock.toFixed(2)}g`;
-            document.getElementById('ledgerSilverStock').textContent = `${accountBalances.silverStock.toFixed(2)}g`;
-            document.getElementById('ledgerPlatinumStock').textContent = `${accountBalances.platinumStock.toFixed(2)}g`;
-        }
+    // Update metal stocks with values
+    const goldValue = accountBalances.goldStock * rates.gold;
+    const silverValue = accountBalances.silverStock * rates.silver;
+    const platinumValue = accountBalances.platinumStock * rates.platinum;
+    
+    document.getElementById('ledgerGoldStock').textContent = `${accountBalances.goldStock.toFixed(2)}g`;
+    document.getElementById('ledgerGoldValue').textContent = `Value: ₹${goldValue.toFixed(2)}`;
+    
+    document.getElementById('ledgerSilverStock').textContent = `${accountBalances.silverStock.toFixed(2)}g`;
+    document.getElementById('ledgerSilverValue').textContent = `Value: ₹${silverValue.toFixed(2)}`;
+    
+    document.getElementById('ledgerPlatinumStock').textContent = `${accountBalances.platinumStock.toFixed(2)}g`;
+    document.getElementById('ledgerPlatinumValue').textContent = `Value: ₹${platinumValue.toFixed(2)}`;
+}
 
         function showLedgerTransactions() {
             const container = document.getElementById('ledgerSubtabs');
@@ -6444,6 +6095,781 @@ function generateSalesBillPDF() {
         </div>
     `;
                     }
+
+    // ========== CUSTOMER ACCOUNTS LEDGER ==========
+
+function showLedgerCustomerAccounts() {
+    const container = document.getElementById('ledgerSubtabs');
+    
+    container.innerHTML = `
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-gray-800">👥 Customer Account Ledgers</h3>
+                <div class="flex gap-2">
+                    <button onclick="downloadAllCustomerLedgers()" 
+                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                        📥 Download All
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Search and Filter -->
+            <div class="bg-gray-50 p-4 rounded-lg mb-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <input type="text" id="customerLedgerSearch" 
+                        placeholder="🔍 Search by customer name or mobile..."
+                        oninput="filterCustomerLedgers()"
+                        class="px-4 py-2 border rounded-lg">
+                    <select id="customerLedgerPeriod" onchange="filterCustomerLedgers()"
+                        class="px-4 py-2 border rounded-lg">
+                        <option value="all">All Time</option>
+                        <option value="month">This Month</option>
+                        <option value="year">This Year</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Customer Accounts Grid -->
+            <div id="customerAccountsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Will be populated -->
+            </div>
+            
+            <!-- Empty State -->
+            <div id="customerAccountsEmpty" class="text-center py-12 hidden">
+                <div class="text-6xl mb-4">👥</div>
+                <h3 class="text-xl font-bold text-gray-700 mb-2">No Customer Accounts</h3>
+                <p class="text-gray-500">Generate sales bills to create customer accounts</p>
+            </div>
+        </div>
+    `;
+    
+    displayCustomerAccounts();
+}
+
+function displayCustomerAccounts() {
+    const grid = document.getElementById('customerAccountsGrid');
+    const emptyState = document.getElementById('customerAccountsEmpty');
+    
+    if (!grid) return;
+    
+    // Get unique customers from bills
+    const customerMap = new Map();
+    
+    savedBills.forEach(bill => {
+        const mobile = bill.customer.mobile;
+        if (!customerMap.has(mobile)) {
+            customerMap.set(mobile, {
+                customer: bill.customer,
+                bills: [],
+                totalAmount: 0,
+                totalPaid: 0,
+                balance: 0
+            });
+        }
+        
+        const account = customerMap.get(mobile);
+        account.bills.push(bill);
+        account.totalAmount += bill.netTotal;
+        account.totalPaid += bill.paidAmount || 0;
+        account.balance = account.totalAmount - account.totalPaid;
+    });
+    
+    if (customerMap.size === 0) {
+        grid.classList.add('hidden');
+        emptyState.classList.remove('hidden');
+        return;
+    }
+    
+    grid.classList.remove('hidden');
+    emptyState.classList.add('hidden');
+    grid.innerHTML = '';
+    
+    // Convert to array and sort by balance (highest first)
+    const accounts = Array.from(customerMap.values()).sort((a, b) => b.balance - a.balance);
+    
+    accounts.forEach(account => {
+        const card = document.createElement('div');
+        card.className = 'bg-gradient-to-br from-blue-50 to-indigo-50 p-5 rounded-xl border-2 border-blue-200 hover:shadow-lg transition cursor-pointer';
+        card.onclick = () => viewCustomerLedger(account.customer.mobile);
+        
+        const balanceColor = account.balance > 0 ? 'text-red-600' : 'text-green-600';
+        const balanceLabel = account.balance > 0 ? 'Outstanding' : 'Paid';
+        
+        card.innerHTML = `
+            <div class="flex justify-between items-start mb-3">
+                <div>
+                    <h4 class="font-bold text-lg text-gray-800">${account.customer.name}</h4>
+                    <p class="text-sm text-gray-600">📱 ${account.customer.mobile}</p>
+                </div>
+                <span class="px-3 py-1 rounded-full text-xs font-bold ${account.balance > 0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}">
+                    ${account.bills.length} Bills
+                </span>
+            </div>
+            
+            <div class="space-y-2 text-sm mb-3">
+                <div class="flex justify-between">
+                    <span class="text-gray-600">Total Sales:</span>
+                    <span class="font-bold">₹${account.totalAmount.toFixed(2)}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">Paid:</span>
+                    <span class="font-bold text-green-600">₹${account.totalPaid.toFixed(2)}</span>
+                </div>
+                <div class="flex justify-between border-t pt-2">
+                    <span class="font-bold">${balanceLabel}:</span>
+                    <span class="font-bold ${balanceColor} text-lg">₹${Math.abs(account.balance).toFixed(2)}</span>
+                </div>
+            </div>
+            
+            <button class="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm">
+                View Full Ledger →
+            </button>
+        `;
+        
+        grid.appendChild(card);
+    });
+}
+
+function filterCustomerLedgers() {
+    const searchTerm = document.getElementById('customerLedgerSearch')?.value.toLowerCase() || '';
+    const period = document.getElementById('customerLedgerPeriod')?.value || 'all';
+    
+    // Filter bills by period
+    let filteredBills = savedBills;
+    
+    if (period !== 'all') {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        filteredBills = savedBills.filter(bill => {
+            const billDate = new Date(bill.date);
+            billDate.setHours(0, 0, 0, 0);
+            
+            if (period === 'month') {
+                const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+                return billDate >= monthStart;
+            } else if (period === 'year') {
+                const yearStart = new Date(today.getFullYear(), 0, 1);
+                return billDate >= yearStart;
+            }
+            return true;
+        });
+    }
+    
+    // Apply search filter
+    if (searchTerm) {
+        filteredBills = filteredBills.filter(bill =>
+            bill.customer.name.toLowerCase().includes(searchTerm) ||
+            bill.customer.mobile.includes(searchTerm)
+        );
+    }
+    
+    // Temporarily replace savedBills for display
+    const originalBills = savedBills;
+    savedBills = filteredBills;
+    displayCustomerAccounts();
+    savedBills = originalBills;
+}
+
+function viewCustomerLedger(customerMobile) {
+    const container = document.getElementById('ledgerSubtabs');
+    
+    // Get customer bills
+    const customerBills = savedBills.filter(bill => bill.customer.mobile === customerMobile);
+    
+    if (customerBills.length === 0) {
+        alert('No transactions found for this customer');
+        return;
+    }
+    
+    const customer = customerBills[0].customer;
+    const totalAmount = customerBills.reduce((sum, bill) => sum + bill.netTotal, 0);
+    const totalPaid = customerBills.reduce((sum, bill) => sum + (bill.paidAmount || 0), 0);
+    const balance = totalAmount - totalPaid;
+    
+    // Get payment transactions for this customer
+    const paymentTransactions = ledgerTransactions.filter(txn => 
+        txn.type === transactionTypes.PAYMENT_RECEIVED && 
+        txn.customerMobile === customerMobile
+    );
+    
+    container.innerHTML = `
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+            <!-- Header with Back Button -->
+            <div class="flex justify-between items-center mb-6">
+                <div class="flex items-center gap-3">
+                    <button onclick="showLedgerCustomerAccounts()" 
+                        class="px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                        ← Back
+                    </button>
+                    <div>
+                        <h3 class="text-2xl font-bold text-gray-800">${customer.name}</h3>
+                        <p class="text-sm text-gray-600">Customer Account Ledger</p>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="recordPayment('${customerMobile}')" 
+                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                        💰 Record Payment
+                    </button>
+                    <button onclick="downloadCustomerLedger('${customerMobile}')" 
+                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        📥 Download
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Customer Info Card -->
+            <div class="bg-gradient-to-br from-blue-50 to-indigo-50 p-5 rounded-xl border-2 border-blue-200 mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-sm text-gray-600 mb-1">Contact Information</p>
+                        <p class="font-semibold">📱 ${customer.mobile}</p>
+                        <p class="text-sm text-gray-700 mt-2">${customer.address1}</p>
+                        <p class="text-sm text-gray-700">${customer.address2}</p>
+                        <p class="text-sm text-gray-700">${customer.city}</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm text-gray-600">Account Summary</p>
+                        <div class="mt-2 space-y-1">
+                            <p class="text-sm">Total Purchases: <span class="font-bold">₹${totalAmount.toFixed(2)}</span></p>
+                            <p class="text-sm">Total Paid: <span class="font-bold text-green-600">₹${totalPaid.toFixed(2)}</span></p>
+                            <p class="text-lg font-bold mt-2 ${balance > 0 ? 'text-red-600' : 'text-green-600'}">
+                                ${balance > 0 ? 'Outstanding' : 'Advance'}: ₹${Math.abs(balance).toFixed(2)}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Period Filter -->
+            <div class="bg-gray-50 p-4 rounded-lg mb-4">
+                <div class="flex items-center gap-3">
+                    <label class="font-medium text-gray-700">Period:</label>
+                    <select id="customerLedgerPeriodFilter" onchange="filterCustomerLedgerPeriod('${customerMobile}')"
+                        class="px-4 py-2 border rounded-lg">
+                        <option value="all">All Time</option>
+                        <option value="month" selected>This Month</option>
+                        <option value="year">This Year</option>
+                        <option value="custom">Custom Range</option>
+                    </select>
+                    <div id="customDateRange" class="hidden flex gap-2">
+                        <input type="date" id="startDate" class="px-3 py-2 border rounded-lg">
+                        <input type="date" id="endDate" class="px-3 py-2 border rounded-lg">
+                        <button onclick="applyCustomDateRange('${customerMobile}')" 
+                            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                            Apply
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Transaction History -->
+            <div class="bg-white rounded-lg border">
+                <div class="bg-gray-100 px-6 py-3 border-b">
+                    <h4 class="font-bold text-gray-800">Transaction History</h4>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-sm font-semibold">Date</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold">Particulars</th>
+                                <th class="px-4 py-3 text-center text-sm font-semibold">Ref No.</th>
+                                <th class="px-4 py-3 text-right text-sm font-semibold">Debit</th>
+                                <th class="px-4 py-3 text-right text-sm font-semibold">Credit</th>
+                                <th class="px-4 py-3 text-right text-sm font-semibold">Balance</th>
+                            </tr>
+                        </thead>
+                        <tbody id="customerLedgerTableBody">
+                            <!-- Will be populated -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Display transactions
+    displayCustomerLedgerTransactions(customerMobile, 'month');
+}
+
+function displayCustomerLedgerTransactions(customerMobile, period = 'all') {
+    const tbody = document.getElementById('customerLedgerTableBody');
+    if (!tbody) return;
+    
+    // Get customer bills
+    let customerBills = savedBills.filter(bill => bill.customer.mobile === customerMobile);
+    
+    // Get payment transactions
+    let paymentTransactions = ledgerTransactions.filter(txn => 
+        txn.type === transactionTypes.PAYMENT_RECEIVED && 
+        txn.customerMobile === customerMobile
+    );
+    
+    // Filter by period
+    if (period !== 'all') {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        customerBills = customerBills.filter(bill => {
+            const billDate = new Date(bill.date);
+            billDate.setHours(0, 0, 0, 0);
+            
+            if (period === 'month') {
+                const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+                return billDate >= monthStart;
+            } else if (period === 'year') {
+                const yearStart = new Date(today.getFullYear(), 0, 1);
+                return billDate >= yearStart;
+            }
+            return true;
+        });
+        
+        paymentTransactions = paymentTransactions.filter(txn => {
+            const txnDate = new Date(txn.date);
+            txnDate.setHours(0, 0, 0, 0);
+            
+            if (period === 'month') {
+                const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+                return txnDate >= monthStart;
+            } else if (period === 'year') {
+                const yearStart = new Date(today.getFullYear(), 0, 1);
+                return txnDate >= yearStart;
+            }
+            return true;
+        });
+    }
+    
+    // Combine and sort all transactions by date
+    const allTransactions = [];
+    
+    customerBills.forEach(bill => {
+        allTransactions.push({
+            date: new Date(bill.date),
+            type: 'sale',
+            particulars: `Sales Bill - ${bill.items.length} items`,
+            reference: bill.billNo,
+            debit: bill.netTotal,
+            credit: 0,
+            bill: bill
+        });
+    });
+    
+    paymentTransactions.forEach(txn => {
+        allTransactions.push({
+            date: new Date(txn.date),
+            type: 'payment',
+            particulars: `Payment Received - ${txn.paymentMethod || 'Cash'}`,
+            reference: txn.reference || txn.id,
+            debit: 0,
+            credit: txn.amount,
+            transaction: txn
+        });
+    });
+    
+    // Sort by date (oldest first)
+    allTransactions.sort((a, b) => a.date - b.date);
+    
+    // Calculate running balance
+    let balance = 0;
+    tbody.innerHTML = '';
+    
+    if (allTransactions.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500">No transactions in selected period</td></tr>';
+        return;
+    }
+    
+    allTransactions.forEach((txn, index) => {
+        balance += txn.debit - txn.credit;
+        
+        const row = document.createElement('tr');
+        row.className = 'border-b hover:bg-gray-50';
+        
+        const date = txn.date;
+        const formattedDate = date.toLocaleDateString('en-GB');
+        const formattedTime = date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+        
+        const balanceColor = balance > 0 ? 'text-red-600' : balance < 0 ? 'text-green-600' : 'text-gray-600';
+        
+        row.innerHTML = `
+            <td class="px-4 py-3 text-sm">
+                ${formattedDate}<br>
+                <span class="text-xs text-gray-500">${formattedTime}</span>
+            </td>
+            <td class="px-4 py-3">
+                <div class="font-medium">${txn.particulars}</div>
+                ${txn.type === 'sale' ? `<div class="text-xs text-gray-500">${txn.bill.quotationNo || ''}</div>` : ''}
+            </td>
+            <td class="px-4 py-3 text-center">
+                <span class="px-2 py-1 rounded text-xs font-semibold ${txn.type === 'sale' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}">
+                    ${txn.reference}
+                </span>
+            </td>
+            <td class="px-4 py-3 text-right ${txn.debit > 0 ? 'font-bold text-red-600' : 'text-gray-400'}">
+                ${txn.debit > 0 ? `₹${txn.debit.toFixed(2)}` : '-'}
+            </td>
+            <td class="px-4 py-3 text-right ${txn.credit > 0 ? 'font-bold text-green-600' : 'text-gray-400'}">
+                ${txn.credit > 0 ? `₹${txn.credit.toFixed(2)}` : '-'}
+            </td>
+            <td class="px-4 py-3 text-right font-bold ${balanceColor}">
+                ₹${Math.abs(balance).toFixed(2)} ${balance > 0 ? 'Dr' : balance < 0 ? 'Cr' : ''}
+            </td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+    
+    // Add closing balance row
+    const closingRow = document.createElement('tr');
+    closingRow.className = 'bg-gray-100 font-bold';
+    closingRow.innerHTML = `
+        <td colspan="3" class="px-4 py-3 text-right">Closing Balance:</td>
+        <td class="px-4 py-3 text-right">-</td>
+        <td class="px-4 py-3 text-right">-</td>
+        <td class="px-4 py-3 text-right ${balance > 0 ? 'text-red-600' : balance < 0 ? 'text-green-600' : 'text-gray-600'}">
+            ₹${Math.abs(balance).toFixed(2)} ${balance > 0 ? 'Dr' : balance < 0 ? 'Cr' : ''}
+        </td>
+    `;
+    tbody.appendChild(closingRow);
+}
+
+function filterCustomerLedgerPeriod(customerMobile) {
+    const period = document.getElementById('customerLedgerPeriodFilter').value;
+    const customRange = document.getElementById('customDateRange');
+    
+    if (period === 'custom') {
+        customRange.classList.remove('hidden');
+    } else {
+        customRange.classList.add('hidden');
+        displayCustomerLedgerTransactions(customerMobile, period);
+    }
+}
+
+function applyCustomDateRange(customerMobile) {
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+    
+    if (!startDate || !endDate) {
+        alert('Please select both start and end dates');
+        return;
+    }
+    
+    // Custom filter logic here
+    displayCustomerLedgerTransactions(customerMobile, 'all');
+}
+
+function recordPayment(customerMobile) {
+    const customer = savedBills.find(b => b.customer.mobile === customerMobile)?.customer;
+    if (!customer) return;
+    
+    const customerBills = savedBills.filter(bill => bill.customer.mobile === customerMobile);
+    const totalAmount = customerBills.reduce((sum, bill) => sum + bill.netTotal, 0);
+    const totalPaid = customerBills.reduce((sum, bill) => sum + (bill.paidAmount || 0), 0);
+    const balance = totalAmount - totalPaid;
+    
+    if (balance <= 0) {
+        alert('No outstanding balance for this customer');
+        return;
+    }
+    
+    const modal = document.createElement('div');
+    modal.id = 'recordPaymentModal';
+    modal.className = 'fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50';
+    modal.innerHTML = `
+        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full" onclick="event.stopPropagation()">
+            <h3 class="text-xl font-bold mb-4">💰 Record Payment</h3>
+            
+            <div class="bg-blue-50 p-4 rounded-lg mb-4">
+                <p class="font-semibold text-gray-800">${customer.name}</p>
+                <p class="text-sm text-gray-600">📱 ${customer.mobile}</p>
+                <p class="text-lg font-bold text-red-600 mt-2">Outstanding: ₹${balance.toFixed(2)}</p>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Payment Amount (₹) *</label>
+                    <input type="number" step="0.01" id="paymentAmount" 
+                        max="${balance}" value="${balance}"
+                        placeholder="0.00"
+                        class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-1">Payment Method *</label>
+                    <select id="paymentMethod" class="w-full px-3 py-2 border rounded-lg">
+                        <option value="Cash">Cash</option>
+                        <option value="Bank Transfer">Bank Transfer</option>
+                        <option value="UPI">UPI</option>
+                        <option value="Card">Card</option>
+                        <option value="Cheque">Cheque</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-1">Reference/Transaction ID</label>
+                    <input type="text" id="paymentReference" 
+                        placeholder="Optional"
+                        class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-1">Payment Date</label>
+                    <input type="date" id="paymentDate" 
+                        value="${new Date().toISOString().split('T')[0]}"
+                        class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-1">Notes</label>
+                    <textarea id="paymentNotes" rows="2" 
+                        placeholder="Optional notes"
+                        class="w-full px-3 py-2 border rounded-lg"></textarea>
+                </div>
+                
+                <div class="flex gap-3">
+                    <button onclick="savePayment('${customerMobile}')" 
+                        class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
+                        💾 Save Payment
+                    </button>
+                    <button onclick="closePaymentModal()" 
+                        class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
+function savePayment(customerMobile) {
+    const amount = parseFloat(document.getElementById('paymentAmount').value);
+    const method = document.getElementById('paymentMethod').value;
+    const reference = document.getElementById('paymentReference').value.trim();
+    const date = document.getElementById('paymentDate').value;
+    const notes = document.getElementById('paymentNotes').value.trim();
+    
+    if (!amount || amount <= 0) {
+        alert('Please enter a valid payment amount');
+        return;
+    }
+    
+    const customer = savedBills.find(b => b.customer.mobile === customerMobile)?.customer;
+    
+    // Update bills with payment
+    let remainingAmount = amount;
+    const updatedBills = [];
+    
+    savedBills.forEach(bill => {
+        if (bill.customer.mobile === customerMobile && remainingAmount > 0) {
+            const billBalance = bill.netTotal - (bill.paidAmount || 0);
+            if (billBalance > 0) {
+                const paymentForBill = Math.min(remainingAmount, billBalance);
+                bill.paidAmount = (bill.paidAmount || 0) + paymentForBill;
+                bill.paymentStatus = bill.paidAmount >= bill.netTotal ? 'paid' : 'partial';
+                remainingAmount -= paymentForBill;
+                updatedBills.push(bill.billNo);
+            }
+        }
+    });
+    
+    localStorage.setItem('savedBills', JSON.stringify(savedBills));
+    
+    // Record in ledger
+    recordLedgerTransaction(transactionTypes.PAYMENT_RECEIVED, {
+        amount: amount,
+        customerName: customer.name,
+        customerMobile: customerMobile,
+        description: `Payment received from ${customer.name}${notes ? ' - ' + notes : ''}`,
+        category: 'Payment Received',
+        paymentMethod: method,
+        reference: reference || `PAY${Date.now()}`,
+        billsUpdated: updatedBills.join(', ')
+    });
+    
+    // Update balances
+    accountBalances.cash += amount;
+    accountBalances.receivables = Math.max(0, accountBalances.receivables - amount);
+    localStorage.setItem('accountBalances', JSON.stringify(accountBalances));
+    
+    closePaymentModal();
+    updateLedgerDashboard();
+    viewCustomerLedger(customerMobile);
+    
+    alert(`✅ Payment recorded successfully!\n\nAmount: ₹${amount.toFixed(2)}\nMethod: ${method}\n\nCustomer account updated.`);
+}
+
+function closePaymentModal() {
+    const modal = document.getElementById('recordPaymentModal');
+    if (modal) modal.remove();
+}
+
+function downloadCustomerLedger(customerMobile) {
+    const customer = savedBills.find(b => b.customer.mobile === customerMobile)?.customer;
+    if (!customer) return;
+    
+    const customerBills = savedBills.filter(bill => bill.customer.mobile === customerMobile);
+    const paymentTransactions = ledgerTransactions.filter(txn => 
+        txn.type === transactionTypes.PAYMENT_RECEIVED && 
+        txn.customerMobile === customerMobile
+    );
+    
+    const wb = XLSX.utils.book_new();
+    
+    // Header
+    const headerData = [
+        ['CUSTOMER ACCOUNT LEDGER'],
+        [''],
+        ['Customer Name:', customer.name],
+        ['Mobile:', customer.mobile],
+        ['Address:', `${customer.address1}, ${customer.address2}, ${customer.city}`],
+        ['Statement Date:', new Date().toLocaleDateString('en-GB')],
+        ['']
+    ];
+    
+    // Transactions
+    const allTransactions = [];
+    
+    customerBills.forEach(bill => {
+        allTransactions.push({
+            Date: new Date(bill.date).toLocaleDateString('en-GB'),
+            Particulars: `Sales Bill - ${bill.items.length} items`,
+            Reference: bill.billNo,
+            Debit: bill.netTotal.toFixed(2),
+            Credit: '',
+            type: 'sale',
+            date: new Date(bill.date)
+        });
+    });
+    
+    paymentTransactions.forEach(txn => {
+        allTransactions.push({
+            Date: new Date(txn.date).toLocaleDateString('en-GB'),
+            Particulars: `Payment Received - ${txn.paymentMethod || 'Cash'}`,
+            Reference: txn.reference || txn.id,
+            Debit: '',
+            Credit: txn.amount.toFixed(2),
+            type: 'payment',
+            date: new Date(txn.date)
+        });
+    });
+    
+    // Sort by date
+    allTransactions.sort((a, b) => a.date - b.date);
+    
+    // Calculate running balance
+    let balance = 0;
+    const txnData = allTransactions.map(txn => {
+        const debit = txn.Debit ? parseFloat(txn.Debit) : 0;
+        const credit = txn.Credit ? parseFloat(txn.Credit) : 0;
+        balance += debit - credit;
+        
+        return {
+            'Date': txn.Date,
+            'Particulars': txn.Particulars,
+            'Reference': txn.Reference,
+            'Debit': txn.Debit,
+            'Credit': txn.Credit,
+            'Balance': `${Math.abs(balance).toFixed(2)} ${balance > 0 ? 'Dr' : balance < 0 ? 'Cr' : ''}`
+        };
+    });
+    
+    const txnHeaders = [['Date', 'Particulars', 'Reference', 'Debit', 'Credit', 'Balance']];
+    const txnRows = txnData.map(obj => [obj.Date, obj.Particulars, obj.Reference, obj.Debit, obj.Credit, obj.Balance]);
+    
+    // Summary
+    const totalAmount = customerBills.reduce((sum, bill) => sum + bill.netTotal, 0);
+    const totalPaid = customerBills.reduce((sum, bill) => sum + (bill.paidAmount || 0), 0);
+    const outstanding = totalAmount - totalPaid;
+    
+    const summaryData = [
+        [''],
+        ['ACCOUNT SUMMARY'],
+        ['Total Sales:', totalAmount.toFixed(2)],
+        ['Total Paid:', totalPaid.toFixed(2)],
+        ['Outstanding Balance:', outstanding.toFixed(2)]
+    ];
+    
+    // Combine
+    const allData = [
+        ...headerData,
+        ...txnHeaders,
+        ...txnRows,
+        ...summaryData
+    ];
+    
+    const ws = XLSX.utils.aoa_to_sheet(allData);
+    ws['!cols'] = [
+        { wch: 12 }, { wch: 35 }, { wch: 15 }, 
+        { wch: 15 }, { wch: 15 }, { wch: 20 }
+    ];
+    
+    XLSX.utils.book_append_sheet(wb, ws, 'Ledger');
+    XLSX.writeFile(wb, `Ledger_${customer.name}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    alert('Customer ledger downloaded successfully!');
+}
+
+function downloadAllCustomerLedgers() {
+    if (savedBills.length === 0) {
+        alert('No customer accounts to export!');
+        return;
+    }
+    
+    // Get unique customers
+    const customerMap = new Map();
+    
+    savedBills.forEach(bill => {
+        const mobile = bill.customer.mobile;
+        if (!customerMap.has(mobile)) {
+            customerMap.set(mobile, {
+                customer: bill.customer,
+                bills: [],
+                totalAmount: 0,
+                totalPaid: 0,
+                balance: 0
+            });
+        }
+        
+        const account = customerMap.get(mobile);
+        account.bills.push(bill);
+        account.totalAmount += bill.netTotal;
+        account.totalPaid += bill.paidAmount || 0;
+        account.balance = account.totalAmount - account.totalPaid;
+    });
+    
+    const wb = XLSX.utils.book_new();
+    
+    // Summary sheet
+    const summaryData = [
+        ['ALL CUSTOMER ACCOUNTS SUMMARY'],
+        ['Generated:', new Date().toLocaleDateString('en-GB')],
+        [''],
+        ['Customer Name', 'Mobile', 'Total Sales', 'Total Paid', 'Outstanding']
+    ];
+    
+    Array.from(customerMap.values()).forEach(account => {
+        summaryData.push([
+            account.customer.name,
+            account.customer.mobile,
+            account.totalAmount.toFixed(2),
+            account.totalPaid.toFixed(2),
+            account.balance.toFixed(2)
+        ]);
+    });
+    
+    const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+    wsSummary['!cols'] = [
+        { wch: 30 }, { wch: 15 }, { wch: 15 }, 
+        { wch: 15 }, { wch: 15 }
+    ];
+    
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+    
+    XLSX.writeFile(wb, `All_Customer_Ledgers_${new Date().toISOString().split('T')[0]}.xlsx`);
+    alert('All customer ledgers downloaded successfully!');
+}
 
                     // Download functions for reports
                     function downloadPLReport() {
