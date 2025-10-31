@@ -117,6 +117,13 @@
                                 <p class="text-xl font-bold" id="rateSlabDisplay">R</p>
                                 <p class="text-xs" id="rateSlabDesc">Standard MC</p>
                             </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Quick Actions</label>
+                                <button onclick="showCashEntryModal()" 
+                                    class="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium">
+                                    💵 Record Cash Entry
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -746,28 +753,32 @@
     </div>
 
     <!-- Quick Actions -->
-    <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-        <button onclick="showLedgerCustomerAccounts()"
-            class="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
-            👥 Customer Accounts
-        </button>
-        <button onclick="showLedgerTransactions()"
-            class="px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium">
-            📋 All Transactions
-        </button>
-        <button onclick="showLedgerExpenses()"
-            class="px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium">
-            💸 Expenses
-        </button>
-        <button onclick="showLedgerPurchases()"
-            class="px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
-            🛒 Metal Purchases
-        </button>
-        <button onclick="showLedgerReports()"
-            class="px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
-            📊 Financial Reports
-        </button>
-    </div>
+<div class="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
+    <button onclick="showCashEntryModal()"
+        class="px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium">
+        💵 Cash Entry
+    </button>
+    <button onclick="showLedgerCustomerAccounts()"
+        class="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
+        👥 Customer Accounts
+    </button>
+    <button onclick="showLedgerTransactions()"
+        class="px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
+        📋 All Transactions
+    </button>
+    <button onclick="showLedgerExpenses()"
+        class="px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium">
+        💸 Expenses
+    </button>
+    <button onclick="showLedgerPurchases()"
+        class="px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium">
+        🛒 Metal Purchases
+    </button>
+    <button onclick="showLedgerReports()"
+        class="px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
+        📊 Financial Reports
+    </button>
+</div>
 
     <!-- Subtabs Container -->
     <div id="ledgerSubtabs">
@@ -1341,6 +1352,75 @@
     </div>
 </div>
 
+<!-- Cash Entry Modal -->
+<div id="cashEntryModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
+    <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full pointer-events-auto" onclick="event.stopPropagation()">
+        <h3 class="text-xl font-bold mb-4">💵 Cash Entry</h3>
+        
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium mb-1">Entry Type *</label>
+                <select id="cashEntryType" onchange="updateCashEntryFields()" class="w-full px-3 py-2 border rounded-lg">
+                    <option value="cash_in">Cash In (Received)</option>
+                    <option value="cash_out">Cash Out (Paid)</option>
+                </select>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium mb-1">Amount (₹) *</label>
+                <input type="number" step="0.01" id="cashEntryAmount" 
+                    placeholder="0.00"
+                    class="w-full px-3 py-2 border rounded-lg">
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium mb-1">Category *</label>
+                <select id="cashEntryCategory" class="w-full px-3 py-2 border rounded-lg">
+                    <option value="Sales">Sales</option>
+                    <option value="Purchase">Purchase</option>
+                    <option value="Customer Payment">Customer Payment</option>
+                    <option value="Supplier Payment">Supplier Payment</option>
+                    <option value="Owner Investment">Owner Investment</option>
+                    <option value="Loan">Loan</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium mb-1">Description *</label>
+                <textarea id="cashEntryDescription" rows="2" 
+                    placeholder="Enter details about this cash transaction"
+                    class="w-full px-3 py-2 border rounded-lg"></textarea>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium mb-1">Reference/Receipt No</label>
+                <input type="text" id="cashEntryReference" 
+                    placeholder="Optional"
+                    class="w-full px-3 py-2 border rounded-lg">
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium mb-1">Date</label>
+                <input type="date" id="cashEntryDate" 
+                    value="${new Date().toISOString().split('T')[0]}"
+                    class="w-full px-3 py-2 border rounded-lg">
+            </div>
+            
+            <div class="flex gap-3">
+                <button onclick="saveCashEntry()" 
+                    class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
+                    💾 Save Entry
+                </button>
+                <button onclick="closeCashEntryModal()" 
+                    class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
     <script>
         let items = [];
         let rates = JSON.parse(localStorage.getItem('rates') || '{"gold":7500,"silver":156,"platinum":3500}');
@@ -1416,19 +1496,29 @@
 
             // Function to record ledger transaction
             function recordLedgerTransaction(type, data) {
-                const transaction = {
-                    id: generateTransactionId(),
-                    type: type,
-                    date: new Date().toISOString(),
-                    ...data
-                };
+    const transaction = {
+        id: generateTransactionId(),
+        type: type,
+        date: data.date || new Date().toISOString(),
+        amount: data.amount || 0,
+        description: data.description || '',
+        category: data.category || '',
+        paymentMethod: data.paymentMethod || 'Cash',
+        reference: data.reference || '',
+        customerName: data.customerName || '',
+        customerMobile: data.customerMobile || '',
+        billNo: data.billNo || '',
+        supplier: data.supplier || '',
+        metalType: data.metalType || '',
+        weight: data.weight || 0
+    };
 
-                ledgerTransactions.unshift(transaction);
-                localStorage.setItem('ledgerTransactions', JSON.stringify(ledgerTransactions));
+    ledgerTransactions.unshift(transaction);
+    localStorage.setItem('ledgerTransactions', JSON.stringify(ledgerTransactions));
 
-                updateAccountBalances(type, data);
-                return transaction;
-            }
+    // Don't auto-update balances here - let calling functions handle it
+    return transaction;
+}
 
             // Function to update account balances
             function updateAccountBalances(type, data) {
@@ -2209,6 +2299,7 @@ function generateSalesBillPDF() {
                 updateProductsTable();
                 updateRateSlabInfo(); 
                 updateBillCustomerDropdown();
+                updateCashEntryFields();
 
                 // Billing barcode scanner
                 document.getElementById('barcodeInput').addEventListener('keypress', function (e) {
@@ -3732,6 +3823,7 @@ function generateSalesBillPDF() {
                         document.getElementById('billFormatModal').classList.add('hidden');
                         document.getElementById('viewBillModal').classList.add('hidden');
                         document.getElementById('reprintFormatModal').classList.add('hidden');
+                        document.getElementById('cashEntryModal').classList.add('hidden');
                     }
 
                 // ========== ROL MANAGEMENT FUNCTIONS ==========
@@ -4982,25 +5074,26 @@ function generateSalesBillPDF() {
         }
 
         function filterLedgerTransactions() {
-            const searchTerm = document.getElementById('ledgerTxnSearch').value.toLowerCase();
-            const typeFilter = document.getElementById('ledgerTxnTypeFilter').value;
+    const searchTerm = document.getElementById('ledgerTxnSearch')?.value.toLowerCase() || '';
+    const typeFilter = document.getElementById('ledgerTxnTypeFilter')?.value || 'all';
 
-            let filtered = ledgerTransactions;
+    let filtered = ledgerTransactions;
 
-            if (typeFilter !== 'all') {
-                filtered = filtered.filter(txn => txn.type === typeFilter);
-            }
+    if (typeFilter !== 'all') {
+        filtered = filtered.filter(txn => txn.type === typeFilter);
+    }
 
-            if (searchTerm) {
-                filtered = filtered.filter(txn =>
-                    (txn.description && txn.description.toLowerCase().includes(searchTerm)) ||
-                    (txn.reference && txn.reference.toLowerCase().includes(searchTerm)) ||
-                    (txn.customerName && txn.customerName.toLowerCase().includes(searchTerm))
-                );
-            }
+    if (searchTerm) {
+        filtered = filtered.filter(txn =>
+            (txn.description && txn.description.toLowerCase().includes(searchTerm)) ||
+            (txn.reference && txn.reference.toLowerCase().includes(searchTerm)) ||
+            (txn.customerName && txn.customerName.toLowerCase().includes(searchTerm)) ||
+            (txn.category && txn.category.toLowerCase().includes(searchTerm))
+        );
+    }
 
-            displayLedgerTransactions(filtered);
-        }
+    displayLedgerTransactions(filtered);
+}
 
         function exportLedgerTransactions() {
             if (ledgerTransactions.length === 0) {
@@ -6974,6 +7067,95 @@ function downloadAllCustomerLedgers() {
             XLSX.writeFile(wb, `Ledger_Transactions_${new Date().toISOString().split('T')[0]}.xlsx`);
             alert('Transactions exported successfully!');
         }
+
+        // ========== CASH ENTRY FUNCTIONS ==========
+
+function showCashEntryModal() {
+    document.getElementById('modalOverlay').classList.remove('hidden');
+    document.getElementById('modalOverlay').classList.add('flex');
+    document.getElementById('cashEntryModal').classList.remove('hidden');
+}
+
+function closeCashEntryModal() {
+    document.getElementById('cashEntryModal').classList.add('hidden');
+    document.getElementById('modalOverlay').classList.add('hidden');
+}
+
+function updateCashEntryFields() {
+    const type = document.getElementById('cashEntryType').value;
+    const categorySelect = document.getElementById('cashEntryCategory');
+    
+    // Update category options based on type
+    if (type === 'cash_in') {
+        categorySelect.innerHTML = `
+            <option value="Sales">Sales</option>
+            <option value="Customer Payment">Customer Payment</option>
+            <option value="Owner Investment">Owner Investment</option>
+            <option value="Loan Received">Loan Received</option>
+            <option value="Other Income">Other Income</option>
+        `;
+    } else {
+        categorySelect.innerHTML = `
+            <option value="Purchase">Purchase</option>
+            <option value="Supplier Payment">Supplier Payment</option>
+            <option value="Expense">Expense</option>
+            <option value="Loan Repayment">Loan Repayment</option>
+            <option value="Owner Withdrawal">Owner Withdrawal</option>
+            <option value="Other Payment">Other Payment</option>
+        `;
+    }
+}
+
+function saveCashEntry() {
+    const type = document.getElementById('cashEntryType').value;
+    const amount = parseFloat(document.getElementById('cashEntryAmount').value);
+    const category = document.getElementById('cashEntryCategory').value;
+    const description = document.getElementById('cashEntryDescription').value.trim();
+    const reference = document.getElementById('cashEntryReference').value.trim() || `CASH${Date.now()}`;
+    const date = document.getElementById('cashEntryDate').value;
+    
+    if (!amount || amount <= 0) {
+        alert('Please enter a valid amount');
+        return;
+    }
+    
+    if (!description) {
+        alert('Please enter a description');
+        return;
+    }
+    
+    // Record in ledger
+    const transactionType = type === 'cash_in' ? transactionTypes.CASH_IN : transactionTypes.CASH_OUT;
+    const transactionAmount = type === 'cash_in' ? amount : -amount;
+    
+    recordLedgerTransaction(transactionType, {
+        amount: transactionAmount,
+        description: `${category} - ${description}`,
+        category: category,
+        paymentMethod: 'Cash',
+        reference: reference,
+        date: new Date(date).toISOString()
+    });
+    
+    // Update cash balance
+    if (type === 'cash_in') {
+        accountBalances.cash += amount;
+    } else {
+        accountBalances.cash -= amount;
+    }
+    
+    localStorage.setItem('accountBalances', JSON.stringify(accountBalances));
+    
+    closeCashEntryModal();
+    updateLedgerDashboard();
+    
+    alert(`✅ Cash Entry Recorded!\n\nType: ${type === 'cash_in' ? 'Cash In' : 'Cash Out'}\nAmount: ₹${amount.toFixed(2)}\nCategory: ${category}\nReference: ${reference}`);
+    
+    // If on ledger tab, refresh display
+    if (!document.getElementById('ledgerTab').classList.contains('hidden')) {
+        showLedgerTransactions();
+    }
+}
 
             </script>
     </body>
