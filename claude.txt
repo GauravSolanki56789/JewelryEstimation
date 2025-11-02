@@ -1,5 +1,5 @@
-1)Change the UI entirely of the billing page , make the products and their details visible while scanning .
-2)Remove generate excel functions from bills 
+
+
 3)Resolve all the errors .
 4)Approval system 
 5)Sample bill and bill pdf format 

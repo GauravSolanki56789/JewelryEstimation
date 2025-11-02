@@ -67,6 +67,8 @@
                             class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">📋BillHistory</button>
                         <button onclick="showTab('ledger')" id="btnLedger"
                             class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">📒 Ledger</button>
+                        <button onclick="showTab('pv')" id="btnPV"
+                            class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">📋 PV StockIn</button>
                     </div>
                 </div>
             </div>
@@ -827,6 +829,289 @@
     </div>
 </div>
 
+<!-- Purchase Voucher (PV) Stock In Tab -->
+<div id="pvTab" class="space-y-6 hidden">
+    <div class="bg-white p-6 rounded-xl shadow-lg">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-gray-800">📋 Purchase Voucher - Stock In</h2>
+            <div class="flex gap-2">
+                <button onclick="downloadPVSample()"
+                    class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-bold text-sm">
+                    📋 Download Sample
+                </button>
+                <button onclick="showPVUploadModal()"
+                    class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-sm">
+                    📤 Upload Stock
+                </button>
+                <button onclick="showPVSearchView()"
+                    class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-sm">
+                    🔍 Search PV
+                </button>
+            </div>
+        </div>
+
+        <!-- PV Statistics -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-gradient-to-br from-green-500 to-green-600 text-white p-4 rounded-lg shadow">
+                <p class="text-sm opacity-90">Total PVs</p>
+                <p class="text-3xl font-bold" id="pvTotalCount">0</p>
+            </div>
+            <div class="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-4 rounded-lg shadow">
+                <p class="text-sm opacity-90">Total Value</p>
+                <p class="text-2xl font-bold" id="pvTotalValue">₹0</p>
+            </div>
+            <div class="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-4 rounded-lg shadow">
+                <p class="text-sm opacity-90">This Month</p>
+                <p class="text-3xl font-bold" id="pvMonthCount">0</p>
+            </div>
+            <div class="bg-gradient-to-br from-orange-500 to-orange-600 text-white p-4 rounded-lg shadow">
+                <p class="text-sm opacity-90">Total Products</p>
+                <p class="text-3xl font-bold" id="pvTotalProducts">0</p>
+            </div>
+        </div>
+
+        <!-- PV List Section -->
+        <div id="pvListSection">
+            <!-- Filter -->
+            <div class="bg-gray-50 p-4 rounded-lg mb-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <input type="text" id="pvSearch" placeholder="🔍 Search PV Number, Supplier..."
+                        oninput="filterPVList()" class="px-4 py-2 border rounded-lg">
+                    <select id="pvDateFilter" onchange="filterPVList()" class="px-4 py-2 border rounded-lg">
+                        <option value="all">All Time</option>
+                        <option value="today">Today</option>
+                        <option value="week">This Week</option>
+                        <option value="month">This Month</option>
+                        <option value="year">This Year</option>
+                    </select>
+                    <select id="pvSupplierFilter" onchange="filterPVList()" class="px-4 py-2 border rounded-lg">
+                        <option value="all">All Suppliers</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- PV Table -->
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-sm font-semibold">PV No</th>
+                            <th class="px-4 py-3 text-left text-sm font-semibold">Date</th>
+                            <th class="px-4 py-3 text-left text-sm font-semibold">Supplier</th>
+                            <th class="px-4 py-3 text-center text-sm font-semibold">Products</th>
+                            <th class="px-4 py-3 text-right text-sm font-semibold">Total Weight</th>
+                            <th class="px-4 py-3 text-right text-sm font-semibold">Total Value</th>
+                            <th class="px-4 py-3 text-center text-sm font-semibold">Status</th>
+                            <th class="px-4 py-3 text-center text-sm font-semibold">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pvTableBody"></tbody>
+                </table>
+            </div>
+
+            <!-- Empty State -->
+            <div id="pvEmptyState" class="text-center py-12 hidden">
+                <div class="text-6xl mb-4">📋</div>
+                <h3 class="text-xl font-bold text-gray-700 mb-2">No Purchase Vouchers</h3>
+                <p class="text-gray-500">Upload your first stock to create a PV</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- PV Upload Modal -->
+<div id="pvUploadModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
+    <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-4xl w-full pointer-events-auto max-h-[90vh] overflow-y-auto"
+        onclick="event.stopPropagation()">
+        <h3 class="text-xl font-bold mb-4">📤 Upload Stock - Create Purchase Voucher</h3>
+
+        <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
+            <h4 class="font-bold text-blue-800 mb-2">📋 Required Excel Columns:</h4>
+            <p class="text-sm text-blue-700 font-mono">Barcode | SKU | StyleCode | ProductName | Size | AvgWeight |
+                Purity | MCRate | MetalType</p>
+            <p class="text-sm text-blue-700 mt-2"><strong>MetalType:</strong> Must be "gold", "silver", or "platinum"
+            </p>
+        </div>
+
+        <!-- Supplier Information -->
+        <div class="bg-gray-50 p-4 rounded-lg mb-4">
+            <h4 class="font-bold text-gray-800 mb-3">Supplier Details</h4>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Supplier Name *</label>
+                    <input type="text" id="pvSupplierName" placeholder="Enter supplier name"
+                        class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Supplier Invoice No</label>
+                    <input type="text" id="pvSupplierInvoice" placeholder="Optional"
+                        class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Payment Status *</label>
+                    <select id="pvPaymentStatus" class="w-full px-3 py-2 border rounded-lg">
+                        <option value="paid">Paid</option>
+                        <option value="pending">Pending</option>
+                        <option value="partial">Partial</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">PV Date</label>
+                    <input type="date" id="pvDate" value="${new Date().toISOString().split('T')[0]}"
+                        class="w-full px-3 py-2 border rounded-lg">
+                </div>
+            </div>
+            <div class="mt-3">
+                <label class="block text-sm font-medium mb-1">Notes</label>
+                <textarea id="pvNotes" rows="2" placeholder="Optional notes about this purchase"
+                    class="w-full px-3 py-2 border rounded-lg"></textarea>
+            </div>
+        </div>
+
+        <!-- File Upload -->
+        <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-4 bg-gray-50">
+            <input type="file" id="pvExcelFileInput" accept=".xlsx,.xls" class="hidden"
+                onchange="handlePVExcelUpload(event)">
+            <button onclick="document.getElementById('pvExcelFileInput').click()"
+                class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-lg">
+                📁 Choose Excel File
+            </button>
+            <p class="text-sm text-gray-500 mt-2">Upload product list with all details</p>
+        </div>
+
+        <!-- Preview Section -->
+        <div id="pvUploadPreview" class="hidden">
+            <h4 class="font-bold text-gray-800 mb-2">Preview (First 5 products):</h4>
+            <div class="overflow-x-auto max-h-60 border rounded-lg mb-4">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-100 sticky top-0">
+                        <tr>
+                            <th class="px-2 py-2 text-left">Barcode</th>
+                            <th class="px-2 py-2 text-left">Name</th>
+                            <th class="px-2 py-2 text-left">Metal</th>
+                            <th class="px-2 py-2 text-right">Weight</th>
+                            <th class="px-2 py-2 text-right">MC Rate</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pvPreviewTableBody"></tbody>
+                </table>
+            </div>
+
+            <!-- Summary -->
+            <div class="bg-green-50 p-4 rounded-lg mb-4">
+                <h4 class="font-bold text-green-800 mb-2">Upload Summary</h4>
+                <div class="grid grid-cols-3 gap-4 text-sm">
+                    <div>
+                        <span class="text-gray-600">Total Products:</span>
+                        <span class="font-bold ml-2" id="pvUploadTotalProducts">0</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-600">Total Weight:</span>
+                        <span class="font-bold ml-2" id="pvUploadTotalWeight">0g</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-600">Estimated Value:</span>
+                        <span class="font-bold ml-2" id="pvUploadTotalValue">₹0</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex gap-3">
+                <button onclick="confirmPVUpload()"
+                    class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">
+                    ✅ Create PV & Add Stock
+                </button>
+                <button onclick="closeModals()"
+                    class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- PV View Details Modal -->
+<div id="pvViewModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
+    <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-6xl w-full pointer-events-auto max-h-[90vh] overflow-y-auto"
+        onclick="event.stopPropagation()">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-2xl font-bold text-gray-800">Purchase Voucher Details</h3>
+            <button onclick="closeModals()" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+        </div>
+
+        <!-- PV Header Info -->
+        <div class="bg-gradient-to-r from-green-50 to-emerald-50 p-5 rounded-xl border-2 border-green-200 mb-4">
+            <div class="grid grid-cols-3 gap-4">
+                <div>
+                    <p class="text-sm text-gray-600">PV Number</p>
+                    <p class="text-2xl font-bold text-green-600" id="viewPVNumber"></p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-600">Supplier</p>
+                    <p class="text-lg font-bold" id="viewPVSupplier"></p>
+                    <p class="text-sm text-gray-600" id="viewPVSupplierInvoice"></p>
+                </div>
+                <div class="text-right">
+                    <p class="text-sm text-gray-600">Date</p>
+                    <p class="font-bold" id="viewPVDate"></p>
+                    <span class="px-3 py-1 rounded-full text-xs font-bold mt-2 inline-block" id="viewPVStatus"></span>
+                </div>
+            </div>
+            <div class="mt-3 pt-3 border-t" id="viewPVNotes"></div>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="grid grid-cols-4 gap-4 mb-4">
+            <div class="bg-blue-50 p-4 rounded-lg text-center">
+                <p class="text-sm text-gray-600">Products</p>
+                <p class="text-2xl font-bold text-blue-600" id="viewPVTotalProducts"></p>
+            </div>
+            <div class="bg-yellow-50 p-4 rounded-lg text-center">
+                <p class="text-sm text-gray-600">Total Weight</p>
+                <p class="text-2xl font-bold text-yellow-600" id="viewPVTotalWeight"></p>
+            </div>
+            <div class="bg-purple-50 p-4 rounded-lg text-center">
+                <p class="text-sm text-gray-600">Total Value</p>
+                <p class="text-2xl font-bold text-purple-600" id="viewPVTotalValue"></p>
+            </div>
+            <div class="bg-green-50 p-4 rounded-lg text-center">
+                <p class="text-sm text-gray-600">MC Total</p>
+                <p class="text-2xl font-bold text-green-600" id="viewPVTotalMC"></p>
+            </div>
+        </div>
+
+        <!-- Products Table -->
+        <div class="overflow-x-auto mb-4">
+            <table class="w-full text-sm border">
+                <thead class="bg-gray-100">
+                    <tr>
+                        <th class="border px-3 py-2 text-left">#</th>
+                        <th class="border px-3 py-2 text-left">Barcode</th>
+                        <th class="border px-3 py-2 text-left">SKU</th>
+                        <th class="border px-3 py-2 text-left">Style Code</th>
+                        <th class="border px-3 py-2 text-left">Product Name</th>
+                        <th class="border px-3 py-2 text-center">Size</th>
+                        <th class="border px-3 py-2 text-center">Metal</th>
+                        <th class="border px-3 py-2 text-right">Weight</th>
+                        <th class="border px-3 py-2 text-center">Purity</th>
+                        <th class="border px-3 py-2 text-right">MC Rate</th>
+                    </tr>
+                </thead>
+                <tbody id="viewPVProductsBody"></tbody>
+            </table>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex gap-3">
+            <button onclick="downloadPVReport()"
+                class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold">
+                📥 Download PDF
+            </button>
+            <button onclick="closeModals()" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                Close
+            </button>
+        </div>
+    </div>
+</div>
+
     </div>
 
     <!-- Modal Overlay -->
@@ -1366,7 +1651,7 @@
     
             <!-- Actions -->
             <div class="flex gap-3 mt-4">
-                <button onclick="reprintBill(document.getElementById('viewBillModal').getAttribute('data-bill-index'))"
+                <button onclick="reprintBillByModalId()"
                     class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">
                     🖨️ Reprint
                 </button>
@@ -1517,16 +1802,28 @@
             let metalPurchases = JSON.parse(localStorage.getItem('metalPurchases') || '[]');
             let suppliers = JSON.parse(localStorage.getItem('suppliers') || '[]');
 
-            // Account balances
-            let accountBalances = JSON.parse(localStorage.getItem('accountBalances') || JSON.stringify({
-                cash: 0,
-                bank: 0,
-                receivables: 0,
-                payables: 0,
-                goldStock: 0,
-                silverStock: 0,
-                platinumStock: 0
-            }));
+            // Initialize account balances properly
+                let accountBalances = JSON.parse(localStorage.getItem('accountBalances') || JSON.stringify({
+                    cash: 0,
+                    bank: 0,
+                    receivables: 0,
+                    payables: 0,
+                    goldStock: 0,
+                    silverStock: 0,
+                    platinumStock: 0
+                }));
+
+                // NEW: Purchase Voucher System
+                let purchaseVouchers = JSON.parse(localStorage.getItem('purchaseVouchers') || '[]');
+                let pvCounter = parseInt(localStorage.getItem('pvCounter') || '1');
+
+                // Function to generate PV number
+                function generatePVNumber() {
+                    const pvNo = `PV${String(pvCounter).padStart(6, '0')}`;
+                    pvCounter++;
+                    localStorage.setItem('pvCounter', pvCounter);
+                    return pvNo;
+                }
 
             // Expense categories
             const expenseCategories = [
@@ -1795,9 +2092,11 @@ billItems = selectedQuotationForBill.items.map(item => {
             }
 
             function getBillAdjustedMCRate(originalMCRate) {
-                const discount = rateSlabDiscounts[currentBillRateSlab];
-                return Math.max(0, originalMCRate - discount);
-            }
+                    const slab = currentBillRateSlab || 'R';
+                    const discount = rateSlabDiscounts[slab] || 0;
+                    const adjustedRate = Math.max(0, (originalMCRate || 0) - discount);
+                    return adjustedRate;
+                }
 
             function recalculateBillItems() {
                 billItems.forEach(item => {
@@ -2198,14 +2497,20 @@ if (!document.getElementById('ledgerTab').classList.contains('hidden')) {
                                     document.getElementById('viewBillGst').textContent = `₹${bill.gst.toFixed(2)}`;
                                     document.getElementById('viewBillNetTotal').textContent = `₹${bill.netTotal.toFixed(2)}`;
 
-                                    // Store current bill index for reprint
-                                    document.getElementById('viewBillModal').setAttribute('data-bill-index', index);
+                                    // Store current bill ID for reprint
+                                    const billId = bill.id;
+                                    document.getElementById('viewBillModal').setAttribute('data-bill-id', billId);
 
                                     // Show modal
                                     document.getElementById('modalOverlay').classList.remove('hidden');
                                     document.getElementById('modalOverlay').classList.add('flex');
                                     document.getElementById('viewBillModal').classList.remove('hidden');
                                 }
+
+                                function reprintBillByModalId() {
+                                        const billId = parseInt(document.getElementById('viewBillModal').getAttribute('data-bill-id'));
+                                        reprintBillById(billId);
+                                    }
 
                                 function reprintBill(index) {
                                         const bill = savedBills[index];
@@ -2407,12 +2712,6 @@ if (!document.getElementById('ledgerTab').classList.contains('hidden')) {
                         this.value = '';
                     }
                 });
-                document.getElementById('billBarcodeInput').addEventListener('keypress', function (e) {
-                if (e.key === 'Enter') {
-                    handleBillBarcodeScan(this.value.trim());
-                    this.value = '';
-                }
-            });
 
                 // Product Management barcode scanner
                 const productBarcodeInput = document.getElementById('productBarcodeInput');
@@ -2468,9 +2767,10 @@ showLedgerCustomerAccounts(); // Set default view
                 document.getElementById('customersTab').classList.add('hidden');
                 document.getElementById('rolTab').classList.add('hidden');
                 document.getElementById('quotationsTab').classList.add('hidden');
-                document.getElementById('salesbillTab').classList.add('hidden'); // ADD
-                document.getElementById('billHistoryTab').classList.add('hidden'); // ADD
-                document.getElementById('ledgerTab').classList.add('hidden'); // ADD THIS
+                document.getElementById('salesbillTab').classList.add('hidden'); 
+                document.getElementById('billHistoryTab').classList.add('hidden'); 
+                document.getElementById('ledgerTab').classList.add('hidden'); 
+                document.getElementById('pvTab').classList.add('hidden'); 
 
                 // Reset all buttons
                 document.getElementById('btnBilling').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
@@ -2478,9 +2778,10 @@ showLedgerCustomerAccounts(); // Set default view
                 document.getElementById('btnCustomers').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
                 document.getElementById('btnROL').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
                 document.getElementById('btnQuotations').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
-                document.getElementById('btnSalesBill').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition'; // ADD
+                document.getElementById('btnSalesBill').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition'; 
                 document.getElementById('btnBillHistory').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
-                    document.getElementById('btnLedger').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition'; // ADD THIS
+                document.getElementById('btnLedger').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition'; 
+                document.getElementById('btnPV').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition'; 
 
                 if (tab === 'billing') {
                     document.getElementById('billingTab').classList.remove('hidden');
@@ -2518,6 +2819,11 @@ showLedgerCustomerAccounts(); // Set default view
                     document.getElementById('btnLedger').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
                     updateLedgerDashboard();
                     showLedgerCustomerAccounts(); // Show customer accounts by default
+                }
+                else if (tab === 'pv') {
+                    document.getElementById('pvTab').classList.remove('hidden');
+                    document.getElementById('btnPV').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
+                    loadPVTab();
                 }
             }
 
@@ -3918,7 +4224,16 @@ function updateItemsTable() {
     }
 
     function generateQuotePDFWithPayment() {
-    const paymentOption = document.querySelector('input[name="paymentOption"]:checked').value;
+            const paymentOptionElement = document.querySelector('input[name="paymentOption"]:checked');
+
+            // SAFETY CHECK
+            if (!paymentOptionElement) {
+                alert('⚠️ Please select a payment option (Cash or Credit)');
+                return;
+            }
+
+            const paymentOption = paymentOptionElement.value;
+    
     const isCashReceived = paymentOption === 'cash';
     
     // Calculate totals
@@ -4230,6 +4545,20 @@ function updateItemsTable() {
     
     const paymentModal = document.getElementById('recordPaymentModal');
     if (paymentModal) paymentModal.remove();
+
+    // Close PV modals
+    const pvUpload = document.getElementById('pvUploadModal');
+    if (pvUpload) pvUpload.classList.add('hidden');
+    
+    const pvView = document.getElementById('pvViewModal');
+    if (pvView) pvView.classList.add('hidden');
+    
+    // Close conversion modal
+    const convertModal = document.getElementById('convertQuotModal');
+    if (convertModal) convertModal.classList.add('hidden');
+
+    document.getElementById('pvUploadModal').classList.add('hidden');
+    document.getElementById('pvViewModal').classList.add('hidden');
 }
 
                 // ========== ROL MANAGEMENT FUNCTIONS ==========
@@ -4921,33 +5250,33 @@ function updateItemsTable() {
                                 }
 
     function displayBills(bills) {
-        const tbody = document.getElementById('billsTableBody');
-        const emptyState = document.getElementById('billsEmptyState');
+            const tbody = document.getElementById('billsTableBody');
+            const emptyState = document.getElementById('billsEmptyState');
 
-        tbody.innerHTML = '';
+            tbody.innerHTML = '';
 
-        if (bills.length === 0) {
-            emptyState.classList.remove('hidden');
-            return;
-        }
+            if (bills.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            }
 
-        emptyState.classList.add('hidden');
+            emptyState.classList.add('hidden');
 
-        bills.forEach((bill) => {
-            // FIX: Find the actual index in savedBills array
-            const actualIndex = savedBills.findIndex(b => b.id === bill.id);
+            bills.forEach((bill) => {
+                // FIX: Store bill ID for reliable lookup
+                const billId = bill.id;
 
-            const row = document.createElement('tr');
-            row.className = 'border-b hover:bg-gray-50';
+                const row = document.createElement('tr');
+                row.className = 'border-b hover:bg-gray-50';
 
-            const date = new Date(bill.date);
-            const formattedDate = date.toLocaleDateString('en-GB');
-            const formattedTime = date.toLocaleTimeString('en-GB', {
-                hour: '2-digit',
-                minute: '2-digit'
-            });
+                const date = new Date(bill.date);
+                const formattedDate = date.toLocaleDateString('en-GB');
+                const formattedTime = date.toLocaleTimeString('en-GB', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
 
-            row.innerHTML = `
+                row.innerHTML = `
         <td class="px-4 py-3 font-semibold text-green-600">${bill.billNo}</td>
         <td class="px-4 py-3">
             <div>${formattedDate}</div>
@@ -4967,11 +5296,11 @@ function updateItemsTable() {
         <td class="px-4 py-3 text-right font-bold">₹${bill.netTotal.toFixed(2)}</td>
         <td class="px-4 py-3 text-center">
             <div class="flex gap-2 justify-center">
-                <button onclick="viewBill(${actualIndex})" 
+                <button onclick="viewBillById(${billId})" 
                     class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-sm">
                     👁️ View
                 </button>
-                <button onclick="reprintBill(${actualIndex})" 
+                <button onclick="reprintBillById(${billId})" 
                     class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 text-sm">
                     🖨️ Reprint
                 </button>
@@ -4979,9 +5308,31 @@ function updateItemsTable() {
         </td>
     `;
 
-            tbody.appendChild(row);
-        });
-    }
+                tbody.appendChild(row);
+            });
+        }
+
+    // View bill by ID instead of index
+        function viewBillById(billId) {
+            const bill = savedBills.find(b => b.id === billId);
+            if (!bill) {
+                alert('Bill not found!');
+                return;
+            }
+
+            const billIndex = savedBills.findIndex(b => b.id === billId);
+            viewBill(billIndex);
+        }
+
+        // Reprint bill by ID
+        function reprintBillById(billId) {
+            const billIndex = savedBills.findIndex(b => b.id === billId);
+            if (billIndex < 0) {
+                alert('Bill not found!');
+                return;
+            }
+            reprintBill(billIndex);
+        }
 
    function updateBillStatistics() {
        const today = new Date();
@@ -5356,28 +5707,48 @@ function updateItemsTable() {
     }
 
     // ========== LEDGER DISPLAY FUNCTIONS ==========
+    function updateLedgerDashboard() {
+            // Update balances with proper null checks
+            const cashBalance = accountBalances.cash || 0;
+            const bankBalance = accountBalances.bank || 0;
+            const receivables = accountBalances.receivables || 0;
+            const payables = accountBalances.payables || 0;
 
-        function updateLedgerDashboard() {
-    // Update balances
-    document.getElementById('ledgerCashBalance').textContent = `₹${accountBalances.cash.toFixed(2)}`;
-    document.getElementById('ledgerBankBalance').textContent = `₹${accountBalances.bank.toFixed(2)}`;
-    document.getElementById('ledgerReceivables').textContent = `₹${accountBalances.receivables.toFixed(2)}`;
-    document.getElementById('ledgerPayables').textContent = `₹${accountBalances.payables.toFixed(2)}`;
+            const cashEl = document.getElementById('ledgerCashBalance');
+            const bankEl = document.getElementById('ledgerBankBalance');
+            const receivablesEl = document.getElementById('ledgerReceivables');
+            const payablesEl = document.getElementById('ledgerPayables');
 
-    // Update metal stocks with values
-    const goldValue = accountBalances.goldStock * rates.gold;
-    const silverValue = accountBalances.silverStock * rates.silver;
-    const platinumValue = accountBalances.platinumStock * rates.platinum;
-    
-    document.getElementById('ledgerGoldStock').textContent = `${accountBalances.goldStock.toFixed(2)}g`;
-    document.getElementById('ledgerGoldValue').textContent = `Value: ₹${goldValue.toFixed(2)}`;
-    
-    document.getElementById('ledgerSilverStock').textContent = `${accountBalances.silverStock.toFixed(2)}g`;
-    document.getElementById('ledgerSilverValue').textContent = `Value: ₹${silverValue.toFixed(2)}`;
-    
-    document.getElementById('ledgerPlatinumStock').textContent = `${accountBalances.platinumStock.toFixed(2)}g`;
-    document.getElementById('ledgerPlatinumValue').textContent = `Value: ₹${platinumValue.toFixed(2)}`;
-}
+            // SAFETY CHECKS
+            if (cashEl) cashEl.textContent = `₹${cashBalance.toFixed(2)}`;
+            if (bankEl) bankEl.textContent = `₹${bankBalance.toFixed(2)}`;
+            if (receivablesEl) receivablesEl.textContent = `₹${receivables.toFixed(2)}`;
+            if (payablesEl) payablesEl.textContent = `₹${payables.toFixed(2)}`;
+
+            // Update metal stocks with values
+            const goldStock = accountBalances.goldStock || 0;
+            const silverStock = accountBalances.silverStock || 0;
+            const platinumStock = accountBalances.platinumStock || 0;
+
+            const goldValue = goldStock * (rates.gold || 0);
+            const silverValue = silverStock * (rates.silver || 0);
+            const platinumValue = platinumStock * (rates.platinum || 0);
+
+            const goldStockEl = document.getElementById('ledgerGoldStock');
+            const goldValueEl = document.getElementById('ledgerGoldValue');
+            const silverStockEl = document.getElementById('ledgerSilverStock');
+            const silverValueEl = document.getElementById('ledgerSilverValue');
+            const platinumStockEl = document.getElementById('ledgerPlatinumStock');
+            const platinumValueEl = document.getElementById('ledgerPlatinumValue');
+
+            // SAFETY CHECKS
+            if (goldStockEl) goldStockEl.textContent = `${goldStock.toFixed(2)}g`;
+            if (goldValueEl) goldValueEl.textContent = `Value: ₹${goldValue.toFixed(2)}`;
+            if (silverStockEl) silverStockEl.textContent = `${silverStock.toFixed(2)}g`;
+            if (silverValueEl) silverValueEl.textContent = `Value: ₹${silverValue.toFixed(2)}`;
+            if (platinumStockEl) platinumStockEl.textContent = `${platinumStock.toFixed(2)}g`;
+            if (platinumValueEl) platinumValueEl.textContent = `Value: ₹${platinumValue.toFixed(2)}`;
+        }
 
         function showLedgerTransactions() {
             const container = document.getElementById('ledgerSubtabs');
@@ -5437,7 +5808,11 @@ function updateItemsTable() {
 
         function displayLedgerTransactions(transactions) {
             const tbody = document.getElementById('ledgerTxnTableBody');
-            if (!tbody) return;
+            // SAFETY CHECK
+            if (!tbody) {
+                console.error('Ledger transaction table body not found!');
+                return;
+            }
 
             tbody.innerHTML = '';
 
@@ -5502,9 +5877,25 @@ function updateItemsTable() {
 }
 
         function exportLedgerTransactions() {
-            if (ledgerTransactions.length === 0) {
-                alert('No transactions to export!');
-                return;
+                if (ledgerTransactions.length === 0) {
+                    alert('No transactions to export!');
+                    return;
+                }
+
+                const wb = XLSX.utils.book_new();
+
+                const data = ledgerTransactions.map(txn => ({
+                    'Date': new Date(txn.date).toLocaleDateString('en-GB'),
+                    'Type': txn.type.toUpperCase(),
+                    'Description': txn.description || '',
+                    'Amount': txn.amount.toFixed(2),
+                    'Reference': txn.reference || ''
+                }));
+
+                const ws = XLSX.utils.json_to_sheet(data);
+                XLSX.utils.book_append_sheet(wb, ws, 'Transactions');
+                XLSX.writeFile(wb, `Ledger_Transactions_${new Date().toISOString().split('T')[0]}.xlsx`);
+                alert('Transactions exported successfully!');
             }
 
         // ========== EXPENSE MANAGEMENT ==========
@@ -5851,6 +6242,39 @@ function updateItemsTable() {
                     return;
                 }
 
+                const wb = XLSX.utils.book_new();
+
+                // Header
+                const headerData = [
+                    ['EXPENSE REPORT'],
+                    ['Generated:', new Date().toLocaleDateString('en-GB')],
+                    ['']
+                ];
+
+                const data = expenses.map(e => ({
+                    'Date': new Date(e.date).toLocaleDateString('en-GB'),
+                    'Category': e.category,
+                    'Description': e.description,
+                    'Amount': e.amount.toFixed(2),
+                    'Payment Mode': e.paymentMode || 'Cash'
+                }));
+
+                // Summary
+                const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+                const summaryData = [
+                    [''],
+                    ['TOTAL EXPENSES:', totalExpenses.toFixed(2)]
+                ];
+
+                const ws = XLSX.utils.json_to_sheet(data);
+                XLSX.utils.sheet_add_aoa(ws, headerData, { origin: 'A1' });
+                XLSX.utils.sheet_add_aoa(ws, summaryData, { origin: -1 });
+
+                XLSX.utils.book_append_sheet(wb, ws, 'Expenses');
+                XLSX.writeFile(wb, `Expense_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
+                alert('Expense report downloaded!');
+            }
+
             // ========== METAL PURCHASE MANAGEMENT ==========
 
                 function showLedgerPurchases() {
@@ -5869,6 +6293,8 @@ function updateItemsTable() {
                         class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
                         ➕ Add Purchase
                     </button>
+                    <button onclick="showTab('pv')"
+                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">📋 View All PVs</button>
                 </div>
             </div>
             
@@ -6252,12 +6678,6 @@ function updateItemsTable() {
                     if (modal) modal.remove();
                 }
 
-                function downloadPurchaseReport() {
-                    if (metalPurchases.length === 0) {
-                        alert('No purchases to export!');
-                        return;
-                    }
-
                 // ========== FINANCIAL REPORTS ==========
 
                     function showLedgerReports() {
@@ -6631,11 +7051,11 @@ function updateItemsTable() {
                     }
 
     // ========== CUSTOMER ACCOUNTS LEDGER ==========
+                    // FIXED VERSION - Replace entire function
+                    function showLedgerCustomerAccounts() {
+                        const container = document.getElementById('ledgerSubtabs');
 
-function showLedgerCustomerAccounts() {
-    const container = document.getElementById('ledgerSubtabs');
-    
-    container.innerHTML = `
+                        container.innerHTML = `
         <div class="bg-white p-6 rounded-xl shadow-lg">
             <div class="flex justify-between items-center mb-6">
                 <h3 class="text-xl font-bold text-gray-800">👥 Customer Account Ledgers</h3>
@@ -6657,7 +7077,7 @@ function showLedgerCustomerAccounts() {
                     <select id="customerLedgerPeriod" onchange="filterCustomerLedgers()"
                         class="px-4 py-2 border rounded-lg">
                         <option value="all">All Time</option>
-                        <option value="month">This Month</option>
+                        <option value="month" selected>This Month</option>
                         <option value="year">This Year</option>
                     </select>
                 </div>
@@ -6676,65 +7096,76 @@ function showLedgerCustomerAccounts() {
             </div>
         </div>
     `;
-    
-    displayCustomerAccounts();
-}
+    // Wait for DOM and retry if needed
+                        const attemptDisplay = (retries = 3) => {
+                            const grid = document.getElementById('customerAccountsGrid');
+                            if (grid) {
+                                displayCustomerAccounts();
+                            } else if (retries > 0) {
+                                setTimeout(() => attemptDisplay(retries - 1), 200);
+                            } else {
+                                console.error('Failed to load customer accounts grid');
+                            }
+                        };
+                        attemptDisplay();
+                    }
 
-function displayCustomerAccounts() {
-    const grid = document.getElementById('customerAccountsGrid');
-    const emptyState = document.getElementById('customerAccountsEmpty');
-    
-    if (!grid) {
-        console.error('Grid element not found!');
-        return;
-    }
-    
-    // Get unique customers from bills
-    const customerMap = new Map();
-    
-    savedBills.forEach(bill => {
-        const mobile = bill.customer.mobile;
-        if (!customerMap.has(mobile)) {
-            customerMap.set(mobile, {
-                customer: bill.customer,
-                bills: [],
-                totalAmount: 0,
-                totalPaid: 0,
-                balance: 0
-            });
-        }
-        
-        const account = customerMap.get(mobile);
-        account.bills.push(bill);
-        account.totalAmount += bill.netTotal;
-        account.totalPaid += (bill.paidAmount || 0);
-        account.balance = account.totalAmount - account.totalPaid;
-    });
-    
-    console.log('Customer Accounts:', customerMap.size);
-    
-    if (customerMap.size === 0) {
-        grid.classList.add('hidden');
-        emptyState.classList.remove('hidden');
-        return;
-    }
-    
-    grid.classList.remove('hidden');
-    emptyState.classList.add('hidden');
-    grid.innerHTML = '';
-    
-    // Convert to array and sort by balance (highest first)
-    const accounts = Array.from(customerMap.values()).sort((a, b) => b.balance - a.balance);
-    
-    accounts.forEach(account => {
-        const card = document.createElement('div');
-        card.className = 'bg-gradient-to-br from-blue-50 to-indigo-50 p-5 rounded-xl border-2 border-blue-200 hover:shadow-lg transition cursor-pointer';
-        card.onclick = () => viewCustomerLedger(account.customer.mobile);
-        
-        const balanceColor = account.balance > 0 ? 'text-red-600' : 'text-green-600';
-        const balanceLabel = account.balance > 0 ? 'Outstanding' : 'Paid';
-        
-        card.innerHTML = `
+                    // FIXED VERSION - Replace entire function
+                    function displayCustomerAccounts() {
+                        const grid = document.getElementById('customerAccountsGrid');
+                        const emptyState = document.getElementById('customerAccountsEmpty');
+
+                        if (!grid || !emptyState) {
+                            console.error('Grid element not found! Retrying...');
+                            // Retry after a moment
+                            setTimeout(displayCustomerAccounts, 200);
+                            return;
+                        }
+
+                        // Get unique customers from bills
+                        const customerMap = new Map();
+
+                        savedBills.forEach(bill => {
+                            const mobile = bill.customer.mobile;
+                            if (!customerMap.has(mobile)) {
+                                customerMap.set(mobile, {
+                                    customer: bill.customer,
+                                    bills: [],
+                                    totalAmount: 0,
+                                    totalPaid: 0,
+                                    balance: 0
+                                });
+                            }
+
+                            const account = customerMap.get(mobile);
+                            account.bills.push(bill);
+                            account.totalAmount += bill.netTotal;
+                            account.totalPaid += (bill.paidAmount || 0);
+                            account.balance = account.totalAmount - account.totalPaid;
+                        });
+
+                        if (customerMap.size === 0) {
+                            grid.classList.add('hidden');
+                            emptyState.classList.remove('hidden');
+                            return;
+                        }
+
+                        grid.classList.remove('hidden');
+                        emptyState.classList.add('hidden');
+                        grid.innerHTML = '';
+
+                        // Convert to array and sort by balance (highest first)
+                        const accounts = Array.from(customerMap.values()).sort((a, b) => b.balance - a.balance);
+
+                        accounts.forEach(account => {
+                            const card = document.createElement('div');
+                            card.className = 'bg-gradient-to-br from-blue-50 to-indigo-50 p-5 rounded-xl border-2 border-blue-200 hover:shadow-lg transition cursor-pointer';
+                            card.onclick = () => viewCustomerLedger(account.customer.mobile);
+
+                            const balanceColor = account.balance > 0 ? 'text-red-600' : 'text-green-600';
+                            const balanceLabel = account.balance > 0 ? 'Outstanding' : 'Paid';
+
+                            card.innerHTML = `
             <div class="flex justify-between items-start mb-3">
                 <div>
                     <h4 class="font-bold text-lg text-gray-800">${account.customer.name}</h4>
@@ -6764,10 +7195,10 @@ function displayCustomerAccounts() {
                 View Full Ledger →
             </button>
         `;
-        
-        grid.appendChild(card);
-    });
-}
+
+                            grid.appendChild(card);
+                        });
+                    }
 
 function filterCustomerLedgers() {
     const searchTerm = document.getElementById('customerLedgerSearch')?.value.toLowerCase() || '';
@@ -7266,6 +7697,510 @@ function closePaymentModal() {
     if (modal) modal.remove();
 }
 
+                    // ========== PURCHASE VOUCHER (PV) FUNCTIONS ==========
+
+                    let bulkUploadPVData = [];
+                    let currentPVView = null;
+
+                    function loadPVTab() {
+                        updatePVStatistics();
+                        displayPVList(purchaseVouchers);
+                        populatePVSupplierFilter();
+                    }
+
+                    function updatePVStatistics() {
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+
+                        const totalPVs = purchaseVouchers.length;
+                        const totalValue = purchaseVouchers.reduce((sum, pv) => sum + pv.totalValue, 0);
+                        const monthPVs = purchaseVouchers.filter(pv => new Date(pv.date) >= monthStart).length;
+                        const totalProducts = purchaseVouchers.reduce((sum, pv) => sum + pv.products.length, 0);
+
+                        document.getElementById('pvTotalCount').textContent = totalPVs;
+                        document.getElementById('pvTotalValue').textContent = `₹${totalValue.toFixed(2)}`;
+                        document.getElementById('pvMonthCount').textContent = monthPVs;
+                        document.getElementById('pvTotalProducts').textContent = totalProducts;
+                    }
+
+                    function populatePVSupplierFilter() {
+                        const select = document.getElementById('pvSupplierFilter');
+                        if (!select) return;
+
+                        select.innerHTML = '<option value="all">All Suppliers</option>';
+
+                        const uniqueSuppliers = [...new Set(purchaseVouchers.map(pv => pv.supplierName))];
+                        uniqueSuppliers.sort().forEach(supplier => {
+                            const option = document.createElement('option');
+                            option.value = supplier;
+                            option.textContent = supplier;
+                            select.appendChild(option);
+                        });
+                    }
+
+                    function displayPVList(pvList) {
+                        const tbody = document.getElementById('pvTableBody');
+                        const emptyState = document.getElementById('pvEmptyState');
+
+                        if (!tbody) return;
+
+                        tbody.innerHTML = '';
+
+                        if (pvList.length === 0) {
+                            emptyState.classList.remove('hidden');
+                            return;
+                        }
+
+                        emptyState.classList.add('hidden');
+
+                        // Sort by date (newest first)
+                        pvList.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                        pvList.forEach(pv => {
+                            const row = document.createElement('tr');
+                            row.className = 'border-b hover:bg-gray-50';
+
+                            const date = new Date(pv.date);
+                            const statusColors = {
+                                'paid': 'bg-green-100 text-green-800',
+                                'pending': 'bg-red-100 text-red-800',
+                                'partial': 'bg-yellow-100 text-yellow-800'
+                            };
+
+                            row.innerHTML = `
+            <td class="px-4 py-3 font-mono font-bold text-green-600">${pv.pvNo}</td>
+            <td class="px-4 py-3 text-sm">
+                ${date.toLocaleDateString('en-GB')}<br>
+                <span class="text-xs text-gray-500">${date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+            </td>
+            <td class="px-4 py-3">
+                <div class="font-medium">${pv.supplierName}</div>
+                ${pv.supplierInvoice ? `<div class="text-xs text-gray-500">${pv.supplierInvoice}</div>` : ''}
+            </td>
+            <td class="px-4 py-3 text-center">
+                <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-bold">
+                    ${pv.products.length}
+                </span>
+            </td>
+            <td class="px-4 py-3 text-right font-bold">${pv.totalWeight.toFixed(2)}g</td>
+            <td class="px-4 py-3 text-right font-bold text-green-600">₹${pv.totalValue.toFixed(2)}</td>
+            <td class="px-4 py-3 text-center">
+                <span class="px-3 py-1 rounded-full text-xs font-bold ${statusColors[pv.paymentStatus]}">
+                    ${pv.paymentStatus.toUpperCase()}
+                </span>
+            </td>
+            <td class="px-4 py-3 text-center">
+                <button onclick="viewPVDetails('${pv.pvNo}')" 
+                    class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-sm">
+                    👁️ View
+                </button>
+            </td>
+        `;
+
+                            tbody.appendChild(row);
+                        });
+                    }
+
+                    function filterPVList() {
+                        const searchTerm = document.getElementById('pvSearch')?.value.toLowerCase() || '';
+                        const dateFilter = document.getElementById('pvDateFilter')?.value || 'all';
+                        const supplierFilter = document.getElementById('pvSupplierFilter')?.value || 'all';
+
+                        let filtered = purchaseVouchers;
+
+                        // Search filter
+                        if (searchTerm) {
+                            filtered = filtered.filter(pv =>
+                                pv.pvNo.toLowerCase().includes(searchTerm) ||
+                                pv.supplierName.toLowerCase().includes(searchTerm) ||
+                                (pv.supplierInvoice && pv.supplierInvoice.toLowerCase().includes(searchTerm))
+                            );
+                        }
+
+                        // Date filter
+                        if (dateFilter !== 'all') {
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+
+                            filtered = filtered.filter(pv => {
+                                const pvDate = new Date(pv.date);
+                                pvDate.setHours(0, 0, 0, 0);
+
+                                if (dateFilter === 'today') {
+                                    return pvDate.getTime() === today.getTime();
+                                } else if (dateFilter === 'week') {
+                                    const weekAgo = new Date(today);
+                                    weekAgo.setDate(weekAgo.getDate() - 7);
+                                    return pvDate >= weekAgo;
+                                } else if (dateFilter === 'month') {
+                                    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+                                    return pvDate >= monthStart;
+                                } else if (dateFilter === 'year') {
+                                    const yearStart = new Date(today.getFullYear(), 0, 1);
+                                    return pvDate >= yearStart;
+                                }
+                                return true;
+                            });
+                        }
+
+                        // Supplier filter
+                        if (supplierFilter !== 'all') {
+                            filtered = filtered.filter(pv => pv.supplierName === supplierFilter);
+                        }
+
+                        displayPVList(filtered);
+                    }
+
+                    function showPVUploadModal() {
+                        document.getElementById('modalOverlay').classList.remove('hidden');
+                        document.getElementById('modalOverlay').classList.add('flex');
+                        document.getElementById('pvUploadModal').classList.remove('hidden');
+                        document.getElementById('pvUploadPreview').classList.add('hidden');
+                        bulkUploadPVData = [];
+                    }
+
+                    function handlePVExcelUpload(event) {
+                        const file = event.target.files[0];
+                        if (!file) return;
+
+                        const reader = new FileReader();
+                        reader.onload = function (e) {
+                            try {
+                                const data = new Uint8Array(e.target.result);
+                                const workbook = XLSX.read(data, { type: 'array' });
+                                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                                const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+
+                                if (jsonData.length === 0) {
+                                    alert('Excel file is empty!');
+                                    return;
+                                }
+
+                                bulkUploadPVData = jsonData.map((row, idx) => ({
+                                    id: Date.now() + idx,
+                                    barcode: String(row.Barcode || row.barcode || '').trim(),
+                                    sku: String(row.SKU || row.sku || '').trim(),
+                                    styleCode: String(row.StyleCode || row.styleCode || '').trim(),
+                                    shortName: String(row.ProductName || row.productName || row.shortName || '').trim(),
+                                    size: String(row.Size || row.size || '').trim(),
+                                    avgWt: parseFloat(row.AvgWeight || row.avgWeight || row.avgWt || 0),
+                                    purity: parseFloat(row.Purity || row.purity || 100),
+                                    mcRate: parseFloat(row.MCRate || row.mcRate || 0),
+                                    metalType: String(row.MetalType || row.metalType || 'gold').toLowerCase().trim()
+                                }));
+
+                                // Preview
+                                const tbody = document.getElementById('pvPreviewTableBody');
+                                tbody.innerHTML = '';
+                                bulkUploadPVData.slice(0, 5).forEach(item => {
+                                    const row = document.createElement('tr');
+                                    row.className = 'border-b';
+                                    row.innerHTML = `
+                    <td class="px-2 py-2">${item.barcode}</td>
+                    <td class="px-2 py-2">${item.shortName}</td>
+                    <td class="px-2 py-2 capitalize">${item.metalType}</td>
+                    <td class="px-2 py-2 text-right">${item.avgWt.toFixed(2)}g</td>
+                    <td class="px-2 py-2 text-right">₹${item.mcRate.toFixed(2)}</td>
+                `;
+                                    tbody.appendChild(row);
+                                });
+
+                                // Calculate summary
+                                const totalProducts = bulkUploadPVData.length;
+                                const totalWeight = bulkUploadPVData.reduce((sum, item) => sum + item.avgWt, 0);
+
+                                // Estimate value based on current rates and MC
+                                let totalValue = 0;
+                                bulkUploadPVData.forEach(item => {
+                                    const metalRate = rates[item.metalType] || 0;
+                                    totalValue += (metalRate + item.mcRate) * item.avgWt;
+                                });
+
+                                document.getElementById('pvUploadTotalProducts').textContent = totalProducts;
+                                document.getElementById('pvUploadTotalWeight').textContent = totalWeight.toFixed(2) + 'g';
+                                document.getElementById('pvUploadTotalValue').textContent = '₹' + totalValue.toFixed(2);
+
+                                document.getElementById('pvUploadPreview').classList.remove('hidden');
+                            } catch (error) {
+                                alert('Error reading Excel: ' + error.message);
+                            }
+                        };
+                        reader.readAsArrayBuffer(file);
+                    }
+
+                    function confirmPVUpload() {
+                        if (bulkUploadPVData.length === 0) {
+                            alert('No products to upload!');
+                            return;
+                        }
+
+                        // Validate supplier details
+                        const supplierName = document.getElementById('pvSupplierName').value.trim();
+                        const supplierInvoice = document.getElementById('pvSupplierInvoice').value.trim();
+                        const paymentStatus = document.getElementById('pvPaymentStatus').value;
+                        const pvDate = document.getElementById('pvDate').value;
+                        const notes = document.getElementById('pvNotes').value.trim();
+
+                        if (!supplierName) {
+                            alert('Please enter supplier name!');
+                            return;
+                        }
+
+                        // Validate products
+                        const invalidItems = bulkUploadPVData.filter(item => !item.barcode || !item.shortName);
+                        if (invalidItems.length > 0) {
+                            alert(`Error: ${invalidItems.length} items missing Barcode or Name.`);
+                            return;
+                        }
+
+                        // Generate PV Number
+                        const pvNo = generatePVNumber();
+
+                        // Calculate totals
+                        const totalWeight = bulkUploadPVData.reduce((sum, item) => sum + item.avgWt, 0);
+                        let totalValue = 0;
+                        let totalMC = 0;
+
+                        bulkUploadPVData.forEach(item => {
+                            const metalRate = rates[item.metalType] || 0;
+                            totalValue += (metalRate + item.mcRate) * item.avgWt;
+                            totalMC += item.mcRate * item.avgWt;
+                        });
+
+                        // Create PV Record
+                        const pvRecord = {
+                            id: Date.now(),
+                            pvNo: pvNo,
+                            date: new Date(pvDate).toISOString(),
+                            supplierName: supplierName,
+                            supplierInvoice: supplierInvoice,
+                            paymentStatus: paymentStatus,
+                            notes: notes,
+                            products: JSON.parse(JSON.stringify(bulkUploadPVData)),
+                            totalProducts: bulkUploadPVData.length,
+                            totalWeight: totalWeight,
+                            totalValue: totalValue,
+                            totalMC: totalMC
+                        };
+
+                        // Save PV
+                        purchaseVouchers.unshift(pvRecord);
+                        localStorage.setItem('purchaseVouchers', JSON.stringify(purchaseVouchers));
+
+                        // Add products to inventory
+                        bulkUploadPVData.forEach(product => {
+                            product.pvNo = pvNo;
+                            product.pvDate = pvRecord.date;
+                            products.push(product);
+                        });
+                        localStorage.setItem('products', JSON.stringify(products));
+
+                        // Update metal stock 
+                        const metalWeights = { gold: 0, silver: 0, platinum: 0 };
+                        bulkUploadPVData.forEach(item => {
+                            const metalType = item.metalType.toLowerCase().trim();
+                            if (metalWeights.hasOwnProperty(metalType)) {
+                                metalWeights[metalType] += parseFloat(item.avgWt) || 0;
+                            }
+                        });
+
+                        // Initialize if undefined
+                        if (!accountBalances.goldStock) accountBalances.goldStock = 0;
+                        if (!accountBalances.silverStock) accountBalances.silverStock = 0;
+                        if (!accountBalances.platinumStock) accountBalances.platinumStock = 0;
+
+                        accountBalances.goldStock += metalWeights.gold;
+                        accountBalances.silverStock += metalWeights.silver;
+                        accountBalances.platinumStock += metalWeights.platinum;
+
+                        // Update payables based on payment status
+                        if (paymentStatus === 'paid') {
+                            accountBalances.cash -= totalValue;
+                        } else if (paymentStatus === 'pending') {
+                            accountBalances.payables += totalValue;
+                        } else if (paymentStatus === 'partial') {
+                            // For partial, could add a field for amount paid
+                            accountBalances.payables += totalValue / 2; // Example
+                        }
+
+                        localStorage.setItem('accountBalances', JSON.stringify(accountBalances));
+
+                        // Record in ledger
+                        recordLedgerTransaction(transactionTypes.PURCHASE, {
+                            amount: totalValue,
+                            description: `PV ${pvNo} - ${supplierName} - ${bulkUploadPVData.length} products`,
+                            category: 'Metal Purchase - PV',
+                            paymentMethod: paymentStatus === 'paid' ? 'Cash' : 'Credit',
+                            reference: pvNo,
+                            supplier: supplierName,
+                            date: pvRecord.date
+                        });
+
+                        closeModals();
+                        updateLedgerDashboard();
+                        loadPVTab();
+
+                        alert(`✅ Purchase Voucher Created!\n\nPV No: ${pvNo}\nProducts Added: ${bulkUploadPVData.length}\nTotal Value: ₹${totalValue.toFixed(2)}\n\nStock Updated & Recorded in Ledger`);
+                    }
+
+                    function viewPVDetails(pvNo) {
+                        const pv = purchaseVouchers.find(p => p.pvNo === pvNo);
+                        if (!pv) {
+                            alert('PV not found!');
+                            return;
+                        }
+
+                        currentPVView = pv;
+
+                        // Populate modal
+                        document.getElementById('viewPVNumber').textContent = pv.pvNo;
+                        document.getElementById('viewPVSupplier').textContent = pv.supplierName;
+                        document.getElementById('viewPVSupplierInvoice').textContent = pv.supplierInvoice ? `Invoice: ${pv.supplierInvoice}` : '';
+                        document.getElementById('viewPVDate').textContent = new Date(pv.date).toLocaleDateString('en-GB');
+
+                        const statusColors = {
+                            'paid': 'bg-green-100 text-green-800',
+                            'pending': 'bg-red-100 text-red-800',
+                            'partial': 'bg-yellow-100 text-yellow-800'
+                        };
+
+                        const statusEl = document.getElementById('viewPVStatus');
+                        statusEl.textContent = pv.paymentStatus.toUpperCase();
+                        statusEl.className = `px-3 py-1 rounded-full text-xs font-bold mt-2 inline-block ${statusColors[pv.paymentStatus]}`;
+
+                        document.getElementById('viewPVNotes').innerHTML = pv.notes ? `<p class="text-sm text-gray-700"><strong>Notes:</strong> ${pv.notes}</p>` : '';
+
+                        // Summary
+                        document.getElementById('viewPVTotalProducts').textContent = pv.totalProducts;
+                        document.getElementById('viewPVTotalWeight').textContent = pv.totalWeight.toFixed(2) + 'g';
+                        document.getElementById('viewPVTotalValue').textContent = '₹' + pv.totalValue.toFixed(2);
+                        document.getElementById('viewPVTotalMC').textContent = '₹' + pv.totalMC.toFixed(2);
+
+                        // Products table
+                        const tbody = document.getElementById('viewPVProductsBody');
+                        tbody.innerHTML = '';
+
+                        pv.products.forEach((product, idx) => {
+                            const row = document.createElement('tr');
+                            row.className = 'border-b hover:bg-gray-50';
+
+                            const metalColors = {
+                                'gold': 'bg-yellow-100 text-yellow-800',
+                                'silver': 'bg-gray-100 text-gray-800',
+                                'platinum': 'bg-purple-100 text-purple-800'
+                            };
+
+                            row.innerHTML = `
+            <td class="border px-3 py-2 text-center">${idx + 1}</td>
+            <td class="border px-3 py-2 font-mono text-xs">${product.barcode}</td>
+            <td class="border px-3 py-2 text-xs">${product.sku || '-'}</td>
+            <td class="border px-3 py-2 text-xs">${product.styleCode || '-'}</td>
+            <td class="border px-3 py-2 font-medium">${product.shortName}</td>
+            <td class="border px-3 py-2 text-center text-xs">${product.size || '-'}</td>
+            <td class="border px-3 py-2 text-center">
+                <span class="px-2 py-1 rounded text-xs font-bold capitalize ${metalColors[product.metalType]}">
+                    ${product.metalType}
+                </span>
+            </td>
+            <td class="border px-3 py-2 text-right font-bold">${product.avgWt.toFixed(2)}g</td>
+            <td class="border px-3 py-2 text-center">${product.purity.toFixed(1)}%</td>
+            <td class="border px-3 py-2 text-right">₹${product.mcRate.toFixed(2)}</td>
+        `;
+
+                            tbody.appendChild(row);
+                        });
+
+                        // Show modal
+                        document.getElementById('modalOverlay').classList.remove('hidden');
+                        document.getElementById('modalOverlay').classList.add('flex');
+                        document.getElementById('pvViewModal').classList.remove('hidden');
+                    }
+
+                    function showPVSearchView() {
+                        const pvNo = prompt('Enter PV Number (e.g., PV000001):');
+                        if (!pvNo) return;
+
+                        const pv = purchaseVouchers.find(p => p.pvNo.toLowerCase() === pvNo.toLowerCase().trim());
+
+                        if (pv) {
+                            viewPVDetails(pv.pvNo);
+                        } else {
+                            alert(`PV not found: ${pvNo}\n\nPlease check the PV number and try again.`);
+                        }
+                    }
+
+                    function downloadPVSample() {
+                        const sampleData = [
+                            { Barcode: 'PV2001', SKU: 'RING-22K-PV01', StyleCode: '6001', ProductName: 'Gold Ring 22K - PV Sample', Size: '18', AvgWeight: 4.2, Purity: 91.6, MCRate: 250, MetalType: 'gold' },
+                            { Barcode: 'PV2002', SKU: 'CHAIN-22K-PV02', StyleCode: '6002', ProductName: 'Gold Chain 22K - PV Sample', Size: '20', AvgWeight: 12.5, Purity: 91.6, MCRate: 200, MetalType: 'gold' },
+                            { Barcode: 'PV2003', SKU: 'IDOL-SF-PV03', StyleCode: '6003', ProductName: 'Silver Idol - PV Sample', Size: '4inch', AvgWeight: 35.8, Purity: 100, MCRate: 150, MetalType: 'silver' }
+                        ];
+
+                        const ws = XLSX.utils.json_to_sheet(sampleData);
+                        const wb = XLSX.utils.book_new();
+                        XLSX.utils.book_append_sheet(wb, ws, 'PV Sample');
+                        XLSX.writeFile(wb, 'PV_Stock_Upload_Sample.xlsx');
+                        alert('PV Sample template downloaded!');
+                    }
+
+                    function downloadPVReport() {
+                        if (!currentPVView) return;
+
+                        const pv = currentPVView;
+                        const { jsPDF } = window.jspdf;
+                        const doc = new jsPDF();
+
+                        // Header
+                        doc.setFontSize(18);
+                        doc.setFont(undefined, 'bold');
+                        doc.text('PURCHASE VOUCHER', 105, 15, { align: 'center' });
+
+                        doc.setFontSize(12);
+                        doc.setFont(undefined, 'bold');
+                        doc.text(pv.pvNo, 105, 25, { align: 'center' });
+
+                        // Details
+                        doc.setFontSize(10);
+                        doc.setFont(undefined, 'normal');
+                        doc.text(`Date: ${new Date(pv.date).toLocaleDateString('en-GB')}`, 15, 35);
+                        doc.text(`Supplier: ${pv.supplierName}`, 15, 42);
+                        if (pv.supplierInvoice) {
+                            doc.text(`Supplier Invoice: ${pv.supplierInvoice}`, 15, 49);
+                        }
+                        doc.text(`Payment Status: ${pv.paymentStatus.toUpperCase()}`, 15, 56);
+
+                        // Products table
+                        const tableData = pv.products.map((p, idx) => [
+                            idx + 1,
+                            p.barcode,
+                            p.shortName,
+                            p.metalType.toUpperCase(),
+                            p.avgWt.toFixed(2) + 'g',
+                            p.purity.toFixed(1) + '%',
+                            '₹' + p.mcRate.toFixed(2)
+                        ]);
+
+                        doc.autoTable({
+                            startY: 65,
+                            head: [['#', 'Barcode', 'Product', 'Metal', 'Weight', 'Purity', 'MC Rate']],
+                            body: tableData,
+                            theme: 'grid',
+                            headStyles: { fillColor: [34, 197, 94] },
+                            styles: { fontSize: 8 }
+                        });
+
+                        // Summary
+                        const finalY = doc.lastAutoTable.finalY + 10;
+                        doc.setFont(undefined, 'bold');
+                        doc.text(`Total Products: ${pv.totalProducts}`, 15, finalY);
+                        doc.text(`Total Weight: ${pv.totalWeight.toFixed(2)}g`, 15, finalY + 7);
+                        doc.text(`Total Value: ₹${pv.totalValue.toFixed(2)}`, 15, finalY + 14);
+
+                        doc.save(`PV_${pv.pvNo}_${new Date().toISOString().split('T')[0]}.pdf`);
+                        alert('PV Report downloaded!');
+                    }
+
 function downloadCustomerLedger(customerMobile) {
     const customer = savedBills.find(b => b.customer.mobile === customerMobile)?.customer;
     if (!customer) return;
@@ -7443,54 +8378,30 @@ function downloadAllCustomerLedgers() {
                     function downloadCashFlowReport() {
                         alert('Cash Flow Report PDF download functionality - Implement jsPDF generation here');
                     }
+                function downloadPurchaseReport() {
+                        if (metalPurchases.length === 0) {
+                            alert('No purchases to export!');
+                            return;
+                        }
 
-                    const data = metalPurchases.map(p => ({
-                        'Date': new Date(p.date).toLocaleDateString('en-GB'),
-                        'Supplier': p.supplier,
-                        'Metal Type': p.metalType.toUpperCase(),
-                        'Weight (g)': p.weight.toFixed(2),
-                        'Rate/g': p.ratePerGram.toFixed(2),
-                        'Total Amount': p.totalAmount.toFixed(2),
-                        'Invoice No': p.invoiceNo,
-                        'Payment Status': p.paymentStatus.toUpperCase()
-                    }));
+                        const wb = XLSX.utils.book_new();
 
-                    const ws = XLSX.utils.json_to_sheet(data);
-                    const wb = XLSX.utils.book_new();
-                    XLSX.utils.book_append_sheet(wb, ws, 'Metal Purchases');
-                    XLSX.writeFile(wb, `Metal_Purchases_${new Date().toISOString().split('T')[0]}.xlsx`);
-                    alert('Purchase report downloaded!');
-                }
+                        const data = metalPurchases.map(p => ({
+                            'Date': new Date(p.date).toLocaleDateString('en-GB'),
+                            'Supplier': p.supplier,
+                            'Metal Type': p.metalType.toUpperCase(),
+                            'Weight (g)': p.weight.toFixed(2),
+                            'Rate/g': p.ratePerGram.toFixed(2),
+                            'Total Amount': p.totalAmount.toFixed(2),
+                            'Invoice No': p.invoiceNo,
+                            'Payment Status': p.paymentStatus.toUpperCase()
+                        }));
 
-                const data = expenses.map(e => ({
-                    'Date': new Date(e.date).toLocaleDateString('en-GB'),
-                    'Category': e.category,
-                    'Description': e.description,
-                    'Amount': e.amount.toFixed(2),
-                    'Payment Mode': e.paymentMode || 'Cash'
-                }));
-
-                const ws = XLSX.utils.json_to_sheet(data);
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, 'Expenses');
-                XLSX.writeFile(wb, `Expense_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
-                alert('Expense report downloaded!');
-            }
-
-            const data = ledgerTransactions.map(txn => ({
-                'Date': new Date(txn.date).toLocaleDateString('en-GB'),
-                'Type': txn.type.toUpperCase(),
-                'Description': txn.description || '',
-                'Amount': txn.amount.toFixed(2),
-                'Reference': txn.reference || ''
-            }));
-
-            const ws = XLSX.utils.json_to_sheet(data);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, 'Transactions');
-            XLSX.writeFile(wb, `Ledger_Transactions_${new Date().toISOString().split('T')[0]}.xlsx`);
-            alert('Transactions exported successfully!');
-        }
+                        const ws = XLSX.utils.json_to_sheet(data);
+                        XLSX.utils.book_append_sheet(wb, ws, 'Metal Purchases');
+                        XLSX.writeFile(wb, `Metal_Purchases_${new Date().toISOString().split('T')[0]}.xlsx`);
+                        alert('Purchase report downloaded!');
+                    }
 
         // ========== CASH ENTRY FUNCTIONS ==========
 
@@ -7580,212 +8491,18 @@ function saveCashEntry() {
     }
 }
 
-function filterExpenses() {
-    const searchTerm = document.getElementById('expenseSearch')?.value.toLowerCase() || '';
-    const categoryFilter = document.getElementById('expenseCategoryFilter')?.value || 'all';
-    const dateFilter = document.getElementById('expenseDateFilter')?.value || 'all';
-
-    let filtered = expenses;
-
-    // Category filter
-    if (categoryFilter !== 'all') {
-        filtered = filtered.filter(e => e.category === categoryFilter);
-    }
-
-    // Date filter
-    if (dateFilter !== 'all') {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        filtered = filtered.filter(e => {
-            const eDate = new Date(e.date);
-            eDate.setHours(0, 0, 0, 0);
-
-            if (dateFilter === 'today') {
-                return eDate.getTime() === today.getTime();
-            } else if (dateFilter === 'week') {
-                const weekAgo = new Date(today);
-                weekAgo.setDate(weekAgo.getDate() - 7);
-                return eDate >= weekAgo;
-            } else if (dateFilter === 'month') {
-                const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-                return eDate >= monthStart;
-            } else if (dateFilter === 'year') {
-                const yearStart = new Date(today.getFullYear(), 0, 1);
-                return eDate >= yearStart;
-            }
-            return true;
-        });
-    }
-
-    // Search filter
-    if (searchTerm) {
-        filtered = filtered.filter(e =>
-            e.description.toLowerCase().includes(searchTerm) ||
-            e.category.toLowerCase().includes(searchTerm)
-        );
-    }
-
-    displayExpenses(filtered);
-}
-
-function filterPurchases() {
-    const searchTerm = document.getElementById('purchaseSearch')?.value.toLowerCase() || '';
-    const metalFilter = document.getElementById('purchaseMetalFilter')?.value || 'all';
-    const dateFilter = document.getElementById('purchaseDateFilter')?.value || 'all';
-
-    let filtered = metalPurchases;
-
-    // Metal filter
-    if (metalFilter !== 'all') {
-        filtered = filtered.filter(p => p.metalType === metalFilter);
-    }
-
-    // Date filter
-    if (dateFilter !== 'all') {
-        const today = new Date();
-        filtered = filtered.filter(p => {
-            const pDate = new Date(p.date);
-
-            if (dateFilter === 'month') {
-                const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-                return pDate >= monthStart;
-            } else if (dateFilter === 'year') {
-                const yearStart = new Date(today.getFullYear(), 0, 1);
-                return pDate >= yearStart;
-            }
-            return true;
-        });
-    }
-
-    // Search filter
-    if (searchTerm) {
-        filtered = filtered.filter(p =>
-            p.supplier.toLowerCase().includes(searchTerm) ||
-            p.invoiceNo.toLowerCase().includes(searchTerm)
-        );
-    }
-
-    displayPurchases(filtered);
-}
-
-function filterCustomerLedgers() {
-    const searchTerm = document.getElementById('customerLedgerSearch')?.value.toLowerCase() || '';
-    const period = document.getElementById('customerLedgerPeriod')?.value || 'all';
-    
-    // Filter bills by period
-    let filteredBills = savedBills;
-    
-    if (period !== 'all') {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        filteredBills = savedBills.filter(bill => {
-            const billDate = new Date(bill.date);
-            billDate.setHours(0, 0, 0, 0);
-            
-            if (period === 'month') {
-                const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-                return billDate >= monthStart;
-            } else if (period === 'year') {
-                const yearStart = new Date(today.getFullYear(), 0, 1);
-                return billDate >= yearStart;
-            }
-            return true;
-        });
-    }
-    
-    // Apply search filter
-    if (searchTerm) {
-        filteredBills = filteredBills.filter(bill =>
-            bill.customer.name.toLowerCase().includes(searchTerm) ||
-            bill.customer.mobile.includes(searchTerm)
-        );
-    }
-    
-    // Temporarily replace savedBills for display
-    const originalBills = savedBills;
-    savedBills = filteredBills;
-    displayCustomerAccounts();
-    savedBills = originalBills;
-}
-
-function downloadExpenseReport() {
-    if (expenses.length === 0) {
-        alert('No expenses to export!');
-        return;
-    }
-
-    const wb = XLSX.utils.book_new();
-    
-    // Header
-    const headerData = [
-        ['EXPENSE REPORT'],
-        ['Generated:', new Date().toLocaleDateString('en-GB')],
-        ['']
-    ];
-    
-    const data = expenses.map(e => ({
-        'Date': new Date(e.date).toLocaleDateString('en-GB'),
-        'Category': e.category,
-        'Description': e.description,
-        'Amount': e.amount.toFixed(2),
-        'Payment Mode': e.paymentMode || 'Cash'
-    }));
-    
-    // Summary
-    const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
-    const summaryData = [
-        [''],
-        ['TOTAL EXPENSES:', totalExpenses.toFixed(2)]
-    ];
-    
-    const ws = XLSX.utils.json_to_sheet(data);
-    XLSX.utils.sheet_add_aoa(ws, headerData, { origin: 'A1' });
-    XLSX.utils.sheet_add_aoa(ws, summaryData, { origin: -1 });
-    
-    XLSX.utils.book_append_sheet(wb, ws, 'Expenses');
-    XLSX.writeFile(wb, `Expense_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
-    alert('Expense report downloaded!');
-}
-
-function downloadPurchaseReport() {
-    if (metalPurchases.length === 0) {
-        alert('No purchases to export!');
-        return;
-    }
-
-    const wb = XLSX.utils.book_new();
-    
-    const data = metalPurchases.map(p => ({
-        'Date': new Date(p.date).toLocaleDateString('en-GB'),
-        'Supplier': p.supplier,
-        'Metal Type': p.metalType.toUpperCase(),
-        'Weight (g)': p.weight.toFixed(2),
-        'Rate/g': p.ratePerGram.toFixed(2),
-        'Total Amount': p.totalAmount.toFixed(2),
-        'Invoice No': p.invoiceNo,
-        'Payment Status': p.paymentStatus.toUpperCase()
-    }));
-
-    const ws = XLSX.utils.json_to_sheet(data);
-    XLSX.utils.book_append_sheet(wb, ws, 'Metal Purchases');
-    XLSX.writeFile(wb, `Metal_Purchases_${new Date().toISOString().split('T')[0]}.xlsx`);
-    alert('Purchase report downloaded!');
-}
-
-function showBankEntryModal() {
-    const modal = document.createElement('div');
-    modal.id = 'bankEntryModal';
-    modal.className = 'fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50';
-    modal.innerHTML = `
+    function showBankEntryModal() {
+        const modal = document.createElement('div');
+        modal.id = 'bankEntryModal';
+        modal.className = 'fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50';
+        modal.innerHTML = `
         <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full" onclick="event.stopPropagation()">
             <h3 class="text-xl font-bold mb-4">🏦 Bank Entry</h3>
             
             <div class="space-y-4">
                 <div>
                     <label class="block text-sm font-medium mb-1">Entry Type *</label>
-                    <select id="bankEntryType" class="w-full px-3 py-2 border rounded-lg">
+                    <select id="bankEntryType" onchange="updateBankEntryType()" class="w-full px-3 py-2 border rounded-lg">
                         <option value="deposit">Bank Deposit (Cash → Bank)</option>
                         <option value="withdrawal">Bank Withdrawal (Bank → Cash)</option>
                         <option value="customer_payment">Customer Payment (Bank)</option>
@@ -7795,7 +8512,7 @@ function showBankEntryModal() {
                 
                 <div id="customerSelectDiv" class="hidden">
                     <label class="block text-sm font-medium mb-1">Select Customer *</label>
-                    <select id="bankEntryCustomer" class="w-full px-3 py-2 border rounded-lg">
+                    <select id="bankEntryCustomer" onchange="showCustomerBalance(this.value)" class="w-full px-3 py-2 border rounded-lg">
                         <option value="">-- Select Customer --</option>
                     </select>
                     <div id="customerBalanceInfo" class="mt-2 text-sm text-gray-600"></div>
@@ -7849,42 +8566,25 @@ function showBankEntryModal() {
             </div>
         </div>
     `;
-    
-document.body.appendChild(modal);
 
-    // ✅ FIXED: Use requestAnimationFrame for reliable DOM rendering
-    requestAnimationFrame(() => {
-        // Populate customer dropdown
-        populateBankEntryCustomers();
-        
-        // Add event listener for entry type change
-        const typeSelect = document.getElementById('bankEntryType');
-        if (typeSelect) {
-            typeSelect.addEventListener('change', function() {
-                const type = this.value;
-                const customerDiv = document.getElementById('customerSelectDiv');
-                
-                if (type === 'customer_payment') {
-                    customerDiv.classList.remove('hidden');
-                } else {
-                    customerDiv.classList.add('hidden');
-                }
-            });
-        }
-        
-        // Add event listener for customer selection
-        const customerSelect = document.getElementById('bankEntryCustomer');
-        if (customerSelect) {
-            customerSelect.addEventListener('change', function() {
-                const customerMobile = this.value;
-                if (customerMobile) {
-                    showCustomerBalance(customerMobile);
-                }
-            });
-        }
-    });
-}
+        document.body.appendChild(modal);
 
+        // Populate customer dropdown after modal is added to DOM
+        setTimeout(() => {
+            populateBankEntryCustomers();
+        }, 100);
+    }
+
+    function updateBankEntryType() {
+        const type = document.getElementById('bankEntryType').value;
+        const customerDiv = document.getElementById('customerSelectDiv');
+
+        if (type === 'customer_payment') {
+            customerDiv.classList.remove('hidden');
+        } else {
+            customerDiv.classList.add('hidden');
+        }
+    }
 
 function populateBankEntryCustomers() {
     const select = document.getElementById('bankEntryCustomer');
@@ -8050,9 +8750,6 @@ function closeBankEntryModal() {
     const modal = document.getElementById('bankEntryModal');
     if (modal) modal.remove();
 }
-
-
-
             </script>
     </body>
     
