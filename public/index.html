@@ -2725,50 +2725,54 @@ if (!document.getElementById('ledgerTab').classList.contains('hidden')) {
                 updateRatesDisplay();
                 updateCustomerDropdown();
                 updateProductsTable();
-                updateRateSlabInfo(); 
+                updateRateSlabInfo();
                 updateBillCustomerDropdown();
                 updateCashEntryFields();
 
                 // Billing barcode scanner
-                document.getElementById('barcodeInput').addEventListener('keypress', function (e) {
-                    if (e.key === 'Enter') {
-                        handleBarcodeScan(this.value.trim());
-                        this.value = '';
-                    }
-                });
+                const barcodeInput = document.getElementById('barcodeInput');
+                if (barcodeInput) {
+                    barcodeInput.addEventListener('keypress', function (e) {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleBarcodeScan(this.value.trim());
+                            this.value = '';
+                        }
+                    });
+                }
 
                 // Product Management barcode scanner
                 const productBarcodeInput = document.getElementById('productBarcodeInput');
                 if (productBarcodeInput) {
                     productBarcodeInput.addEventListener('keypress', function (e) {
                         if (e.key === 'Enter') {
+                            e.preventDefault();
                             handleProductBarcodeScan(this.value.trim());
                             this.value = '';
                         }
                     });
                 }
 
+                // Auto-calculate item amount
                 ['itemWeight', 'itemRate', 'itemMcRate', 'itemPurity', 'itemBoxCharges', 'itemStoneCharges'].forEach(id => {
-                document.getElementById(id).addEventListener('input', updateItemAmount);
-            });
+                    const element = document.getElementById(id);
+                    if (element) {
+                        element.addEventListener('input', updateItemAmount);
+                    }
+                });
 
-                // ADDED BILL ITEM LISTENERS
-            ['billItemWeight', 'billItemRate', 'billItemMcRate', 'billItemPurity'].forEach(id => {
-                document.getElementById(id).addEventListener('input', updateBillItemAmount);
-            });    
-
-            // Initialize Sales Bill Tab
-            refreshQuotationsList();
-            updateBillCustomerDropdown();
+                // Initialize Sales Bill Tab
+                refreshQuotationsList();
+                updateBillCustomerDropdown();
 
                 // Initial focus on barcode scanner
-                document.getElementById('barcodeInput').focus();
+                if (barcodeInput) {
+                    barcodeInput.focus();
+                }
+
                 // Initialize ledger dashboard
                 updateLedgerDashboard();
-
-                // Initialize Ledger Dashboard on load
-updateLedgerDashboard();
-showLedgerCustomerAccounts(); // Set default view
+                showLedgerCustomerAccounts();
             });
 
             function updateBillCustomerDropdown() {
@@ -2988,18 +2992,21 @@ showLedgerCustomerAccounts(); // Set default view
                 }
 
                 function recalculateAllItems() {
-                    items.forEach(item => {
-                        // Get original MC rate (stored separately)
-                        const originalMCRate = item.originalMcRate || item.mcRate;
-                        const adjustedMCRate = getAdjustedMCRate(originalMCRate);
+                        items.forEach(item => {
+                            // Get original MC rate (stored separately)
+                            const originalMCRate = item.originalMcRate || item.mcRate;
+                            const adjustedMCRate = getAdjustedMCRate(originalMCRate);
 
-                        item.amount = (item.rate + adjustedMCRate) * item.weight;
-                        item.mcRate = adjustedMCRate;
-                        item.originalMcRate = originalMCRate; // Store original for future recalculations
-                    });
-                     updateItemsTable();
-                    updateSummary();
-                }
+                            const boxCharges = item.boxCharges || 0;
+                            const stoneCharges = item.stoneCharges || 0;
+
+                            item.amount = (item.rate + adjustedMCRate) * item.weight + boxCharges + stoneCharges;
+                            item.mcRate = adjustedMCRate;
+                            item.originalMcRate = originalMCRate;
+                        });
+                        updateItemsTable();
+                        updateSummary();
+                    }
 
         function showNewCustomerModal() {
             document.getElementById('customerModalTitle').textContent = 'Add New Customer';
@@ -3746,104 +3753,112 @@ showLedgerCustomerAccounts(); // Set default view
         }
 
     function handleBarcodeScan(barcode) {
-    if (!barcode) return;
+        if (!barcode) return;
+        barcode = String(barcode).trim();
 
-    // Check if product is already sold
-    const soldInfo = isProductSold(barcode);
-    if (soldInfo) {
-        alert(`⚠️ PRODUCT ALREADY SOLD!\n\nBarcode: ${barcode}\nBill No: ${soldInfo.billNo}\nSold Date: ${new Date(soldInfo.soldDate).toLocaleDateString('en-GB')}\n\nThis product cannot be added to quotation.`);
-        
-        const barcodeInput = document.getElementById('barcodeInput');
-        barcodeInput.style.backgroundColor = '#f8d7da';
-        barcodeInput.style.borderColor = '#dc3545';
-        setTimeout(() => {
-            barcodeInput.style.backgroundColor = '';
-            barcodeInput.style.borderColor = '';
-        }, 1000);
-        return;
-    }
+        // Check if product is already sold
+        const soldInfo = isProductSold(barcode);
+        if (soldInfo) {
+            alert(`⚠️ PRODUCT ALREADY SOLD!\n\nBarcode: ${barcode}\nBill No: ${soldInfo.billNo}\nSold Date: ${new Date(soldInfo.soldDate).toLocaleDateString('en-GB')}\n\nThis product cannot be added to quotation.`);
 
-    const product = products.find(p => p.barcode === barcode);
-    if (product) {
-        // Check if EXACT SAME BARCODE already exists in current bill
-        const existingItemIndex = items.findIndex(item => item.barcode === barcode);
-
-        if (existingItemIndex >= 0) {
-            alert(`⚠️ This exact item (Barcode: ${barcode}) is already added!\n${product.shortName}\nSKU: ${product.sku || 'N/A'}\n\nIf you need multiple pieces, edit the quantity manually.`);
-
-            const existingRow = document.getElementById('itemsTableBody').children[existingItemIndex];
-            existingRow.style.backgroundColor = '#fff3cd';
+            const barcodeInput = document.getElementById('barcodeInput');
+            barcodeInput.style.backgroundColor = '#f8d7da';
+            barcodeInput.style.borderColor = '#dc3545';
             setTimeout(() => {
-                existingRow.style.backgroundColor = '';
+                barcodeInput.style.backgroundColor = '';
+                barcodeInput.style.borderColor = '';
             }, 1000);
-
-            document.getElementById('barcodeInput').value = '';
-            document.getElementById('barcodeInput').focus();
             return;
         }
 
-        // Auto-populate form
-        document.getElementById('itemSku').value = product.sku || '';
-        document.getElementById('itemStyleCode').value = product.styleCode || '';
-        document.getElementById('itemName').value = product.shortName;
-        document.getElementById('itemSize').value = product.size || '';
-        document.getElementById('itemWeight').value = product.avgWt || '';
-        document.getElementById('itemPurity').value = product.purity;
-        document.getElementById('itemMetalType').value = product.metalType;
+        const product = products.find(p => String(p.barcode).trim().toLowerCase() === barcode.toLowerCase());
 
-        const metalRate = rates[product.metalType] || rates.silver;
-        document.getElementById('itemRate').value = metalRate;
+        if (product) {
+            // Check if EXACT SAME BARCODE already exists in current bill
+            const existingItemIndex = items.findIndex(item => item.barcode === barcode);
 
-        const originalMCRate = product.mcRate;
-        const adjustedMCRate = getAdjustedMCRate(originalMCRate);
-        document.getElementById('itemMcRate').value = adjustedMCRate;
-        document.getElementById('itemMcRate').setAttribute('data-original-mc', originalMCRate);
-        document.getElementById('itemBoxCharges').value = '0';
-        document.getElementById('itemStoneCharges').value = '0';
+            if (existingItemIndex >= 0) {
+                alert(`⚠️ This exact item (Barcode: ${barcode}) is already added!\n${product.shortName}\nSKU: ${product.sku || 'N/A'}\n\nIf you need multiple pieces, edit the quantity manually.`);
 
-        updateItemAmount();
+                const tableBody = document.getElementById('productTableBody');
+                if (tableBody && tableBody.children[existingItemIndex]) {
+                    const existingRow = tableBody.children[existingItemIndex];
+                    existingRow.style.backgroundColor = '#fff3cd';
+                    setTimeout(() => {
+                        existingRow.style.backgroundColor = '';
+                    }, 1000);
+                }
 
-        // AUTO-ADD ITEM IMMEDIATELY
-        const item = {
-            barcode: barcode,
-            sku: product.sku || '',
-            styleCode: product.styleCode || '',
-            name: product.shortName,
-            size: product.size || '',
-            weight: product.avgWt || 0,
-            purity: product.purity,
-            rate: metalRate,
-            mcRate: adjustedMCRate,
-            originalMcRate: originalMCRate,
-            metalType: product.metalType,
-            id: Date.now()
-        };
+                document.getElementById('barcodeInput').value = '';
+                document.getElementById('barcodeInput').focus();
+                return;
+            }
 
-        item.amount = (item.rate + item.mcRate) * item.weight;
+            // Auto-populate form
+            document.getElementById('itemSku').value = product.sku || '';
+            document.getElementById('itemStyleCode').value = product.styleCode || '';
+            document.getElementById('itemName').value = product.shortName;
+            document.getElementById('itemSize').value = product.size || '';
+            document.getElementById('itemWeight').value = product.avgWt || '';
+            document.getElementById('itemPurity').value = product.purity;
+            document.getElementById('itemMetalType').value = product.metalType;
 
-        items.push(item);
-        updateItemsTable();
-        updateSummary();
-        clearItemForm();
+            const metalRate = rates[product.metalType] || rates.silver;
+            document.getElementById('itemRate').value = metalRate;
 
-        const barcodeInput = document.getElementById('barcodeInput');
-        barcodeInput.style.backgroundColor = '#d4edda';
-        barcodeInput.style.borderColor = '#28a745';
-        setTimeout(() => {
-            barcodeInput.style.backgroundColor = '';
-            barcodeInput.style.borderColor = '';
-        }, 300);
-    } else {
-        alert('Product not found! Please add this product first.');
-        const barcodeInput = document.getElementById('barcodeInput');
-        barcodeInput.style.backgroundColor = '#f8d7da';
-        barcodeInput.style.borderColor = '#dc3545';
-        setTimeout(() => {
-            barcodeInput.style.backgroundColor = '';
-            barcodeInput.style.borderColor = '';
-        }, 500);
+            const originalMCRate = product.mcRate;
+            const adjustedMCRate = getAdjustedMCRate(originalMCRate);
+            document.getElementById('itemMcRate').value = adjustedMCRate;
+            document.getElementById('itemMcRate').setAttribute('data-original-mc', originalMCRate);
+            document.getElementById('itemBoxCharges').value = '0';
+            document.getElementById('itemStoneCharges').value = '0';
+
+            updateItemAmount();
+
+            // AUTO-ADD ITEM IMMEDIATELY
+            const item = {
+                barcode: barcode,
+                sku: product.sku || '',
+                styleCode: product.styleCode || '',
+                name: product.shortName,
+                size: product.size || '',
+                weight: product.avgWt || 0,
+                purity: product.purity,
+                rate: metalRate,
+                mcRate: adjustedMCRate,
+                originalMcRate: originalMCRate,
+                metalType: product.metalType,
+                boxCharges: 0,
+                stoneCharges: 0,
+                id: Date.now()
+            };
+
+            item.amount = (item.rate + item.mcRate) * item.weight;
+
+            items.push(item);
+            updateItemsTable();
+            updateSummary();
+            clearItemForm();
+
+            const barcodeInput = document.getElementById('barcodeInput');
+            barcodeInput.style.backgroundColor = '#d4edda';
+            barcodeInput.style.borderColor = '#28a745';
+            setTimeout(() => {
+                barcodeInput.style.backgroundColor = '';
+                barcodeInput.style.borderColor = '';
+                barcodeInput.focus();
+            }, 300);
+        } else {
+            alert(`⚠️ Product Not Found!\n\nBarcode: ${barcode}\n\nThis product doesn't exist in your inventory.`);
+            const barcodeInput = document.getElementById('barcodeInput');
+            barcodeInput.style.backgroundColor = '#f8d7da';
+            barcodeInput.style.borderColor = '#dc3545';
+            setTimeout(() => {
+                barcodeInput.style.backgroundColor = '';
+                barcodeInput.style.borderColor = '';
+            }, 500);
+        }
     }
-}
 
             function handleProductBarcodeScan(barcode) {
                     if (!barcode) return;
@@ -3900,10 +3915,11 @@ showLedgerCustomerAccounts(); // Set default view
                     purity: parseFloat(document.getElementById('itemPurity').value) || 100,
                     rate: parseFloat(document.getElementById('itemRate').value) || 0,
                     mcRate: parseFloat(document.getElementById('itemMcRate').value) || 0,
-                    boxCharges: parseFloat(document.getElementById('itemBoxCharges').value) || 0, // ADD
-                    stoneCharges: parseFloat(document.getElementById('itemStoneCharges').value) || 0, // ADD
+                    boxCharges: parseFloat(document.getElementById('itemBoxCharges').value) || 0,
+                    stoneCharges: parseFloat(document.getElementById('itemStoneCharges').value) || 0,
                     originalMcRate: parseFloat(document.getElementById('itemMcRate').getAttribute('data-original-mc')) || parseFloat(document.getElementById('itemMcRate').value) || 0,
-                    metalType: document.getElementById('itemMetalType').value
+                    metalType: document.getElementById('itemMetalType').value,
+                    barcode: null // Manual entries don't have barcodes
                 };
 
                 if (!item.name || !item.weight) {
@@ -3911,7 +3927,7 @@ showLedgerCustomerAccounts(); // Set default view
                     return;
                 }
 
-                item.amount = (item.rate + item.mcRate) * item.weight + item.boxCharges + item.stoneCharges; // UPDATE
+                item.amount = (item.rate + item.mcRate) * item.weight + item.boxCharges + item.stoneCharges;
                 item.id = Date.now();
 
                 items.push(item);
@@ -3922,43 +3938,45 @@ showLedgerCustomerAccounts(); // Set default view
 
 // ========== TABLE-BASED PRODUCT DISPLAY (Excel-like) ==========
 
-function updateItemsTable() {
-    const table = document.getElementById('productsTable');
-    const tbody = document.getElementById('productTableBody');
-    const emptyState = document.getElementById('emptyProductsState');
-    const itemCountSpan = document.getElementById('itemCount');
-    const totalItemsSpan = document.getElementById('totalItems');
-    
-    if (!tbody) return;
-    
-    tbody.innerHTML = '';
-    
-    if (items.length === 0) {
-        table.classList.add('hidden');
-        emptyState.classList.remove('hidden');
-        itemCountSpan.textContent = '0 Items';
-        if (totalItemsSpan) totalItemsSpan.textContent = '0';
-        return;
-    }
-    
-    table.classList.remove('hidden');
-    emptyState.classList.add('hidden');
-    itemCountSpan.textContent = `${items.length} Item${items.length > 1 ? 's' : ''}`;
-    if (totalItemsSpan) totalItemsSpan.textContent = items.length;
-    
-    items.forEach((item, index) => {
-        const row = document.createElement('tr');
-        row.className = 'border-b hover:bg-blue-50 transition-colors';
-        
-        const metalColors = {
-            'gold': 'bg-yellow-100 text-yellow-800',
-            'silver': 'bg-gray-200 text-gray-800',
-            'platinum': 'bg-purple-100 text-purple-800'
-        };
-        
-        const metalColor = metalColors[item.metalType] || 'bg-blue-100 text-blue-800';
-        
-        row.innerHTML = `
+    function updateItemsTable() {
+        const table = document.getElementById('productsTable');
+        const tbody = document.getElementById('productTableBody');
+        const emptyState = document.getElementById('emptyProductsState');
+        const itemCountSpan = document.getElementById('itemCount');
+        const totalItemsSpan = document.getElementById('totalItems');
+
+        if (!tbody) return;
+
+        tbody.innerHTML = '';
+
+        if (items.length === 0) {
+            table.classList.add('hidden');
+            emptyState.classList.remove('hidden');
+            itemCountSpan.textContent = '0 Items';
+            if (totalItemsSpan) totalItemsSpan.textContent = '0';
+            return;
+        }
+
+        table.classList.remove('hidden');
+        emptyState.classList.add('hidden');
+        itemCountSpan.textContent = `${items.length} Item${items.length > 1 ? 's' : ''}`;
+        if (totalItemsSpan) totalItemsSpan.textContent = items.length;
+
+        items.forEach((item, index) => {
+            const row = document.createElement('tr');
+            row.className = 'border-b hover:bg-blue-50 transition-colors';
+
+            const metalColors = {
+                'gold': 'bg-yellow-100 text-yellow-800',
+                'silver': 'bg-gray-200 text-gray-800',
+                'platinum': 'bg-purple-100 text-purple-800'
+            };
+
+            const metalColor = metalColors[item.metalType] || 'bg-blue-100 text-blue-800';
+            const boxCharges = item.boxCharges || 0;
+            const stoneCharges = item.stoneCharges || 0;
+
+            row.innerHTML = `
             <td class="px-2 py-3 text-center font-bold text-gray-700 border-r bg-gray-50">${index + 1}</td>
             <td class="px-2 py-3 text-center font-mono text-xs border-r">${item.barcode || '-'}</td>
             <td class="px-3 py-3 text-left font-semibold text-gray-800 border-r">
@@ -3984,8 +4002,8 @@ function updateItemsTable() {
                     onchange="editItemMCRate(${item.id}, this.value)"
                     class="w-20 px-2 py-1 text-center font-bold text-gray-800 border border-orange-300 rounded focus:ring-2 focus:ring-orange-500 bg-white">
             </td>
-            <td class="px-2 py-3 text-right border-r bg-purple-50">₹${item.boxCharges.toFixed(2)}</td>
-            <td class="px-2 py-3 text-right border-r bg-pink-50">₹${item.stoneCharges.toFixed(2)}</td>
+            <td class="px-2 py-3 text-right border-r bg-purple-50">₹${boxCharges.toFixed(2)}</td>
+            <td class="px-2 py-3 text-right border-r bg-pink-50">₹${stoneCharges.toFixed(2)}</td>
             <td class="px-2 py-3 text-right font-bold text-green-700 border-r bg-green-50">₹${item.amount.toFixed(2)}</td>
             <td class="px-2 py-3 text-center">
                 <button onclick="removeItem(${item.id})" 
@@ -3995,10 +4013,10 @@ function updateItemsTable() {
                 </button>
             </td>
         `;
-        
-        tbody.appendChild(row);
-    });
-}
+
+            tbody.appendChild(row);
+        });
+    }
 
     function editItemWeight(itemId, newWeight) {
             const item = items.find(i => i.id === itemId);
@@ -4006,26 +4024,30 @@ function updateItemsTable() {
 
             item.weight = parseFloat(newWeight) || 0;
 
-            // Recalculate amount
-            item.amount = (item.rate + item.mcRate) * item.weight;
+            // Recalculate amount including box and stone charges
+            const boxCharges = item.boxCharges || 0;
+            const stoneCharges = item.stoneCharges || 0;
+            item.amount = (item.rate + item.mcRate) * item.weight + boxCharges + stoneCharges;
 
             updateItemsTable();
             updateSummary();
         }
 
         function editItemMCRate(itemId, newMCRate) {
-                const item = items.find(i => i.id === itemId);
-                if (!item) return;
+            const item = items.find(i => i.id === itemId);
+            if (!item) return;
 
-                item.mcRate = parseFloat(newMCRate) || 0;
-                item.originalMcRate = item.mcRate; // Update original as well
+            item.mcRate = parseFloat(newMCRate) || 0;
+            item.originalMcRate = item.mcRate; // Update original as well
 
-                // Recalculate amount
-                item.amount = (item.rate + item.mcRate) * item.weight;
+            // Recalculate amount including box and stone charges
+            const boxCharges = item.boxCharges || 0;
+            const stoneCharges = item.stoneCharges || 0;
+            item.amount = (item.rate + item.mcRate) * item.weight + boxCharges + stoneCharges;
 
-                updateItemsTable();
-                updateSummary();
-            }
+            updateItemsTable();
+            updateSummary();
+        }
 
                 function removeItem(id) {
                     items = items.filter(item => item.id !== id);
@@ -4034,23 +4056,28 @@ function updateItemsTable() {
                 }
 
                 function clearItemForm() {
-                    document.getElementById('itemSku').value = '';
-                    document.getElementById('itemStyleCode').value = '';
-                    document.getElementById('itemName').value = '';
-                    document.getElementById('itemSize').value = '';
-                    document.getElementById('itemWeight').value = '';
-                    document.getElementById('itemPurity').value = '100';
-                    document.getElementById('itemRate').value = '';
-                    document.getElementById('itemMcRate').value = '';
-                    document.getElementById('itemBoxCharges').value = '';
-                    document.getElementById('itemStoneCharges').value = '';
-                    document.getElementById('itemMetalType').value = '';
-                    document.getElementById('itemAmount').textContent = '₹0.00';
-                     // Return focus to barcode scanner
-                    setTimeout(() => {
-                        document.getElementById('barcodeInput').focus();
-                    }, 100);
-                }
+                        document.getElementById('itemSku').value = '';
+                        document.getElementById('itemStyleCode').value = '';
+                        document.getElementById('itemName').value = '';
+                        document.getElementById('itemSize').value = '';
+                        document.getElementById('itemWeight').value = '';
+                        document.getElementById('itemPurity').value = '100';
+                        document.getElementById('itemRate').value = '';
+                        document.getElementById('itemMcRate').value = '';
+                        document.getElementById('itemMcRate').removeAttribute('data-original-mc');
+                        document.getElementById('itemBoxCharges').value = '';
+                        document.getElementById('itemStoneCharges').value = '';
+                        document.getElementById('itemMetalType').value = '';
+                        document.getElementById('itemAmount').textContent = '₹0.00';
+
+                        // Return focus to barcode scanner
+                        setTimeout(() => {
+                            const barcodeInput = document.getElementById('barcodeInput');
+                            if (barcodeInput) {
+                                barcodeInput.focus();
+                            }
+                        }, 100);
+                    }
 
                 function updateSummary() {
                     const total = items.reduce((sum, item) => sum + item.amount, 0);
