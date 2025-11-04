@@ -2243,7 +2243,7 @@ billItems.forEach(item => {
     }
 });
 
-// â­ AUTOMATIC LEDGER ENTRY FOR SALE
+// AUTOMATIC LEDGER ENTRY FOR SALE
 const ledgerEntry = recordLedgerTransaction(transactionTypes.SALE, {
     billNo: billNo,
     customerName: selectedQuotationForBill.customer.name,
@@ -8150,119 +8150,245 @@ function closePaymentModal() {
                     }
 
                     function confirmPVUpload() {
-                        if (bulkUploadPVData.length === 0) {
-                            alert('No products to upload!');
-                            return;
-                        }
+    if (bulkUploadPVData.length === 0) {
+        alert('⚠️ No products to upload!');
+        return;
+    }
 
-                        // Validate supplier details
-                        const supplierName = document.getElementById('pvSupplierName').value.trim();
-                        const supplierInvoice = document.getElementById('pvSupplierInvoice').value.trim();
-                        const paymentStatus = document.getElementById('pvPaymentStatus').value;
-                        const pvDate = document.getElementById('pvDate').value;
-                        const notes = document.getElementById('pvNotes').value.trim();
+    const supplierName = document.getElementById('pvSupplierName').value.trim();
+    const supplierInvoice = document.getElementById('pvSupplierInvoice').value.trim();
+    const paymentStatus = document.getElementById('pvPaymentStatus').value;
+    const pvDate = document.getElementById('pvDate').value;
+    const notes = document.getElementById('pvNotes').value.trim();
 
-                        if (!supplierName) {
-                            alert('Please enter supplier name!');
-                            return;
-                        }
+    if (!supplierName) {
+        alert('⚠️ Please enter supplier name!');
+        return;
+    }
 
-                        // Validate products
-                        const invalidItems = bulkUploadPVData.filter(item => !item.barcode || !item.shortName);
-                        if (invalidItems.length > 0) {
-                            alert(`Error: ${invalidItems.length} items missing Barcode or Name.`);
-                            return;
-                        }
+    // Validate products
+    const invalidItems = bulkUploadPVData.filter(item => !item.barcode || !item.shortName);
+    if (invalidItems.length > 0) {
+        alert(`❌ Error: ${invalidItems.length} items missing Barcode or Name.`);
+        return;
+    }
 
-                        // Generate PV Number
-                        const pvNo = generatePVNumber();
+    // Generate PV Number
+    const pvNo = generatePVNumber();
 
-                        // Calculate totals
-                        const totalWeight = bulkUploadPVData.reduce((sum, item) => sum + item.avgWt, 0);
-                        let totalValue = 0;
-                        let totalMC = 0;
+    // Calculate totals
+    const totalWeight = bulkUploadPVData.reduce((sum, item) => sum + item.avgWt, 0);
+    const totalPieces = bulkUploadPVData.length;
+    let totalValue = 0;
+    let totalMC = 0;
 
-                        bulkUploadPVData.forEach(item => {
-                            const metalRate = rates[item.metalType] || 0;
-                            totalValue += (metalRate + item.mcRate) * item.avgWt;
-                            totalMC += item.mcRate * item.avgWt;
-                        });
+    bulkUploadPVData.forEach(item => {
+        const metalRate = rates[item.metalType] || 0;
+        totalValue += (metalRate + item.mcRate) * item.avgWt;
+        totalMC += item.mcRate * item.avgWt;
+    });
 
-                        // Create PV Record
-                        const pvRecord = {
-                            id: Date.now(),
-                            pvNo: pvNo,
-                            date: new Date(pvDate).toISOString(),
-                            supplierName: supplierName,
-                            supplierInvoice: supplierInvoice,
-                            paymentStatus: paymentStatus,
-                            notes: notes,
-                            products: JSON.parse(JSON.stringify(bulkUploadPVData)),
-                            totalProducts: bulkUploadPVData.length,
-                            totalWeight: totalWeight,
-                            totalValue: totalValue,
-                            totalMC: totalMC
-                        };
+    // ✅ CHECK IF PENDING PV EXISTS
+    let pendingPVs = JSON.parse(localStorage.getItem('pendingPVs') || '[]');
+    let matchingPV = pendingPVs.find(pv => 
+        pv.supplierName === supplierName && 
+        pv.status === 'pending'
+    );
 
-                        // Save PV
-                        purchaseVouchers.unshift(pvRecord);
-                        localStorage.setItem('purchaseVouchers', JSON.stringify(purchaseVouchers));
+    let pvStatus = 'completed';
+    let weightMatch = true;
+    let piecesMatch = true;
 
-                        // Add products to inventory
-                        bulkUploadPVData.forEach(product => {
-                            product.pvNo = pvNo;
-                            product.pvDate = pvRecord.date;
-                            products.push(product);
-                        });
-                        localStorage.setItem('products', JSON.stringify(products));
+    if (matchingPV) {
+        // Validate against expected values
+        const weightDiff = Math.abs(matchingPV.expectedWeight - totalWeight);
+        const piecesDiff = Math.abs(matchingPV.expectedPieces - totalPieces);
 
-                        // Update metal stock 
-                        const metalWeights = { gold: 0, silver: 0, platinum: 0 };
-                        bulkUploadPVData.forEach(item => {
-                            const metalType = item.metalType.toLowerCase().trim();
-                            if (metalWeights.hasOwnProperty(metalType)) {
-                                metalWeights[metalType] += parseFloat(item.avgWt) || 0;
-                            }
-                        });
+        weightMatch = weightDiff < 0.1; // Allow 0.1g tolerance
+        piecesMatch = piecesDiff === 0;
 
-                        // Initialize if undefined
-                        if (!accountBalances.goldStock) accountBalances.goldStock = 0;
-                        if (!accountBalances.silverStock) accountBalances.silverStock = 0;
-                        if (!accountBalances.platinumStock) accountBalances.platinumStock = 0;
+        if (!weightMatch || !piecesMatch) {
+            pvStatus = 'partial';
+            const confirmPartial = confirm(
+                `⚠️ WEIGHT/PIECES MISMATCH DETECTED!\n\n` +
+                `Expected: ${matchingPV.expectedWeight}g, ${matchingPV.expectedPieces} pieces\n` +
+                `Received: ${totalWeight.toFixed(2)}g, ${totalPieces} pieces\n\n` +
+                `Weight Diff: ${weightDiff.toFixed(2)}g\n` +
+                `Pieces Diff: ${piecesDiff}\n\n` +
+                `This PV will be marked as PARTIAL.\n\n` +
+                `Do you want to continue?`
+            );
 
-                        accountBalances.goldStock += metalWeights.gold;
-                        accountBalances.silverStock += metalWeights.silver;
-                        accountBalances.platinumStock += metalWeights.platinum;
+            if (!confirmPartial) {
+                return;
+            }
+        }
 
-                        // Update payables based on payment status
-                        if (paymentStatus === 'paid') {
-                            accountBalances.cash -= totalValue;
-                        } else if (paymentStatus === 'pending') {
-                            accountBalances.payables += totalValue;
-                        } else if (paymentStatus === 'partial') {
-                            // For partial, could add a field for amount paid
-                            accountBalances.payables += totalValue / 2; // Example
-                        }
+        // Update matching PV
+        matchingPV.actualWeight = totalWeight;
+        matchingPV.actualPieces = totalPieces;
+        matchingPV.products = JSON.parse(JSON.stringify(bulkUploadPVData));
+        matchingPV.status = pvStatus;
+        matchingPV.totalValue = totalValue;
+        matchingPV.totalMC = totalMC;
 
-                        localStorage.setItem('accountBalances', JSON.stringify(accountBalances));
+        // Move to completed PVs if status is 'completed'
+        if (pvStatus === 'completed') {
+            pendingPVs = pendingPVs.filter(pv => pv.id !== matchingPV.id);
+            
+            if (!purchaseVouchers) purchaseVouchers = [];
+            purchaseVouchers.unshift(matchingPV);
+            localStorage.setItem('purchaseVouchers', JSON.stringify(purchaseVouchers));
+        }
 
-                        // Record in ledger
-                        recordLedgerTransaction(transactionTypes.PURCHASE, {
-                            amount: totalValue,
-                            description: `PV ${pvNo} - ${supplierName} - ${bulkUploadPVData.length} products`,
-                            category: 'Metal Purchase - PV',
-                            paymentMethod: paymentStatus === 'paid' ? 'Cash' : 'Credit',
-                            reference: pvNo,
-                            supplier: supplierName,
-                            date: pvRecord.date
-                        });
+        localStorage.setItem('pendingPVs', JSON.stringify(pendingPVs));
+    } else {
+        // Create new PV if no pending match
+        const pvRecord = {
+            id: Date.now(),
+            pvNo: pvNo,
+            date: new Date(pvDate).toISOString(),
+            supplierName: supplierName,
+            supplierInvoice: supplierInvoice,
+            paymentStatus: paymentStatus,
+            notes: notes,
+            expectedWeight: totalWeight,
+            expectedPieces: totalPieces,
+            actualWeight: totalWeight,
+            actualPieces: totalPieces,
+            products: JSON.parse(JSON.stringify(bulkUploadPVData)),
+            status: 'completed',
+            totalValue: totalValue,
+            totalMC: totalMC
+        };
 
-                        closeModals();
-                        updateLedgerDashboard();
-                        loadPVTab();
+        purchaseVouchers.unshift(pvRecord);
+        localStorage.setItem('purchaseVouchers', JSON.stringify(purchaseVouchers));
+    }
 
-                        alert(`✅ Purchase Voucher Created!\n\nPV No: ${pvNo}\nProducts Added: ${bulkUploadPVData.length}\nTotal Value: ₹${totalValue.toFixed(2)}\n\nStock Updated & Recorded in Ledger`);
-                    }
+    // ✅ ADD PRODUCTS TO INVENTORY
+    bulkUploadPVData.forEach(product => {
+        product.pvNo = matchingPV ? matchingPV.pvNo : pvNo;
+        product.pvDate = matchingPV ? matchingPV.date : new Date(pvDate).toISOString();
+        products.push(product);
+    });
+    localStorage.setItem('products', JSON.stringify(products));
+
+    // ✅ UPDATE METAL STOCK
+    const metalWeights = { gold: 0, silver: 0, platinum: 0 };
+    bulkUploadPVData.forEach(item => {
+        const metalType = item.metalType.toLowerCase().trim();
+        if (metalWeights.hasOwnProperty(metalType)) {
+            metalWeights[metalType] += parseFloat(item.avgWt) || 0;
+        }
+    });
+
+    accountBalances.goldStock = (accountBalances.goldStock || 0) + metalWeights.gold;
+    accountBalances.silverStock = (accountBalances.silverStock || 0) + metalWeights.silver;
+    accountBalances.platinumStock = (accountBalances.platinumStock || 0) + metalWeights.platinum;
+
+    // Update payables
+    if (paymentStatus === 'paid') {
+        accountBalances.cash -= totalValue;
+    } else if (paymentStatus === 'pending') {
+        accountBalances.payables += totalValue;
+    }
+
+    localStorage.setItem('accountBalances', JSON.stringify(accountBalances));
+
+    // ✅ RECORD IN LEDGER
+    recordLedgerTransaction(transactionTypes.PURCHASE, {
+        amount: totalValue,
+        description: `PV ${matchingPV ? matchingPV.pvNo : pvNo} - ${supplierName} - ${bulkUploadPVData.length} products`,
+        category: 'Metal Purchase - PV',
+        paymentMethod: paymentStatus === 'paid' ? 'Cash' : 'Credit',
+        reference: matchingPV ? matchingPV.pvNo : pvNo,
+        supplier: supplierName,
+        date: matchingPV ? matchingPV.date : new Date(pvDate).toISOString()
+    });
+
+    closeModals();
+    updateLedgerDashboard();
+    loadPVTab();
+
+    const statusMsg = pvStatus === 'partial' ? 
+        `⚠️ PV MARKED AS PARTIAL!\n\nExpected: ${matchingPV.expectedWeight}g\nReceived: ${totalWeight.toFixed(2)}g\n\n` :
+        '✅ ';
+
+    alert(`${statusMsg}Purchase Voucher Created!\n\nPV No: ${matchingPV ? matchingPV.pvNo : pvNo}\nProducts Added: ${bulkUploadPVData.length}\nTotal Value: ₹${totalValue.toFixed(2)}\n\nStock Updated & Recorded in Ledger`);
+}
+
+function loadPVTab() {
+    updatePVStatistics();
+    
+    // Load both completed and pending PVs
+    const completedPVs = purchaseVouchers || [];
+    const pendingPVs = JSON.parse(localStorage.getItem('pendingPVs') || '[]');
+    
+    displayPVList(completedPVs);
+    displayPendingPVs(pendingPVs);
+    populatePVSupplierFilter();
+}
+
+function displayPendingPVs(pendingList) {
+    if (pendingList.length === 0) return;
+    
+    // Add pending PVs section before the main table
+    const pvSection = document.querySelector('#pvListSection');
+    if (!pvSection) return;
+    
+    const pendingSection = document.createElement('div');
+    pendingSection.className = 'bg-orange-50 border-2 border-orange-300 rounded-lg p-4 mb-6';
+    pendingSection.innerHTML = `
+        <div class="flex justify-between items-center mb-4">
+            <h4 class="text-lg font-bold text-orange-800">⚠️ Pending PVs (Awaiting Stock Upload)</h4>
+            <span class="px-3 py-1 bg-orange-200 text-orange-800 rounded-full font-bold">
+                ${pendingList.length} Pending
+            </span>
+        </div>
+        
+        <div class="space-y-3">
+            ${pendingList.map(pv => `
+                <div class="bg-white p-4 rounded-lg border border-orange-300 flex justify-between items-center">
+                    <div>
+                        <p class="font-bold text-gray-800">${pv.pvNo}</p>
+                        <p class="text-sm text-gray-600">${pv.supplierName} | ${new Date(pv.date).toLocaleDateString('en-GB')}</p>
+                        <p class="text-xs text-gray-500">Expected: ${pv.expectedWeight}g, ${pv.expectedPieces} pcs</p>
+                    </div>
+                    <div class="text-right">
+                        <button onclick="uploadStockForPendingPV('${pv.pvNo}')" 
+                            class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium text-sm">
+                            📤 Upload Stock
+                        </button>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+    
+    pvSection.insertBefore(pendingSection, pvSection.firstChild);
+}
+
+function uploadStockForPendingPV(pvNo) {
+    const pendingPVs = JSON.parse(localStorage.getItem('pendingPVs') || '[]');
+    const pv = pendingPVs.find(p => p.pvNo === pvNo);
+    
+    if (!pv) {
+        alert('Pending PV not found!');
+        return;
+    }
+    
+    // Pre-fill supplier details in upload modal
+    showPVUploadModal();
+    
+    setTimeout(() => {
+        document.getElementById('pvSupplierName').value = pv.supplierName;
+        document.getElementById('pvSupplierInvoice').value = pv.supplierInvoice || '';
+        document.getElementById('pvPaymentStatus').value = pv.paymentStatus;
+        document.getElementById('pvDate').value = new Date(pv.date).toISOString().split('T')[0];
+        document.getElementById('pvNotes').value = `Completing pending PV: ${pvNo}\nExpected: ${pv.expectedWeight}g, ${pv.expectedPieces} pcs`;
+    }, 100);
+}
 
                     function viewPVDetails(pvNo) {
                         const pv = purchaseVouchers.find(p => p.pvNo === pvNo);
@@ -8795,6 +8921,152 @@ function saveCashEntry() {
         }, 100);
     }
 
+    function showAddMetalPurchaseForPV() {
+    const modal = document.createElement('div');
+    modal.id = 'addMetalPurchaseModal';
+    modal.className = 'fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50';
+    modal.innerHTML = `
+        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-2xl w-full" onclick="event.stopPropagation()">
+            <h3 class="text-xl font-bold mb-4">📋 Metal Purchase Entry (PV Step 1)</h3>
+            
+            <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
+                <p class="text-sm text-blue-800 font-medium">
+                    Step 1: Enter purchase details. A PV number will be auto-generated after saving.
+                </p>
+            </div>
+            
+            <div class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Supplier Name *</label>
+                        <input type="text" id="pvSupplierNameEntry" 
+                            placeholder="e.g., Emerald Jewel Industry"
+                            class="w-full px-3 py-2 border rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Supplier Invoice No</label>
+                        <input type="text" id="pvSupplierInvoiceEntry" 
+                            placeholder="Optional"
+                            class="w-full px-3 py-2 border rounded-lg">
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Total Weight (grams) *</label>
+                        <input type="number" step="0.01" id="pvTotalWeightEntry" 
+                            placeholder="0.00"
+                            class="w-full px-3 py-2 border rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Total Pieces *</label>
+                        <input type="number" id="pvTotalPiecesEntry" 
+                            placeholder="0"
+                            class="w-full px-3 py-2 border rounded-lg">
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Payment Status *</label>
+                        <select id="pvPaymentStatusEntry" class="w-full px-3 py-2 border rounded-lg">
+                            <option value="paid">Paid</option>
+                            <option value="pending">Pending</option>
+                            <option value="partial">Partial</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Purchase Date *</label>
+                        <input type="date" id="pvDateEntry" 
+                            value="${new Date().toISOString().split('T')[0]}"
+                            class="w-full px-3 py-2 border rounded-lg">
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-1">Notes/Remarks</label>
+                    <textarea id="pvNotesEntry" rows="2" 
+                        placeholder="Any additional notes about this purchase"
+                        class="w-full px-3 py-2 border rounded-lg"></textarea>
+                </div>
+                
+                <div class="flex gap-3">
+                    <button onclick="saveMetalPurchaseEntry()" 
+                        class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
+                        ✅ Generate PV & Continue to Stock Upload
+                    </button>
+                    <button onclick="closeMetalPurchaseModal()" 
+                        class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
+function saveMetalPurchaseEntry() {
+    const supplierName = document.getElementById('pvSupplierNameEntry').value.trim();
+    const supplierInvoice = document.getElementById('pvSupplierInvoiceEntry').value.trim();
+    const totalWeight = parseFloat(document.getElementById('pvTotalWeightEntry').value);
+    const totalPieces = parseInt(document.getElementById('pvTotalPiecesEntry').value);
+    const paymentStatus = document.getElementById('pvPaymentStatusEntry').value;
+    const pvDate = document.getElementById('pvDateEntry').value;
+    const notes = document.getElementById('pvNotesEntry').value.trim();
+    
+    if (!supplierName || !totalWeight || !totalPieces) {
+        alert('⚠️ Please fill all required fields');
+        return;
+    }
+    
+    // ✅ GENERATE PV NUMBER AUTOMATICALLY
+    const pvNo = generatePVNumber();
+    
+    // Create pending PV record
+    const pendingPV = {
+        id: Date.now(),
+        pvNo: pvNo,
+        date: new Date(pvDate).toISOString(),
+        supplierName: supplierName,
+        supplierInvoice: supplierInvoice,
+        paymentStatus: paymentStatus,
+        notes: notes,
+        expectedWeight: totalWeight,
+        expectedPieces: totalPieces,
+        actualWeight: 0,
+        actualPieces: 0,
+        products: [],
+        status: 'pending', // pending, completed, partial
+        totalValue: 0,
+        totalMC: 0
+    };
+    
+    // Save to pending PVs
+    if (!localStorage.getItem('pendingPVs')) {
+        localStorage.setItem('pendingPVs', JSON.stringify([]));
+    }
+    let pendingPVs = JSON.parse(localStorage.getItem('pendingPVs'));
+    pendingPVs.unshift(pendingPV);
+    localStorage.setItem('pendingPVs', JSON.stringify(pendingPVs));
+    
+    closeMetalPurchaseModal();
+    
+    alert(`✅ PV Generated Successfully!\n\nPV Number: ${pvNo}\nSupplier: ${supplierName}\nExpected: ${totalWeight}g, ${totalPieces} pieces\n\nNow upload the stock Excel file in PV Stock In tab.`);
+    
+    // Redirect to PV tab
+    showTab('pv');
+}
+
+function closeMetalPurchaseModal() {
+    const modal = document.getElementById('addMetalPurchaseModal');
+    if (modal) modal.remove();
+}
+    function closeBankEntryModal() {
+        const modal = document.getElementById('bankEntryModal');
+        if (modal) modal.remove();
+    }
     function updateBankEntryType() {
         const type = document.getElementById('bankEntryType').value;
         const customerDiv = document.getElementById('customerSelectDiv');
@@ -8970,6 +9242,70 @@ function closeBankEntryModal() {
     const modal = document.getElementById('bankEntryModal');
     if (modal) modal.remove();
 }
+
+// ========== GLOBAL ERROR HANDLER  ==========
+window.addEventListener('error', function(e) {
+    console.error('Global Error:', e.error);
+    // Silently handle errors in production
+});
+
+// ========== COMPLETE DATA INTEGRITY CHECKS==========
+document.addEventListener('DOMContentLoaded', function() {
+    // Verify all critical data structures exist
+    if (!localStorage.getItem('products')) {
+        localStorage.setItem('products', JSON.stringify([]));
+    }
+    
+    if (!localStorage.getItem('customers')) {
+        localStorage.setItem('customers', JSON.stringify([]));
+    }
+    
+    if (!localStorage.getItem('savedBills')) {
+        localStorage.setItem('savedBills', JSON.stringify([]));
+    }
+    
+    if (!localStorage.getItem('savedQuotations')) {
+        localStorage.setItem('savedQuotations', JSON.stringify([]));
+    }
+    
+    if (!localStorage.getItem('soldProducts')) {
+        localStorage.setItem('soldProducts', JSON.stringify([]));
+    }
+    
+    if (!localStorage.getItem('ledgerTransactions')) {
+        localStorage.setItem('ledgerTransactions', JSON.stringify([]));
+    }
+    
+    if (!localStorage.getItem('accountBalances')) {
+        localStorage.setItem('accountBalances', JSON.stringify({
+            cash: 0,
+            bank: 0,
+            receivables: 0,
+            payables: 0,
+            goldStock: 0,
+            silverStock: 0,
+            platinumStock: 0
+        }));
+    }
+    
+    if (!localStorage.getItem('purchaseVouchers')) {
+        localStorage.setItem('purchaseVouchers', JSON.stringify([]));
+    }
+    
+    if (!localStorage.getItem('pendingPVs')) {
+        localStorage.setItem('pendingPVs', JSON.stringify([]));
+    }
+    
+    if (!localStorage.getItem('expenses')) {
+        localStorage.setItem('expenses', JSON.stringify([]));
+    }
+    
+    if (!localStorage.getItem('metalPurchases')) {
+        localStorage.setItem('metalPurchases', JSON.stringify([]));
+    }
+    
+    console.log('✅ Data integrity check completed');
+});
             </script>
     </body>
     
