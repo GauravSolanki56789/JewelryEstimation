@@ -957,7 +957,19 @@
             </p>
         </div>
 
-        <!-- Supplier Information -->
+        <!-- PV Number Entry (Optional - for linking to existing PV) -->
+<div class="bg-blue-50 border-2 border-blue-300 rounded-lg p-4 mb-4">
+    <h4 class="font-bold text-blue-800 mb-3">📋 Link to Existing PV (Optional)</h4>
+    <div>
+        <label class="block text-sm font-medium mb-1">PV Number</label>
+        <input type="text" id="pvNumberLink" 
+            placeholder="e.g., PV000001 (Leave blank for new PV)"
+            class="w-full px-3 py-2 border rounded-lg">
+        <p class="text-xs text-gray-600 mt-1">Enter PV number if you already created a purchase entry</p>
+    </div>
+</div>
+
+<!-- Supplier Information -->
         <div class="bg-gray-50 p-4 rounded-lg mb-4">
             <h4 class="font-bold text-gray-800 mb-3">Supplier Details</h4>
             <div class="grid grid-cols-2 gap-4">
@@ -6509,9 +6521,13 @@ if (!document.getElementById('ledgerTab').classList.contains('hidden')) {
                         class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
                         📥 Download Report
                     </button>
+                    <button onclick="showAddMetalPurchaseForPV()" 
+                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                        📋 New Metal Purchase (Generate PV)
+                    </button>
                     <button onclick="showAddPurchaseModal()" 
                         class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
-                        ➕ Add Purchase
+                        ➕ Quick Add Purchase
                     </button>
                     <button onclick="showTab('pv')"
                         class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">📋 View All PVs</button>
@@ -6569,7 +6585,9 @@ if (!document.getElementById('ledgerTab').classList.contains('hidden')) {
                             <th class="px-4 py-3 text-left text-sm font-semibold">Metal</th>
                             <th class="px-4 py-3 text-right text-sm font-semibold">Weight (g)</th>
                             <th class="px-4 py-3 text-right text-sm font-semibold">Rate/g</th>
-                            <th class="px-4 py-3 text-right text-sm font-semibold">Total Amount</th>
+                            <th class="px-4 py-3 text-right text-sm font-semibold">Subtotal</th>
+                            <th class="px-4 py-3 text-right text-sm font-semibold">GST (3%)</th>
+                            <th class="px-4 py-3 text-right text-sm font-semibold">Total</th>
                             <th class="px-4 py-3 text-center text-sm font-semibold">Payment</th>
                             <th class="px-4 py-3 text-center text-sm font-semibold">Actions</th>
                         </tr>
@@ -6643,6 +6661,8 @@ if (!document.getElementById('ledgerTab').classList.contains('hidden')) {
             </td>
             <td class="px-4 py-3 text-right font-bold">${purchase.weight.toFixed(2)}g</td>
             <td class="px-4 py-3 text-right">₹${purchase.ratePerGram.toFixed(2)}</td>
+            <td class="px-4 py-3 text-right">₹${(purchase.subtotal || purchase.totalAmount).toFixed(2)}</td>
+            <td class="px-4 py-3 text-right text-green-600">₹${(purchase.gst || 0).toFixed(2)}</td>
             <td class="px-4 py-3 text-right font-bold text-purple-600">₹${purchase.totalAmount.toFixed(2)}</td>
             <td class="px-4 py-3 text-center">
                 <span class="px-2 py-1 rounded text-xs ${purchase.paymentStatus === 'paid' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}">
@@ -6802,7 +6822,9 @@ if (!document.getElementById('ledgerTab').classList.contains('hidden')) {
         return;
     }
 
-    const totalAmount = weight * ratePerGram;
+    const subtotal = weight * ratePerGram;
+    const gst = subtotal * 0.03; // 3% GST
+    const totalAmount = subtotal + gst;
 
     const purchase = {
         id: Date.now(),
@@ -6810,6 +6832,8 @@ if (!document.getElementById('ledgerTab').classList.contains('hidden')) {
         metalType: metalType,
         weight: weight,
         ratePerGram: ratePerGram,
+        subtotal: subtotal,
+        gst: gst,
         totalAmount: totalAmount,
         invoiceNo: invoiceNo,
         paymentStatus: paymentStatus,
@@ -8189,11 +8213,29 @@ function closePaymentModal() {
     });
 
     // ✅ CHECK IF PENDING PV EXISTS
-    let pendingPVs = JSON.parse(localStorage.getItem('pendingPVs') || '[]');
-    let matchingPV = pendingPVs.find(pv => 
+let pendingPVs = JSON.parse(localStorage.getItem('pendingPVs') || '[]');
+
+// First try to find by PV number if user entered it manually
+const pvSearchInput = document.getElementById('pvNumberLink')?.value.trim() || '';
+let matchingPV = null;
+
+if (pvSearchInput && pvSearchInput.trim()) {
+    matchingPV = pendingPVs.find(pv => 
+        pv.pvNo.toLowerCase() === pvSearchInput.trim().toLowerCase() && 
+        pv.status === 'pending'
+    );
+    
+    if (!matchingPV) {
+        alert(`⚠️ PV ${pvSearchInput} not found in pending list!`);
+        return;
+    }
+} else {
+    // Auto-match by supplier name
+    matchingPV = pendingPVs.find(pv => 
         pv.supplierName === supplierName && 
         pv.status === 'pending'
     );
+}
 
     let pvStatus = 'completed';
     let weightMatch = true;
