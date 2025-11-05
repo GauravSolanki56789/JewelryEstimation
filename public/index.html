@@ -891,7 +891,7 @@
         </div>
 
         <!-- PV Statistics -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
             <div class="bg-gradient-to-br from-green-500 to-green-600 text-white p-4 rounded-lg shadow">
                 <p class="text-sm opacity-90">Total PVs</p>
                 <p class="text-3xl font-bold" id="pvTotalCount">0</p>
@@ -971,8 +971,10 @@
 
                 <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
                     <h4 class="font-bold text-blue-800 mb-2">📋 Required Excel Columns:</h4>
-                    <p class="text-sm text-blue-700 font-mono">Barcode | SKU | StyleCode | ProductName | Size | AvgWeight | Purity | MCRate | MetalType</p>
-                    <p class="text-sm text-blue-700 mt-2"><strong>MetalType:</strong> Must be "gold", "silver", or "platinum"</p>
+                    <p class="text-sm text-blue-700 font-mono">Barcode | SKU | StyleCode | ProductName | Size | AvgWeight | Purity |
+                        MCRate | MCType | PCS | BoxCharges | StoneCharges | MetalType</p>
+                    <p class="text-sm text-blue-700 mt-2"><strong>MCType:</strong> "MC/GM" or "PieceCost"</p>
+                    <p class="text-sm text-blue-700"><strong>MetalType:</strong> Must be "gold", "silver", or "platinum"</p>
                 </div>
 
                 <!-- PV Number Link Section -->
@@ -1845,6 +1847,64 @@
 </div>
 
     <script>
+        // ✅ COMPLETE DATA INTEGRITY CHECKS
+            document.addEventListener('DOMContentLoaded', function () {
+                // Verify all critical data structures exist
+                if (!localStorage.getItem('products')) {
+                    localStorage.setItem('products', JSON.stringify([]));
+                }
+
+                if (!localStorage.getItem('customers')) {
+                    localStorage.setItem('customers', JSON.stringify([]));
+                }
+
+                if (!localStorage.getItem('savedBills')) {
+                    localStorage.setItem('savedBills', JSON.stringify([]));
+                }
+
+                if (!localStorage.getItem('savedQuotations')) {
+                    localStorage.setItem('savedQuotations', JSON.stringify([]));
+                }
+
+                if (!localStorage.getItem('soldProducts')) {
+                    localStorage.setItem('soldProducts', JSON.stringify([]));
+                }
+
+                if (!localStorage.getItem('ledgerTransactions')) {
+                    localStorage.setItem('ledgerTransactions', JSON.stringify([]));
+                }
+
+                if (!localStorage.getItem('accountBalances')) {
+                    localStorage.setItem('accountBalances', JSON.stringify({
+                        cash: 0,
+                        bank: 0,
+                        receivables: 0,
+                        payables: 0,
+                        goldStock: 0,
+                        silverStock: 0,
+                        platinumStock: 0
+                    }));
+                }
+
+                if (!localStorage.getItem('purchaseVouchers')) {
+                    localStorage.setItem('purchaseVouchers', JSON.stringify([]));
+                }
+
+                if (!localStorage.getItem('pendingPVs')) {
+                    localStorage.setItem('pendingPVs', JSON.stringify([]));
+                }
+
+                if (!localStorage.getItem('expenses')) {
+                    localStorage.setItem('expenses', JSON.stringify([]));
+                }
+
+                if (!localStorage.getItem('metalPurchases')) {
+                    localStorage.setItem('metalPurchases', JSON.stringify([]));
+                }
+
+                console.log('✅ Data integrity check completed');
+            });
+
         let items = [];
         let rates = JSON.parse(localStorage.getItem('rates') || '{"gold":7500,"silver":156,"platinum":3500}');
         let customers = JSON.parse(localStorage.getItem('customers') || '[]');
@@ -1998,32 +2058,6 @@
                 localStorage.setItem('accountBalances', JSON.stringify(accountBalances));
             }
 
-        // Product inventory tracking
-let soldProducts = JSON.parse(localStorage.getItem('soldProducts') || '[]');
-
-// Function to mark product as sold
-function markProductAsSold(barcode, billNo) {
-    soldProducts.push({
-        barcode: barcode,
-        billNo: billNo,
-        soldDate: new Date().toISOString()
-    });
-    localStorage.setItem('soldProducts', JSON.stringify(soldProducts));
-}
-
-// Function to check if product is sold
-function isProductSold(barcode) {
-    return soldProducts.find(sp => sp.barcode === barcode);
-}
-
-// Function to remove sold product from inventory
-function removeProductFromInventory(barcode) {
-    const productIndex = products.findIndex(p => p.barcode === barcode);
-    if (productIndex >= 0) {
-        products.splice(productIndex, 1);
-        localStorage.setItem('products', JSON.stringify(products));
-    }
-}
 
         let savedQuotations = JSON.parse(localStorage.getItem('savedQuotations') || '[]');
         let currentViewingQuotation = null;
@@ -2243,6 +2277,33 @@ billItems = selectedQuotationForBill.items.map(item => {
                     document.getElementById('billFormatModal').classList.remove('hidden');
                 }
 
+                // Product inventory tracking
+                    let soldProducts = JSON.parse(localStorage.getItem('soldProducts') || '[]');
+
+                    // Function to mark product as sold
+                    function markProductAsSold(barcode, billNo) {
+                        soldProducts.push({
+                            barcode: barcode,
+                            billNo: billNo,
+                            soldDate: new Date().toISOString()
+                        });
+                        localStorage.setItem('soldProducts', JSON.stringify(soldProducts));
+                    }
+
+                    // Function to check if product is sold
+                    function isProductSold(barcode) {
+                        return soldProducts.find(sp => sp.barcode === barcode);
+                    }
+
+                    // Function to remove sold product from inventory
+                    function removeProductFromInventory(barcode) {
+                        const productIndex = products.findIndex(p => p.barcode === barcode);
+                        if (productIndex >= 0) {
+                            products.splice(productIndex, 1);
+                            localStorage.setItem('products', JSON.stringify(products));
+                        }
+                    }
+
 function generateSalesBillPDF() {
     if (billItems.length === 0) {
         alert('⚠️ No items to bill');
@@ -2281,6 +2342,61 @@ function generateSalesBillPDF() {
     savedBills.unshift(billRecord);
     localStorage.setItem('savedBills', JSON.stringify(savedBills));
 
+    // ✅ AUTOMATIC LEDGER ENTRY FOR SALE
+    const ledgerEntry = recordLedgerTransaction(transactionTypes.SALE, {
+        billNo: billNo,
+        customerName: selectedQuotationForBill.customer.name,
+        customerMobile: selectedQuotationForBill.customer.mobile,
+        amount: netTotal,
+        items: billItems.length,
+        description: `Sales Bill ${billNo} - ${selectedQuotationForBill.customer.name}`,
+        category: 'Sales Revenue',
+        paymentMethod: selectedQuotationForBill.paymentReceived ? 'Cash' : 'Credit',
+        reference: billNo,
+        date: date.toISOString()
+    });
+
+    // ✅ Update cash/receivables based on quotation payment status
+    if (selectedQuotationForBill.paymentReceived) {
+        // Payment was already received during quotation
+        accountBalances.cash += netTotal;
+    } else {
+        // Credit sale - increase receivables
+        accountBalances.receivables += netTotal;
+    }
+
+    // ✅ Update metal stock levels (DEDUCT sold items)
+    billItems.forEach(item => {
+        const weightInGrams = item.weight;
+        if (item.metalType === 'gold') {
+            accountBalances.goldStock = Math.max(0, accountBalances.goldStock - weightInGrams);
+        } else if (item.metalType === 'silver') {
+            accountBalances.silverStock = Math.max(0, accountBalances.silverStock - weightInGrams);
+        } else if (item.metalType === 'platinum') {
+            accountBalances.platinumStock = Math.max(0, accountBalances.platinumStock - weightInGrams);
+        }
+    });
+
+    localStorage.setItem('accountBalances', JSON.stringify(accountBalances));
+
+    // ✅ Update ledger dashboard if visible
+    if (!document.getElementById('ledgerTab').classList.contains('hidden')) {
+        updateLedgerDashboard();
+        showLedgerCustomerAccounts(); // Refresh customer accounts
+    }
+
+    //Mark products as sold and update barcodes
+    billItems.forEach(item => {
+        if (item.barcode) {
+            // Mark as sold
+            if (!soldProducts.find(sp => sp.barcode === item.barcode)) {
+                markProductAsSold(item.barcode, billNo);
+            }
+            // Remove from inventory
+            removeProductFromInventory(item.barcode);
+        }
+    });
+
     // Mark products as sold and update barcodes
 billItems.forEach(item => {
     if (item.barcode) {
@@ -2292,50 +2408,6 @@ billItems.forEach(item => {
         removeProductFromInventory(item.barcode);
     }
 });
-
-// AUTOMATIC LEDGER ENTRY FOR SALE
-const ledgerEntry = recordLedgerTransaction(transactionTypes.SALE, {
-    billNo: billNo,
-    customerName: selectedQuotationForBill.customer.name,
-    customerMobile: selectedQuotationForBill.customer.mobile,
-    amount: netTotal,
-    items: billItems.length,
-    description: `Sales Bill ${billNo} - ${selectedQuotationForBill.customer.name}`,
-    category: 'Sales Revenue',
-    paymentMethod: selectedQuotationForBill.paymentReceived ? 'Cash' : 'Credit',
-    reference: billNo,
-    date: date.toISOString()
-});
-
-// Update cash/receivables based on quotation payment status
-if (selectedQuotationForBill.paymentReceived) {
-    // Payment was already received during quotation
-    accountBalances.cash += netTotal;
-} else {
-    // Credit sale - increase receivables
-    accountBalances.receivables += netTotal;
-}
-
-// Update metal stock levels (DEDUCT sold items)
-billItems.forEach(item => {
-    const weightInGrams = item.weight;
-    if (item.metalType === 'gold') {
-        accountBalances.goldStock = Math.max(0, accountBalances.goldStock - weightInGrams);
-    } else if (item.metalType === 'silver') {
-        accountBalances.silverStock = Math.max(0, accountBalances.silverStock - weightInGrams);
-    } else if (item.metalType === 'platinum') {
-        accountBalances.platinumStock = Math.max(0, accountBalances.platinumStock - weightInGrams);
-    }
-});
-
-localStorage.setItem('accountBalances', JSON.stringify(accountBalances));
-
-    // Update ledger dashboard if visible
-if (!document.getElementById('ledgerTab').classList.contains('hidden')) {
-    updateLedgerDashboard();
-    showLedgerCustomerAccounts(); // Refresh customer accounts
-}
-
     // Update products table if visible
     if (!document.getElementById('productsTab').classList.contains('hidden')) {
         updateProductsTable();
@@ -3200,11 +3272,11 @@ if (!document.getElementById('ledgerTab').classList.contains('hidden')) {
         const tbody = document.getElementById('productsTableBody');
         tbody.innerHTML = '';
 
-        let displayProducts = products;
+        let displayProducts = products.filter(p => !p.isSold); // Hide sold products
 
         // Apply search filter if search term exists
         if (searchTerm) {
-            displayProducts = products.filter(product => {
+            displayProducts = displayProducts.filter(product => {
                 return (
                     (product.barcode && product.barcode.toLowerCase().includes(searchTerm)) ||
                     (product.sku && product.sku.toLowerCase().includes(searchTerm)) ||
@@ -3702,10 +3774,51 @@ function saveProduct() {
 
         function downloadSampleExcel() {
             const sampleData = [
-                { Barcode: '2001', SKU: 'RING-22K-100', StyleCode: '5001', ProductName: 'Gold Ring 22K Design 1', Size: '16', AvgWeight: 3.5, Purity: 91.6, MCRate: 250, MetalType: 'gold' },
-                { Barcode: '2002', SKU: 'BANGLE-22K-200', StyleCode: '5002', ProductName: 'Gold Bangle 22K', Size: '2.6', AvgWeight: 25.5, Purity: 91.6, MCRate: 200, MetalType: 'gold' },
-                { Barcode: '2003', SKU: 'CHAIN-18K-300', StyleCode: '5003', ProductName: 'Gold Chain 18K', Size: '18', AvgWeight: 12.3, Purity: 75, MCRate: 180, MetalType: 'gold' },
-                { Barcode: '2004', SKU: 'IDOL-SF-400', StyleCode: '5004', ProductName: 'Silver Ganesh Idol', Size: '4inch', AvgWeight: 45.2, Purity: 100, MCRate: 150, MetalType: 'silver' }
+                {
+                    Barcode: '2001',
+                    SKU: 'RING-22K-100',
+                    StyleCode: '5001',
+                    ProductName: 'Gold Ring 22K Design 1',
+                    Size: '16',
+                    AvgWeight: 3.5,
+                    Purity: 91.6,
+                    MCRate: 250,
+                    MCType: 'MC/GM',
+                    PCS: 1,
+                    BoxCharges: 0,
+                    StoneCharges: 0,
+                    MetalType: 'gold'
+                },
+                {
+                    Barcode: '2002',
+                    SKU: 'BANGLE-22K-200',
+                    StyleCode: '5002',
+                    ProductName: 'Gold Bangle 22K',
+                    Size: '2.6',
+                    AvgWeight: 25.5,
+                    Purity: 91.6,
+                    MCRate: 200,
+                    MCType: 'MC/GM',
+                    PCS: 1,
+                    BoxCharges: 50,
+                    StoneCharges: 0,
+                    MetalType: 'gold'
+                },
+                {
+                    Barcode: '2003',
+                    SKU: 'CHAIN-18K-300',
+                    StyleCode: '5003',
+                    ProductName: 'Gold Chain 18K',
+                    Size: '18',
+                    AvgWeight: 12.3,
+                    Purity: 75,
+                    MCRate: 1800,
+                    MCType: 'PieceCost',
+                    PCS: 1,
+                    BoxCharges: 100,
+                    StoneCharges: 200,
+                    MetalType: 'gold'
+                }
             ];
             const ws = XLSX.utils.json_to_sheet(sampleData);
             const wb = XLSX.utils.book_new();
@@ -3747,7 +3860,12 @@ function saveProduct() {
                         avgWt: parseFloat(row.AvgWeight || row.avgWeight || row.avgWt || 0),
                         purity: parseFloat(row.Purity || row.purity || 100),
                         mcRate: parseFloat(row.MCRate || row.mcRate || 0),
-                        metalType: String(row.MetalType || row.metalType || 'gold').toLowerCase().trim()
+                        mcType: String(row.MCType || row.mcType || 'MC/GM').trim(), // NEW
+                        pcs: parseInt(row.PCS || row.pcs || 1), // NEW
+                        boxCharges: parseFloat(row.BoxCharges || row.boxCharges || 0), // NEW
+                        stoneCharges: parseFloat(row.StoneCharges || row.stoneCharges || 0), // NEW
+                        metalType: String(row.MetalType || row.metalType || 'gold').toLowerCase().trim(),
+                        isSold: false // NEW
                     }));
                     const tbody = document.getElementById('previewTableBody');
                     tbody.innerHTML = '';
@@ -4750,29 +4868,29 @@ function updateMCTypeLabel() {
                     }
                 }
 
-                function viewSoldProductsReport() {
-    if (soldProducts.length === 0) {
-        alert('No products have been sold yet.');
-        return;
-    }
+          function viewSoldProductsReport() {
+                if (soldProducts.length === 0) {
+                    alert('No products have been sold yet.');
+                    return;
+                }
 
-    const wb = XLSX.utils.book_new();
-    
-    const data = soldProducts.map(sp => {
-        const bill = savedBills.find(b => b.billNo === sp.billNo);
-        return {
-            'Barcode': sp.barcode,
-            'Bill No': sp.billNo,
-            'Sold Date': new Date(sp.soldDate).toLocaleDateString('en-GB'),
-            'Customer': bill ? bill.customer.name : 'N/A'
-        };
-    });
+                const wb = XLSX.utils.book_new();
 
-    const ws = XLSX.utils.json_to_sheet(data);
-    XLSX.utils.book_append_sheet(wb, ws, 'Sold Products');
-    XLSX.writeFile(wb, `Sold_Products_${new Date().toISOString().split('T')[0]}.xlsx`);
-    alert(`Sold Products Report downloaded!\nTotal: ${soldProducts.length} products`);
-}
+                const data = soldProducts.map(sp => {
+                    const bill = savedBills.find(b => b.billNo === sp.billNo);
+                    return {
+                        'Barcode': sp.barcode,
+                        'Bill No': sp.billNo,
+                        'Sold Date': new Date(sp.soldDate).toLocaleDateString('en-GB'),
+                        'Customer': bill ? bill.customer.name : 'N/A'
+                    };
+                });
+
+                const ws = XLSX.utils.json_to_sheet(data);
+                XLSX.utils.book_append_sheet(wb, ws, 'Sold Products');
+                XLSX.writeFile(wb, `Sold_Products_${new Date().toISOString().split('T')[0]}.xlsx`);
+                alert(`Sold Products Report downloaded!\nTotal: ${soldProducts.length} products`);
+            }
 
     function showCashReceiveModal() {
         if (items.length === 0) {
@@ -5671,17 +5789,17 @@ function updateMCTypeLabel() {
         <td class="px-4 py-3 text-right">₹${bill.gst.toFixed(2)}</td>
         <td class="px-4 py-3 text-right font-bold">₹${bill.netTotal.toFixed(2)}</td>
         <td class="px-4 py-3 text-center">
-            <div class="flex gap-2 justify-center">
-                <button onclick="viewBillById(${billId})" 
-                    class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-sm">
-                    👁️ View
-                </button>
-                <button onclick="reprintBillById(${billId})" 
-                    class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 text-sm">
-                    🖨️ Reprint
-                </button>
-            </div>
-        </td>
+    <div class="flex gap-2 justify-center">
+        <button onclick="viewBillById(${bill.id})" 
+            class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-sm">
+            👁️ View
+        </button>
+        <button onclick="reprintBillById(${bill.id})" 
+            class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 text-sm">
+            🖨️ Reprint
+        </button>
+    </div>
+</td>
     `;
 
                 tbody.appendChild(row);
@@ -6230,27 +6348,27 @@ function updateMCTypeLabel() {
             });
         }
 
-        function filterLedgerTransactions() {
-    const searchTerm = document.getElementById('ledgerTxnSearch')?.value.toLowerCase() || '';
-    const typeFilter = document.getElementById('ledgerTxnTypeFilter')?.value || 'all';
+ function filterLedgerTransactions() {
+        const searchTerm = document.getElementById('ledgerTxnSearch')?.value.toLowerCase() || '';
+        const typeFilter = document.getElementById('ledgerTxnTypeFilter')?.value || 'all';
 
-    let filtered = ledgerTransactions;
+        let filtered = ledgerTransactions;
 
-    if (typeFilter !== 'all') {
-        filtered = filtered.filter(txn => txn.type === typeFilter);
+        if (typeFilter !== 'all') {
+            filtered = filtered.filter(txn => txn.type === typeFilter);
+        }
+
+        if (searchTerm) {
+            filtered = filtered.filter(txn =>
+                (txn.description && txn.description.toLowerCase().includes(searchTerm)) ||
+                (txn.reference && txn.reference.toLowerCase().includes(searchTerm)) ||
+                (txn.customerName && txn.customerName.toLowerCase().includes(searchTerm)) ||
+                (txn.category && txn.category.toLowerCase().includes(searchTerm))
+            );
+        }
+
+        displayLedgerTransactions(filtered);
     }
-
-    if (searchTerm) {
-        filtered = filtered.filter(txn =>
-            (txn.description && txn.description.toLowerCase().includes(searchTerm)) ||
-            (txn.reference && txn.reference.toLowerCase().includes(searchTerm)) ||
-            (txn.customerName && txn.customerName.toLowerCase().includes(searchTerm)) ||
-            (txn.category && txn.category.toLowerCase().includes(searchTerm))
-        );
-    }
-
-    displayLedgerTransactions(filtered);
-}
 
         function exportLedgerTransactions() {
                 if (ledgerTransactions.length === 0) {
@@ -7444,47 +7562,24 @@ function updateMCTypeLabel() {
                         const container = document.getElementById('ledgerSubtabs');
 
                         container.innerHTML = `
-        <div class="bg-white p-6 rounded-xl shadow-lg">
-            <div class="flex justify-between items-center mb-6">
-                <h3 class="text-xl font-bold text-gray-800">👥 Customer Account Ledgers</h3>
-                <div class="flex gap-2">
-                    <button onclick="downloadAllCustomerLedgers()" 
-                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
-                        📥 Download All
-                    </button>
-                </div>
-            </div>
-            
-            <!-- Search and Filter -->
-            <div class="bg-gray-50 p-4 rounded-lg mb-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <input type="text" id="customerLedgerSearch" 
-                        placeholder="🔍 Search by customer name or mobile..."
-                        oninput="filterCustomerLedgers()"
-                        class="px-4 py-2 border rounded-lg">
-                    <select id="customerLedgerPeriod" onchange="filterCustomerLedgers()"
-                        class="px-4 py-2 border rounded-lg">
-                        <option value="all">All Time</option>
-                        <option value="month" selected>This Month</option>
-                        <option value="year">This Year</option>
-                    </select>
-                </div>
-            </div>
-            
-            <!-- Customer Accounts Grid -->
-            <div id="customerAccountsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <!-- Will be populated -->
-            </div>
-            
-            <!-- Empty State -->
-            <div id="customerAccountsEmpty" class="text-center py-12 hidden">
-                <div class="text-6xl mb-4">👥</div>
-                <h3 class="text-xl font-bold text-gray-700 mb-2">No Customer Accounts</h3>
-                <p class="text-gray-500">Generate sales bills to create customer accounts</p>
-            </div>
+    <div class="bg-white p-6 rounded-xl shadow-lg">
+        <!-- Header stays the same -->
+        
+        <!-- Customer Accounts Grid -->
+        <div id="customerAccountsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- Will be populated -->
         </div>
-    `;
-    // Wait for DOM and retry if needed
+        
+        <!-- Empty State -->
+        <div id="customerAccountsEmpty" class="text-center py-12 hidden">
+            <div class="text-6xl mb-4">👥</div>
+            <h3 class="text-xl font-bold text-gray-700 mb-2">No Customer Accounts</h3>
+            <p class="text-gray-500">Generate sales bills to create customer accounts</p>
+        </div>
+    </div>
+`;
+
+                        // ✅ Wait for DOM and retry if needed
                         const attemptDisplay = (retries = 3) => {
                             const grid = document.getElementById('customerAccountsGrid');
                             if (grid) {
@@ -8306,7 +8401,12 @@ function closePaymentModal() {
                                     avgWt: parseFloat(row.AvgWeight || row.avgWeight || row.avgWt || 0),
                                     purity: parseFloat(row.Purity || row.purity || 100),
                                     mcRate: parseFloat(row.MCRate || row.mcRate || 0),
-                                    metalType: String(row.MetalType || row.metalType || 'gold').toLowerCase().trim()
+                                    mcType: String(row.MCType || row.mcType || 'MC/GM').trim(),
+                                    pcs: parseInt(row.PCS || row.pcs || 1),
+                                    boxCharges: parseFloat(row.BoxCharges || row.boxCharges || 0),
+                                    stoneCharges: parseFloat(row.StoneCharges || row.stoneCharges || 0),
+                                    metalType: String(row.MetalType || row.metalType || 'gold').toLowerCase().trim(),
+                                    isSold: false
                                 }));
 
                                 // Preview
@@ -8348,160 +8448,108 @@ function closePaymentModal() {
                         reader.readAsArrayBuffer(file);
                     }
 
-async function confirmPVUpload() {
-    const supplierName = document.getElementById('pvSupplierName').value.trim();
-    const supplierInvoice = document.getElementById('pvSupplierInvoice').value.trim();
-    const paymentStatus = document.getElementById('pvPaymentStatus').value;
-    const pvDate = document.getElementById('pvDate').value;
-    const pvNotes = document.getElementById('pvNotes').value.trim();
-    const linkedPVNo = document.getElementById('pvNumberLink').value.trim();
+    function confirmPVUpload() {
+        if (bulkUploadPVData.length === 0) return;
 
-    if (!supplierName) {
-        alert('❌ Please enter supplier name!');
-        return;
-    }
-
-    if (!pvDate) {
-        alert('❌ Please select PV date!');
-        return;
-    }
-
-    if (!bulkUploadPVData || bulkUploadPVData.length === 0) {
-        alert('❌ No products to upload!');
-        return;
-    }
-
-    try {
-        // Check if linking to existing PV
-        let pvNumber = linkedPVNo;
-        let isLinking = false;
-        
-        if (pvNumber) {
-            // Verify PV exists in pending list
-            const pendingPVs = JSON.parse(localStorage.getItem('pendingPVs') || '[]');
-            const pendingPV = pendingPVs.find(p => p.pvNo === pvNumber);
-            
-            if (!pendingPV) {
-                const create = confirm(`PV ${pvNumber} not found in pending list.\n\nDo you want to create a new PV with this number?`);
-                if (!create) return;
-            } else {
-                isLinking = true;
-            }
-        } else {
-            // Generate new PV number
-            pvNumber = generatePVNumber();
+        // Validate that barcodes don't exist
+        const invalidItems = bulkUploadPVData.filter(item => !item.barcode || !item.shortName);
+        if (invalidItems.length > 0) {
+            alert(`Error: ${invalidItems.length} items missing Barcode or Name.`);
+            return;
         }
 
-        // Calculate totals
-        let totalProducts = bulkUploadPVData.length;
+        const pvNo = document.getElementById('pvNumberLink').value.trim() || generatePVNumber();
+        const supplierName = document.getElementById('pvSupplierName').value.trim();
+        const supplierInvoice = document.getElementById('pvSupplierInvoice').value.trim();
+        const paymentStatus = document.getElementById('pvPaymentStatus').value;
+        const pvDate = document.getElementById('pvDate').value;
+        const pvNotes = document.getElementById('pvNotes').value.trim();
+
+        if (!supplierName) {
+            alert('Please enter supplier name');
+            return;
+        }
+
+        // ✅ Calculate totals
         let totalWeight = 0;
         let totalValue = 0;
         let totalMC = 0;
-        const metalBreakdown = { gold: 0, silver: 0, platinum: 0 };
 
-        // Get current products
-        let products = JSON.parse(localStorage.getItem('products') || '[]');
-
-        // Add products to inventory
-        bulkUploadPVData.forEach(product => {
-            const weight = parseFloat(product.AvgWeight) || 0;
-            const mcRate = parseFloat(product.MCRate) || 0;
-            const purity = parseFloat(product.Purity) || 100;
-            const metalType = (product.MetalType || 'gold').toLowerCase();
-
-            totalWeight += weight;
-            totalMC += (mcRate * weight);
-
-            // Get metal rate
-            const metalRates = JSON.parse(localStorage.getItem('metalRates') || 
-                '{"gold":6500,"silver":85,"platinum":3200}');
-            const metalRate = metalRates[metalType] || 0;
-            const metalValue = (weight * (purity / 100) * metalRate);
-            const mcValue = (mcRate * weight);
-            totalValue += (metalValue + mcValue);
-
-            metalBreakdown[metalType] += weight;
-
-            // Add to products
-            products.push({
-                barcode: product.Barcode,
-                sku: product.SKU || '',
-                styleCode: product.StyleCode || '',
-                shortName: product.ProductName,
-                size: product.Size || '',
-                avgWt: weight,
-                purity: purity,
-                mcRate: mcRate,
-                metalType: metalType,
-                pvNo: pvNumber,
-                status: 'available',
-                addedDate: new Date().toISOString()
-            });
+        bulkUploadPVData.forEach(item => {
+            totalWeight += item.avgWt;
+            const metalRate = rates[item.metalType] || 0;
+            const itemValue = (metalRate * item.avgWt) + (item.mcRate * item.avgWt);
+            totalValue += itemValue;
+            totalMC += (item.mcRate * item.avgWt);
         });
 
-        // Save products
+        // ✅ Add products to inventory
+        products.push(...bulkUploadPVData);
         localStorage.setItem('products', JSON.stringify(products));
 
-        // Create or update PV record
+        // ✅ Create PV record
         const pvRecord = {
-            pvNo: pvNumber,
-            date: pvDate,
+            id: Date.now(),
+            pvNo: pvNo,
+            date: new Date(pvDate).toISOString(),
             supplierName: supplierName,
             supplierInvoice: supplierInvoice,
             paymentStatus: paymentStatus,
             notes: pvNotes,
-            totalProducts: totalProducts,
-            totalWeight: totalWeight.toFixed(2),
-            totalValue: totalValue.toFixed(2),
-            totalMC: totalMC.toFixed(2),
-            metalBreakdown: metalBreakdown,
-            products: bulkUploadPVData,
-            createdAt: new Date().toISOString()
+            totalProducts: bulkUploadPVData.length,
+            totalWeight: totalWeight,
+            totalValue: totalValue,
+            totalMC: totalMC,
+            products: bulkUploadPVData
         };
 
-        // Save to completed PVs
-        let purchaseVouchers = JSON.parse(localStorage.getItem('purchaseVouchers') || '[]');
-        purchaseVouchers.push(pvRecord);
+        purchaseVouchers.unshift(pvRecord);
         localStorage.setItem('purchaseVouchers', JSON.stringify(purchaseVouchers));
 
-        // If linking to pending PV, remove it from pending list
-        if (isLinking) {
-            let pendingPVs = JSON.parse(localStorage.getItem('pendingPVs') || '[]');
-            pendingPVs = pendingPVs.filter(p => p.pvNo !== pvNumber);
-            localStorage.setItem('pendingPVs', JSON.stringify(pendingPVs));
-        }
-
-        // Create ledger entry
-        createLedgerEntry({
-            type: 'metal_purchase',
-            amount: totalValue,
-            description: `Metal Purchase - ${supplierName} (${pvNumber})`,
-            pvNo: pvNumber,
-            supplierName: supplierName,
-            paymentStatus: paymentStatus,
-            weight: totalWeight,
-            products: totalProducts
+        // ✅ Update metal stocks
+        bulkUploadPVData.forEach(item => {
+            if (item.metalType === 'gold') {
+                accountBalances.goldStock += item.avgWt;
+            } else if (item.metalType === 'silver') {
+                accountBalances.silverStock += item.avgWt;
+            } else if (item.metalType === 'platinum') {
+                accountBalances.platinumStock += item.avgWt;
+            }
         });
 
-        alert(`✅ Success!\n\n` +
-            `PV Number: ${pvNumber}\n` +
-            `Products Added: ${totalProducts}\n` +
-            `Total Weight: ${totalWeight.toFixed(2)}g\n` +
-            `Total Value: ₹${totalValue.toFixed(2)}`);
+        localStorage.setItem('accountBalances', JSON.stringify(accountBalances));
+
+        // ✅ Record in ledger
+        recordLedgerTransaction(transactionTypes.PURCHASE, {
+            amount: totalValue,
+            description: `PV ${pvNo} - ${supplierName} (${bulkUploadPVData.length} products, ${totalWeight.toFixed(2)}g)`,
+            category: 'Metal Purchase',
+            paymentMethod: paymentStatus === 'paid' ? 'Cash' : 'Credit',
+            reference: pvNo,
+            supplier: supplierName,
+            weight: totalWeight,
+            date: pvRecord.date
+        });
+
+        // ✅ Update cash/payables
+        if (paymentStatus === 'paid') {
+            accountBalances.cash -= totalValue;
+        } else {
+            accountBalances.payables += totalValue;
+        }
+
+        localStorage.setItem('accountBalances', JSON.stringify(accountBalances));
 
         closeModals();
-        bulkUploadPVData = [];
-        
-        // Refresh displays
-        if (typeof loadPVTab === 'function') loadPVTab();
-        if (typeof loadStockTab === 'function') loadStockTab();
-        if (typeof updateLedgerDashboard === 'function') updateLedgerDashboard();
+        alert(`✅ PV Created Successfully!\n\nPV Number: ${pvNo}\nProducts Added: ${bulkUploadPVData.length}\nTotal Weight: ${totalWeight.toFixed(2)}g\nTotal Value: ₹${totalValue.toFixed(2)}\n\nStock updated in inventory.`);
 
-    } catch (error) {
-        console.error('PV Upload Error:', error);
-        alert('❌ Error creating PV: ' + error.message);
+        // Refresh displays
+        updateProductsTable();
+        loadPVTab();
+        updateLedgerDashboard();
+
+        bulkUploadPVData = [];
     }
-}
 
 function loadPVTab() {
     updatePVStatistics();
@@ -8515,15 +8563,20 @@ function loadPVTab() {
     populatePVSupplierFilter();
 }
 
-function displayPendingPVs(pendingList) {
-    if (pendingList.length === 0) return;
-    
-    // Add pending PVs section before the main table
-    const pvSection = document.querySelector('#pvListSection');
-    if (!pvSection) return;
-    
-    const pendingSection = document.createElement('div');
-    pendingSection.className = 'bg-orange-50 border-2 border-orange-300 rounded-lg p-4 mb-6';
+    function displayPendingPVs(pendingList) {
+        // Remove existing pending section if present
+        const existingSection = document.querySelector('.pending-pvs-section');
+        if (existingSection) {
+            existingSection.remove();
+        }
+
+        if (pendingList.length === 0) return;
+
+        const pvSection = document.querySelector('#pvListSection');
+        if (!pvSection) return;
+
+        const pendingSection = document.createElement('div');
+        pendingSection.className = 'bg-orange-50 border-2 border-orange-300 rounded-lg p-4 mb-6 pending-pvs-section';
     pendingSection.innerHTML = `
         <div class="flex justify-between items-center mb-4">
             <h4 class="text-lg font-bold text-orange-800">⚠️ Pending PVs (Awaiting Stock Upload)</h4>
@@ -8704,11 +8757,53 @@ function uploadStockForPendingPV(pvNo) {
                     }
 
                     function downloadPVSample() {
-                        const sampleData = [
-                            { Barcode: 'PV2001', SKU: 'RING-22K-PV01', StyleCode: '6001', ProductName: 'Gold Ring 22K - PV Sample', Size: '18', AvgWeight: 4.2, Purity: 91.6, MCRate: 250, MetalType: 'gold' },
-                            { Barcode: 'PV2002', SKU: 'CHAIN-22K-PV02', StyleCode: '6002', ProductName: 'Gold Chain 22K - PV Sample', Size: '20', AvgWeight: 12.5, Purity: 91.6, MCRate: 200, MetalType: 'gold' },
-                            { Barcode: 'PV2003', SKU: 'IDOL-SF-PV03', StyleCode: '6003', ProductName: 'Silver Idol - PV Sample', Size: '4inch', AvgWeight: 35.8, Purity: 100, MCRate: 150, MetalType: 'silver' }
-                        ];
+                            const sampleData = [
+                                {
+                                    Barcode: 'PV2001',
+                                    SKU: 'RING-22K-PV01',
+                                    StyleCode: '6001',
+                                    ProductName: 'Gold Ring 22K - PV Sample',
+                                    Size: '18',
+                                    AvgWeight: 4.2,
+                                    Purity: 91.6,
+                                    MCRate: 250,
+                                    MCType: 'MC/GM',
+                                    PCS: 1,
+                                    BoxCharges: 0,
+                                    StoneCharges: 0,
+                                    MetalType: 'gold'
+                                },
+                                {
+                                    Barcode: 'PV2002',
+                                    SKU: 'CHAIN-22K-PV02',
+                                    StyleCode: '6002',
+                                    ProductName: 'Gold Chain 22K - PV Sample',
+                                    Size: '20',
+                                    AvgWeight: 12.5,
+                                    Purity: 91.6,
+                                    MCRate: 200,
+                                    MCType: 'MC/GM',
+                                    PCS: 1,
+                                    BoxCharges: 0,
+                                    StoneCharges: 0,
+                                    MetalType: 'gold'
+                                },
+                                {
+                                    Barcode: 'PV2003',
+                                    SKU: 'IDOL-SF-PV03',
+                                    StyleCode: '6003',
+                                    ProductName: 'Silver Idol - PV Sample',
+                                    Size: '4inch',
+                                    AvgWeight: 35.8,
+                                    Purity: 100,
+                                    MCRate: 150,
+                                    MCType: 'MC/GM',
+                                    PCS: 1,
+                                    BoxCharges: 0,
+                                    StoneCharges: 0,
+                                    MetalType: 'silver'
+                                }
+                            ];
 
                         const ws = XLSX.utils.json_to_sheet(sampleData);
                         const wb = XLSX.utils.book_new();
@@ -9474,64 +9569,6 @@ function closeBankEntryModal() {
 window.addEventListener('error', function(e) {
     console.error('Global Error:', e.error);
     // Silently handle errors in production
-});
-
-// ========== COMPLETE DATA INTEGRITY CHECKS==========
-document.addEventListener('DOMContentLoaded', function() {
-    // Verify all critical data structures exist
-    if (!localStorage.getItem('products')) {
-        localStorage.setItem('products', JSON.stringify([]));
-    }
-    
-    if (!localStorage.getItem('customers')) {
-        localStorage.setItem('customers', JSON.stringify([]));
-    }
-    
-    if (!localStorage.getItem('savedBills')) {
-        localStorage.setItem('savedBills', JSON.stringify([]));
-    }
-    
-    if (!localStorage.getItem('savedQuotations')) {
-        localStorage.setItem('savedQuotations', JSON.stringify([]));
-    }
-    
-    if (!localStorage.getItem('soldProducts')) {
-        localStorage.setItem('soldProducts', JSON.stringify([]));
-    }
-    
-    if (!localStorage.getItem('ledgerTransactions')) {
-        localStorage.setItem('ledgerTransactions', JSON.stringify([]));
-    }
-    
-    if (!localStorage.getItem('accountBalances')) {
-        localStorage.setItem('accountBalances', JSON.stringify({
-            cash: 0,
-            bank: 0,
-            receivables: 0,
-            payables: 0,
-            goldStock: 0,
-            silverStock: 0,
-            platinumStock: 0
-        }));
-    }
-    
-    if (!localStorage.getItem('purchaseVouchers')) {
-        localStorage.setItem('purchaseVouchers', JSON.stringify([]));
-    }
-    
-    if (!localStorage.getItem('pendingPVs')) {
-        localStorage.setItem('pendingPVs', JSON.stringify([]));
-    }
-    
-    if (!localStorage.getItem('expenses')) {
-        localStorage.setItem('expenses', JSON.stringify([]));
-    }
-    
-    if (!localStorage.getItem('metalPurchases')) {
-        localStorage.setItem('metalPurchases', JSON.stringify([]));
-    }
-    
-    console.log('✅ Data integrity check completed');
 });
             </script>
     </body>
