@@ -9,10 +9,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <style>
-    /* Smooth transitions */
-    * {
-        transition: background-color 0.2s ease;
-    }
     
     /* Table hover effects */
     tbody tr:hover {
@@ -69,6 +65,9 @@
                             class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">📒 Ledger</button>
                         <button onclick="showTab('pv')" id="btnPV"
                             class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">📋 PV StockIn</button>
+                        <button onclick="showTab('tagsplit')" id="btnTagSplit"
+                            class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">✂️ Tag
+                            Split/Merge</button>
                     </div>
                 </div>
             </div>
@@ -959,6 +958,129 @@
     </div>
 </div>
 
+<!-- Tag Split/Merge Tab -->
+<div id="tagsplitTab" class="space-y-6 hidden">
+    <div class="bg-white p-6 rounded-xl shadow-lg">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-gray-800">✂️ Tag Split & Merge Management</h2>
+            <div class="flex gap-2">
+                <button onclick="showSplitHistory()"
+                    class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-bold text-sm">
+                    📊 Split History
+                </button>
+            </div>
+        </div>
+
+        <!-- Barcode Scanner for Tag Split -->
+        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border-2 border-blue-200 mb-6">
+            <div class="flex items-center gap-3 mb-3">
+                <span class="text-3xl">📷</span>
+                <h3 class="font-bold text-xl text-gray-800">Scan Product to Split/Merge</h3>
+            </div>
+            <input id="tagSplitBarcodeInput" type="text" placeholder="Scan barcode here..." autofocus
+                class="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-lg font-semibold">
+            <p class="text-sm text-gray-600 mt-2">Press Enter after scanning</p>
+        </div>
+
+        <!-- Current Product Display (Initially Hidden) -->
+        <div id="currentTagProduct" class="hidden">
+            <!-- Product Info Card -->
+            <div class="bg-gradient-to-r from-amber-50 to-orange-50 p-6 rounded-xl border-2 border-amber-300 mb-6">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                        <p class="text-sm text-gray-600">Barcode</p>
+                        <p class="text-lg font-bold text-gray-800" id="currentTagBarcode"></p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">Product Name</p>
+                        <p class="text-lg font-bold" id="currentTagName"></p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">Total Weight</p>
+                        <p class="text-2xl font-bold text-blue-600" id="currentTagWeight"></p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">Total Pieces</p>
+                        <p class="text-2xl font-bold text-green-600" id="currentTagPcs"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Split Entry Form -->
+            <div class="bg-white p-6 rounded-xl border-2 border-gray-200 mb-6">
+                <h3 class="text-lg font-bold text-gray-800 mb-4">Add Split Entry</h3>
+                <div class="grid grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Weight (grams) *</label>
+                        <input type="number" step="0.001" id="tagSplitWeight" placeholder="0.000"
+                            class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Pieces</label>
+                        <input type="number" id="tagSplitPcs" value="1" min="1"
+                            class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div class="flex items-end">
+                        <button onclick="addTagSplitEntry()"
+                            class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold">
+                            ➕ Add Split
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Remaining Display -->
+            <div class="bg-gradient-to-r from-orange-50 to-yellow-50 p-4 rounded-lg border-2 border-orange-300 mb-6">
+                <div class="grid grid-cols-2 gap-4 text-center">
+                    <div>
+                        <p class="text-sm text-gray-600">Remaining Pieces</p>
+                        <p class="text-3xl font-bold text-orange-600" id="tagRemaining Pcs">0</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">Remaining Weight</p>
+                        <p class="text-3xl font-bold text-orange-600" id="tagRemainingWeight">0.000g</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Split Entries Table -->
+            <div class="bg-white rounded-xl border mb-6">
+                <div class="bg-gray-100 px-4 py-3 border-b">
+                    <h4 class="font-bold text-gray-800">Split Entries (<span id="tagSplitEntriesCount">0</span>)</h4>
+                </div>
+                <div class="overflow-x-auto max-h-96">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50 sticky top-0">
+                            <tr>
+                                <th class="px-3 py-2 text-left">#</th>
+                                <th class="px-3 py-2 text-left">New Barcode</th>
+                                <th class="px-3 py-2 text-right">Weight (g)</th>
+                                <th class="px-3 py-2 text-center">Pieces</th>
+                                <th class="px-3 py-2 text-center">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tagSplitEntriesTableBody">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex gap-4">
+                <button onclick="completeTagSplit()"
+                    class="flex-1 px-6 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-lg">
+                    ✅ Complete Split & Generate Barcodes
+                </button>
+                <button onclick="cancelTagSplit()"
+                    class="px-6 py-4 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-bold">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- PV Upload Modal -->
 <div id="pvUploadModal" class="hidden">
     <div class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
@@ -1173,7 +1295,7 @@
 
     <!-- Modal Overlay -->
     <div id="modalOverlay" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4"
-    onclick="if(event.target === this) closeModals()"></div>
+        onclick="if(event.target === this) closeModals()"></div>
     
     <!-- Rates Modal -->
     <div id="ratesModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
@@ -2794,60 +2916,84 @@ billItems.forEach(item => {
     localStorage.setItem('products', JSON.stringify(products));
 }
 
-        document.addEventListener('DOMContentLoaded', function () {
-                updateRatesDisplay();
-                updateCustomerDropdown();
-                updateProductsTable();
-                updateRateSlabInfo();
-                updateBillCustomerDropdown();
-                updateCashEntryFields();
+    document.addEventListener('DOMContentLoaded', function () {
+        // Initialize data structures
+        updateRatesDisplay();
+        updateCustomerDropdown();
+        updateProductsTable();
+        updateRateSlabInfo();
+        updateBillCustomerDropdown();
+        updateCashEntryFields();
 
-                // Billing barcode scanner
-                const barcodeInput = document.getElementById('barcodeInput');
-                if (barcodeInput) {
-                    barcodeInput.addEventListener('keypress', function (e) {
-                        if (e.key === 'Enter') {
-                            e.preventDefault();
-                            handleBarcodeScan(this.value.trim());
-                            this.value = '';
-                        }
-                    });
+        // Billing barcode scanner - single registration
+        const barcodeInput = document.getElementById('barcodeInput');
+        if (barcodeInput && !barcodeInput.dataset.listenerAdded) {
+            barcodeInput.addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleBarcodeScan(this.value.trim());
+                    this.value = '';
                 }
-
-                // Product Management barcode scanner
-                const productBarcodeInput = document.getElementById('productBarcodeInput');
-                if (productBarcodeInput) {
-                    productBarcodeInput.addEventListener('keypress', function (e) {
-                        if (e.key === 'Enter') {
-                            e.preventDefault();
-                            handleProductBarcodeScan(this.value.trim());
-                            this.value = '';
-                        }
-                    });
-                }
-
-                // Auto-calculate item amount (prevent duplicate listeners)
-['itemWeight', 'itemRate', 'itemMcRate', 'itemPurity', 'itemBoxCharges', 'itemStoneCharges'].forEach(id => {
-    const element = document.getElementById(id);
-    if (element && !element.hasAttribute('data-listener-added')) {
-        element.addEventListener('input', updateItemAmount);
-        element.setAttribute('data-listener-added', 'true');
-    }
-});
-
-                // Initialize Sales Bill Tab
-                refreshQuotationsList();
-                updateBillCustomerDropdown();
-
-                // Initial focus on barcode scanner
-                if (barcodeInput) {
-                    barcodeInput.focus();
-                }
-
-                // Initialize ledger dashboard
-                updateLedgerDashboard();
-                showLedgerCustomerAccounts();
             });
+            barcodeInput.dataset.listenerAdded = 'true';
+            barcodeInput.focus();
+        }
+
+        // Product Management barcode scanner
+        const productBarcodeInput = document.getElementById('productBarcodeInput');
+        if (productBarcodeInput && !productBarcodeInput.dataset.listenerAdded) {
+            productBarcodeInput.addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleProductBarcodeScan(this.value.trim());
+                    this.value = '';
+                }
+            });
+            productBarcodeInput.dataset.listenerAdded = 'true';
+        }
+
+        // Auto-calculate item amount - single registration only
+        const itemInputs = ['itemWeight', 'itemRate', 'itemMcRate', 'itemPurity', 'itemBoxCharges', 'itemStoneCharges'];
+        itemInputs.forEach(id => {
+            const element = document.getElementById(id);
+            if (element && !element.dataset.listenerAdded) {
+                element.addEventListener('input', updateItemAmount);
+                element.dataset.listenerAdded = 'true';
+            }
+        });
+
+        // Tag split barcode scanner
+        const tagSplitInput = document.getElementById('tagSplitBarcodeInput');
+        if (tagSplitInput && !tagSplitInput.dataset.listenerAdded) {
+            tagSplitInput.addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleTagSplitBarcodeScan(this.value.trim());
+                    this.value = '';
+                }
+            });
+            tagSplitInput.dataset.listenerAdded = 'true';
+        }
+
+        // Tag split weight input
+        const tagWeightInput = document.getElementById('tagSplitWeight');
+        if (tagWeightInput && !tagWeightInput.dataset.listenerAdded) {
+            tagWeightInput.addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addTagSplitEntry();
+                }
+            });
+            tagWeightInput.dataset.listenerAdded = 'true';
+        }
+
+        // Initialize ledger dashboard
+        updateLedgerDashboard();
+        showLedgerCustomerAccounts();
+
+        // Initialize Sales Bill Tab
+        refreshQuotationsList();
+    });
 
             function updateBillCustomerDropdown() {
                     const select = document.getElementById('billCustomerSelect');
@@ -2873,6 +3019,7 @@ billItems.forEach(item => {
                 document.getElementById('billHistoryTab').classList.add('hidden'); 
                 document.getElementById('ledgerTab').classList.add('hidden'); 
                 document.getElementById('pvTab').classList.add('hidden'); 
+                document.getElementById('tagsplitTab').classList.add('hidden');
 
                 // Reset all buttons
                 document.getElementById('btnBilling').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
@@ -2884,6 +3031,7 @@ billItems.forEach(item => {
                 document.getElementById('btnBillHistory').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
                 document.getElementById('btnLedger').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition'; 
                 document.getElementById('btnPV').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition'; 
+                document.getElementById('btnTagSplit').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
 
                 if (tab === 'billing') {
                     document.getElementById('billingTab').classList.remove('hidden');
@@ -2926,6 +3074,12 @@ billItems.forEach(item => {
                     document.getElementById('pvTab').classList.remove('hidden');
                     document.getElementById('btnPV').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
                     loadPVTab();
+                } else if (tab === 'tagsplit') {
+                    document.getElementById('tagsplitTab').classList.remove('hidden');
+                    document.getElementById('btnTagSplit').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
+                    setTimeout(() => {
+                        document.getElementById('tagSplitBarcodeInput').focus();
+                    }, 100);
                 }
             }
 
@@ -3236,7 +3390,6 @@ billItems.forEach(item => {
         <td class="px-4 py-3 text-right text-sm">₹${stoneCharges.toFixed(2)}</td>
         <td class="px-4 py-3 text-center">
         <button onclick="editProduct(${originalIdx})" class="text-blue-600 hover:text-blue-800 font-medium mr-2" title="Edit">✏️</button>
-        <button onclick="showTagSplitModal(${originalIdx})" class="text-green-600 hover:text-green-800 font-medium mr-2" title="Split Tag">✂️</button>
         <button onclick="deleteProduct(${originalIdx})" class="text-red-600 hover:text-red-800 font-medium" title="Delete">🗑️</button>
     </td>
     `;
@@ -3957,7 +4110,9 @@ function saveProduct() {
 
         if (product) {
             // Check if EXACT SAME BARCODE already exists in current bill
-            const existingItemIndex = items.findIndex(item => item.barcode === barcode);
+            const existingItemIndex = items.findIndex(item =>
+                item.barcode && String(item.barcode).trim().toLowerCase() === barcode.toLowerCase()
+            );
 
             if (existingItemIndex >= 0) {
                 alert(`⚠️ This exact item (Barcode: ${barcode}) is already added!\n${product.shortName}\nSKU: ${product.sku || 'N/A'}\n\nIf you need multiple pieces, edit the quantity manually.`);
@@ -4082,26 +4237,30 @@ function saveProduct() {
                     }, 100);
                 }
 
-        function updateItemAmount() {
-    const weight = parseFloat(document.getElementById('itemWeight').value) || 0;
-    const rate = parseFloat(document.getElementById('itemRate').value) || 0;
-    const mcRate = parseFloat(document.getElementById('itemMcRate').value) || 0;
-    const mcType = document.getElementById('itemMcType')?.value || 'MC/GM';
-    const boxCharges = parseFloat(document.getElementById('itemBoxCharges').value) || 0;
-    const stoneCharges = parseFloat(document.getElementById('itemStoneCharges').value) || 0;
+    function updateItemAmount() {
+        const weight = parseFloat(document.getElementById('itemWeight')?.value) || 0;
+        const rate = parseFloat(document.getElementById('itemRate')?.value) || 0;
+        const mcRate = parseFloat(document.getElementById('itemMcRate')?.value) || 0;
+        const mcTypeEl = document.getElementById('itemMcType');
+        const mcType = mcTypeEl ? mcTypeEl.value : 'MC/GM';
+        const boxCharges = parseFloat(document.getElementById('itemBoxCharges')?.value) || 0;
+        const stoneCharges = parseFloat(document.getElementById('itemStoneCharges')?.value) || 0;
 
-    let total = 0;
-    
-    if (mcType === 'PieceCost') {
-        // PieceCost: (Metal Rate × Weight) + Fixed MC + Box + Stone
-        total = (rate * weight) + mcRate + boxCharges + stoneCharges;
-    } else {
-        // MC/GM: (Rate + MC/GM) × Weight + Box + Stone
-        total = (rate + mcRate) * weight + boxCharges + stoneCharges;
+        let total = 0;
+
+        if (mcType === 'PieceCost') {
+            // PieceCost: (Metal Rate × Weight) + Fixed MC + Box + Stone
+            total = (rate * weight) + mcRate + boxCharges + stoneCharges;
+        } else {
+            // MC/GM: (Rate + MC/GM) × Weight + Box + Stone
+            total = (rate + mcRate) * weight + boxCharges + stoneCharges;
+        }
+
+        const amountEl = document.getElementById('itemAmount');
+        if (amountEl) {
+            amountEl.textContent = `₹${total.toFixed(2)}`;
+        }
     }
-    
-    document.getElementById('itemAmount').textContent = `₹${total.toFixed(2)}`;
-}
 
 function updateMCTypeLabel() {
     const mcType = document.getElementById('itemMcType').value;
@@ -4315,6 +4474,11 @@ function updateMCTypeLabel() {
 }
 
     function generateQuotePDFWithPayment() {
+        // Verify modal elements exist
+        if (!document.getElementById('paymentCash') && !document.getElementById('paymentCredit')) {
+            alert('⚠️ Payment option modal not properly loaded. Please try again.');
+            return;
+        }
             const paymentOptionElement = document.querySelector('input[name="paymentOption"]:checked');
 
             // SAFETY CHECK
@@ -4723,66 +4887,23 @@ function updateMCTypeLabel() {
         if (modal) modal.remove();
     }
 
-function closeModals() {
-    // Hide all static modals
-    const modalIds = [
-        'modalOverlay',
-        'ratesModal',
-        'addProductModal',
-        'bulkUploadModal',
-        'addCustomerModal',
-        'bulkUploadCustomerModal',
-        'quotationFormatModal',
-        'pvUploadModal',
-        'pvViewModal',
-        'stockReportModal',
-        'rolUploadModal',
-        'viewQuotationModal',
-        'billFormatModal',
-        'viewBillModal',
-        'reprintFormatModal',
-        'cashEntryModal',
-        'convertQuotModal',
-        'tagSplitModal'
-    ];
-    
-    modalIds.forEach(id => {
-        const modal = document.getElementById(id);
-        if (modal) {
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
-        }
-    });
-    
-    // Close dynamically created modals
-    const dynamicModals = [
-        'cashReceiveModal', 
-        'bankEntryModal', 
-        'recordPaymentModal', 
-        'addExpenseModal', 
-        'addPurchaseModal', 
-        'addMetalPurchaseModal',
-        'addManualTransactionModal'
-    ];
-    
-    dynamicModals.forEach(id => {
-        const modal = document.getElementById(id);
-        if (modal) {
-            try {
-                modal.remove();
-            } catch(e) {
-                console.error('Error removing modal:', id, e);
-            }
-        }
-    });
-    
-    // Ensure overlay is hidden
-    const overlay = document.getElementById('modalOverlay');
-    if (overlay) {
-        overlay.classList.add('hidden');
-        overlay.classList.remove('flex');
-    }
-}
+    const subtotal = weight * ratePerGram;
+    const gst = subtotal * 0.03; // 3% GST
+    const totalAmount = subtotal + gst;
+
+    const purchase = {
+        id: Date.now(),
+        supplier: supplier,
+        metalType: metalType,
+        weight: weight,
+        ratePerGram: ratePerGram,
+        subtotal: subtotal,
+        gst: gst,
+        totalAmount: totalAmount,
+        invoiceNo: invoiceNo,
+        paymentStatus: paymentStatus,
+        date: new Date(date).toISOString()
+    };
 
                 // ========== ROL MANAGEMENT FUNCTIONS ==========
 
@@ -6629,7 +6750,10 @@ function closeManualTransactionModal() {
 
                 function displayPurchases(purchaseList) {
                     const tbody = document.getElementById('purchasesTableBody');
-                    if (!tbody) return;
+                    if (!tbody) {
+                        console.error('Purchases table body not found!');
+                        return;
+                    }
 
                     tbody.innerHTML = '';
 
@@ -7345,11 +7469,11 @@ function closeManualTransactionModal() {
         </div>
     `;
 
-    // Display accounts after DOM is ready
-setTimeout(() => {
-    displayCustomerAccounts();
-}, 50);
-}
+        // Display accounts after DOM is ready
+        setTimeout(() => {
+            displayCustomerAccounts();
+        }, 50);
+    }
 
                     // FIXED VERSION - Replace entire function
                     function displayCustomerAccounts() {
@@ -7682,10 +7806,13 @@ function displayCustomerLedgerTransactions(customerMobile, period = 'month') {
     
     // Calculate running balance
     let balance = 0;
-    if (!tbody) {
-    console.error('Ledger table body lost during transaction!');
-    return;
-}
+    // Re-fetch tbody in case DOM was updated
+    const tbodyRefresh = document.getElementById('customerLedgerTableBody');
+    if (!tbodyRefresh) {
+        console.error('❌ Ledger table body not found! Refreshing view...');
+        setTimeout(() => viewCustomerLedger(customerMobile), 100);
+        return;
+    }
     tbody.innerHTML = '';
     
     if (allTransactions.length === 0) {
@@ -8216,14 +8343,44 @@ function closePaymentModal() {
         }
 
         let pvNo = document.getElementById('pvNumberLink').value.trim();
+
         if (pvNo) {
-            // Validate existing PV
-            const existingPV = purchaseVouchers.find(p => p.pvNo === pvNo);
-            if (existingPV) {
-                alert(`⚠️ PV ${pvNo} already exists and is completed!\n\nPlease use a different PV number or leave blank to auto-generate.`);
-                return;
+            // Validate PV exists in pending list
+            const pendingPVs = JSON.parse(localStorage.getItem('pendingPVs') || '[]');
+            const existingPendingPV = pendingPVs.find(p => p.pvNo === pvNo);
+
+            if (existingPendingPV) {
+                // Valid pending PV found - link to it
+                console.log('Linking to existing pending PV:', pvNo);
+            } else {
+                // Check if already completed
+                const completedPV = purchaseVouchers.find(p => p.pvNo === pvNo);
+                if (completedPV) {
+                    alert(`⚠️ PV ${pvNo} already exists and is completed!\n\nPlease use a different PV number or leave blank to auto-generate.`);
+                    return;
+                } else {
+                    // PV doesn't exist anywhere - create new pending entry
+                    const newPendingPV = {
+                        id: Date.now(),
+                        pvNo: pvNo,
+                        date: new Date(document.getElementById('pvDate').value).toISOString(),
+                        supplierName: document.getElementById('pvSupplierName').value.trim(),
+                        supplierInvoice: document.getElementById('pvSupplierInvoice').value.trim(),
+                        paymentStatus: document.getElementById('pvPaymentStatus').value,
+                        notes: document.getElementById('pvNotes').value.trim(),
+                        expectedWeight: bulkUploadPVData.reduce((sum, item) => sum + item.avgWt, 0),
+                        expectedPieces: bulkUploadPVData.length,
+                        actualWeight: 0,
+                        actualPieces: 0,
+                        status: 'pending'
+                    };
+
+                    pendingPVs.unshift(newPendingPV);
+                    localStorage.setItem('pendingPVs', JSON.stringify(pendingPVs));
+                }
             }
         } else {
+            // Auto-generate new PV number
             pvNo = generatePVNumber();
         }
         const supplierName = document.getElementById('pvSupplierName').value.trim();
@@ -8802,42 +8959,44 @@ function downloadAllCustomerLedgers() {
     alert('All customer ledgers downloaded successfully!');
 }
 
-                    // Download functions for reports
-                    function downloadPLReport() {
-                        alert('Profit & Loss Report PDF download functionality - Implement jsPDF generation here');
-                    }
+    // Download functions for reports
+    function downloadPLReport() {
+        alert('Profit & Loss Report PDF download functionality - Implement jsPDF generation here');
+    }
 
-                    function downloadBalanceSheet() {
-                        alert('Balance Sheet PDF download functionality - Implement jsPDF generation here');
-                    }
+    function downloadBalanceSheet() {
+        alert('Balance Sheet PDF download functionality - Implement jsPDF generation here');
+    }
 
-                    function downloadCashFlowReport() {
-                        alert('Cash Flow Report PDF download functionality - Implement jsPDF generation here');
-                    }
-                function downloadPurchaseReport() {
-                        if (metalPurchases.length === 0) {
-                            alert('No purchases to export!');
-                            return;
-                        }
+    function downloadCashFlowReport() {
+        alert('Cash Flow Report PDF download functionality - Implement jsPDF generation here');
+    }
 
-                        const wb = XLSX.utils.book_new();
+     function downloadPurchaseReport() {
+            if (metalPurchases.length === 0) {
+                alert('No purchases to export!');
+                return;
+            }
 
-                        const data = metalPurchases.map(p => ({
-                            'Date': new Date(p.date).toLocaleDateString('en-GB'),
-                            'Supplier': p.supplier,
-                            'Metal Type': p.metalType.toUpperCase(),
-                            'Weight (g)': p.weight.toFixed(2),
-                            'Rate/g': p.ratePerGram.toFixed(2),
-                            'Total Amount': p.totalAmount.toFixed(2),
-                            'Invoice No': p.invoiceNo,
-                            'Payment Status': p.paymentStatus.toUpperCase()
-                        }));
+            const wb = XLSX.utils.book_new();
+            const data = metalPurchases.map(p => ({
+                'Date': new Date(p.date).toLocaleDateString('en-GB'),
+                'Supplier': p.supplier,
+                'Metal Type': p.metalType.toUpperCase(),
+                'Weight (g)': p.weight.toFixed(2),
+                'Rate/g': p.ratePerGram.toFixed(2),
+                'Subtotal': p.subtotal.toFixed(2),
+                'GST (3%)': p.gst.toFixed(2),
+                'Total Amount': p.totalAmount.toFixed(2),
+                'Invoice No': p.invoiceNo,
+                'Payment Status': p.paymentStatus.toUpperCase()
+            }));
 
-                        const ws = XLSX.utils.json_to_sheet(data);
-                        XLSX.utils.book_append_sheet(wb, ws, 'Metal Purchases');
-                        XLSX.writeFile(wb, `Metal_Purchases_${new Date().toISOString().split('T')[0]}.xlsx`);
-                        alert('Purchase report downloaded!');
-                    }
+            const ws = XLSX.utils.json_to_sheet(data);
+            XLSX.utils.book_append_sheet(wb, ws, 'Metal Purchases');
+            XLSX.writeFile(wb, `Metal_Purchases_${new Date().toISOString().split('T')[0]}.xlsx`);
+            alert('Purchase report downloaded!');
+        }
 
                     // ========== TAG SPLITTING FUNCTIONS ==========
 
@@ -8845,54 +9004,6 @@ let currentSplitProduct = null;
 let splitEntries = [];
 let splitRemainingPcs = 0;
 let splitRemainingWeight = 0;
-
-function showTagSplitModal(productIndex) {
-    const product = products[productIndex];
-    
-    if (!product) {
-        alert('Product not found!');
-        return;
-    }
-    
-    if (product.pcs <= 1) {
-        alert('⚠️ Cannot split! Product has only 1 piece.\n\nTag splitting requires at least 2 pieces.');
-        return;
-    }
-    
-    // Store current product
-    currentSplitProduct = {
-        index: productIndex,
-        product: JSON.parse(JSON.stringify(product)) // Deep copy
-    };
-    
-    // Initialize
-    splitEntries = [];
-    splitRemainingPcs = product.pcs;
-    splitRemainingWeight = product.avgWt;
-    
-    // Populate modal
-    document.getElementById('splitOriginalBarcode').textContent = product.barcode;
-    document.getElementById('splitOriginalName').textContent = product.shortName;
-    document.getElementById('splitOriginalWeight').textContent = product.avgWt.toFixed(2) + 'g';
-    document.getElementById('splitOriginalPcs').textContent = product.pcs;
-    document.getElementById('splitOriginalMetal').textContent = product.metalType;
-    document.getElementById('splitOriginalPurity').textContent = product.purity + '%';
-    document.getElementById('splitOriginalMC').textContent = '₹' + product.mcRate;
-    document.getElementById('splitOriginalSize').textContent = product.size || '-';
-    
-    updateSplitRemaining();
-    updateSplitEntriesTable();
-    
-    // Show modal
-    document.getElementById('modalOverlay').classList.remove('hidden');
-    document.getElementById('modalOverlay').classList.add('flex');
-    document.getElementById('tagSplitModal').classList.remove('hidden');
-    
-    // Focus on weight input
-    setTimeout(() => {
-        document.getElementById('splitPieceWeight').focus();
-    }, 100);
-}
 
 function updateSplitRemaining() {
     document.getElementById('splitRemainingPcs').textContent = splitRemainingPcs;
@@ -8918,8 +9029,9 @@ function addSplitEntry() {
         return;
     }
     
-    if (weight > splitRemainingWeight) {
-        alert(`⚠️ Weight exceeds remaining!\n\nEntered: ${weight.toFixed(2)}g\nRemaining: ${splitRemainingWeight.toFixed(2)}g`);
+    const weightDifference = weight - splitRemainingWeight;
+    if (weightDifference > 0.001) { // Allow 0.001g tolerance
+        alert(`⚠️ Weight exceeds remaining!\n\nEntered: ${weight.toFixed(3)}g\nRemaining: ${splitRemainingWeight.toFixed(3)}g\nExcess: ${weightDifference.toFixed(3)}g`);
         return;
     }
     
@@ -8993,98 +9105,21 @@ function removeSplitEntry(index) {
     updateSplitEntriesTable();
 }
 
-function completeSplit() {
-    if (splitEntries.length === 0) {
-        alert('⚠️ No split entries added!\n\nPlease add at least one split piece.');
-        return;
-    }
-    
-    if (splitRemainingPcs > 0 || splitRemainingWeight > 0.01) {
-        const confirm = window.confirm(
-            `⚠️ Incomplete Split!\n\n` +
-            `Remaining Pieces: ${splitRemainingPcs}\n` +
-            `Remaining Weight: ${splitRemainingWeight.toFixed(2)}g\n\n` +
-            `Do you want to:\n` +
-            `• YES - Keep remaining as original product\n` +
-            `• NO - Cancel and continue splitting`
-        );
-        
-        if (!confirm) {
+    function printSplitBarcodes(splitProducts) {
+        // Create print window
+        const printWindow = window.open('', '_blank');
+
+        if (!printWindow) {
+            alert('❌ Pop-up blocked! Please allow pop-ups for this site.');
             return;
         }
-    }
-    
-    const originalProduct = currentSplitProduct.product;
-    
-    // Create new products from split entries
-    const newProducts = splitEntries.map(entry => ({
-        id: Date.now() + Math.random(),
-        barcode: entry.newBarcode,
-        sku: originalProduct.sku,
-        styleCode: originalProduct.styleCode,
-        shortName: originalProduct.shortName,
-        size: originalProduct.size,
-        avgWt: entry.weight,
-        purity: originalProduct.purity,
-        mcRate: originalProduct.mcRate,
-        mcType: originalProduct.mcType,
-        pcs: entry.pcs,
-        boxCharges: originalProduct.boxCharges || 0,
-        stoneCharges: originalProduct.stoneCharges || 0,
-        metalType: originalProduct.metalType,
-        isSold: false,
-        splitFrom: originalProduct.barcode,
-        splitDate: new Date().toISOString()
-    }));
-    
-    // Handle remaining
-    if (splitRemainingPcs > 0 && splitRemainingWeight > 0.01) {
-        // Update original product with remaining
-        products[currentSplitProduct.index].avgWt = splitRemainingWeight;
-        products[currentSplitProduct.index].pcs = splitRemainingPcs;
-    } else {
-        // Remove original product (completely split)
-        products.splice(currentSplitProduct.index, 1);
-    }
-    
-    // Add new products
-    products.push(...newProducts);
-    
-    // Save to localStorage
-    localStorage.setItem('products', JSON.stringify(products));
-    
-    // Update display
-    updateProductsTable();
-    
-    // Show success message
-    const message = 
-        `✅ Tag Split Completed!\n\n` +
-        `Original Barcode: ${originalProduct.barcode}\n` +
-        `Split into: ${splitEntries.length} new items\n\n` +
-        `New Barcodes:\n${newProducts.map(p => `• ${p.barcode} (${p.avgWt.toFixed(2)}g, ${p.pcs}pcs)`).join('\n')}\n\n` +
-        (splitRemainingPcs > 0 ? `Remaining: ${splitRemainingWeight.toFixed(2)}g, ${splitRemainingPcs}pcs kept in original` : 'Original product fully split');
-    
-    alert(message);
-    
-    // Ask to print barcodes
-    if (confirm('Do you want to print barcodes for the new split items?')) {
-        printSplitBarcodes(newProducts);
-    }
-    
-    closeTagSplitModal();
-}
 
-function printSplitBarcodes(splitProducts) {
-    // Create print window
-    const printWindow = window.open('', '_blank');
-    
-    const barcodesHTML = splitProducts.map(product => `
+        const barcodesHTML = splitProducts.map((product, idx) => `
         <div style="page-break-inside: avoid; margin-bottom: 20px; border: 1px solid #ccc; padding: 10px; width: 250px;">
-            <div style="text-align: center; margin-bottom: 5px;">
-                <img src="https://barcode.tec-it.com/barcode.ashx?data=${product.barcode}&code=Code128&translate-esc=on" 
-                    alt="${product.barcode}" style="max-width: 100%;">
+            <div style="text-align: center; margin-bottom: 5px; font-family: 'Libre Barcode 128', cursive; font-size: 32px; letter-spacing: 2px;">
+                ${product.barcode}
             </div>
-            <div style="text-align: center; font-family: monospace; font-size: 10px; margin-bottom: 5px;">
+            <div style="text-align: center; font-family: monospace; font-size: 12px; margin-bottom: 5px; font-weight: bold;">
                 ${product.barcode}
             </div>
             <div style="font-size: 9px; border-top: 1px solid #ccc; padding-top: 5px;">
@@ -9095,37 +9130,39 @@ function printSplitBarcodes(splitProducts) {
             </div>
         </div>
     `).join('');
-    
-    printWindow.document.write(`
+
+        printWindow.document.write(`
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Split Barcodes</title>
+            <title>Split Barcodes - Print</title>
+            <link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap" rel="stylesheet">
             <style>
-                body { font-family: Arial, sans-serif; padding: 20px; }
+                body { 
+                    font-family: Arial, sans-serif; 
+                    padding: 20px; 
+                }
                 @media print {
                     body { padding: 0; }
+                    .no-print { display: none; }
                 }
             </style>
         </head>
         <body>
-            <h2 style="text-align: center;">Split Product Barcodes</h2>
+            <h2 style="text-align: center;" class="no-print">Split Product Barcodes</h2>
+            <button onclick="window.print()" class="no-print" style="margin: 10px auto; display: block; padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                🖨️ Print
+            </button>
             <div style="display: flex; flex-wrap: wrap; gap: 10px;">
                 ${barcodesHTML}
             </div>
-            <script>
-                window.onload = function() {
-                    setTimeout(function() {
-                        window.print();
-                    }, 500);
-                };
-            </script>
         </body>
         </html>
     `);
-    
-    printWindow.document.close();
-}
+
+        printWindow.document.close();
+    }
+
 function closeTagSplitModal() {
     document.getElementById('tagSplitModal').classList.add('hidden');
     document.getElementById('modalOverlay').classList.add('hidden');
@@ -9152,6 +9189,398 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+    // ========== TAG SPLIT/MERGE TAB - STANDALONE IMPLEMENTATION ==========
+
+    let currentTagSplitProduct = null;
+    let tagSplitEntries = [];
+    let tagRemainingPcs = 0;
+    let tagRemainingWeight = 0;
+
+    // Initialize barcode scanner for tag split tab
+    document.addEventListener('DOMContentLoaded', function () {
+        const tagSplitInput = document.getElementById('tagSplitBarcodeInput');
+        if (tagSplitInput) {
+            tagSplitInput.addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleTagSplitBarcodeScan(this.value.trim());
+                    this.value = '';
+                }
+            });
+        }
+
+        // Enter key support for weight input
+        const weightInput = document.getElementById('tagSplitWeight');
+        if (weightInput) {
+            weightInput.addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addTagSplitEntry();
+                }
+            });
+        }
+    });
+
+    function handleTagSplitBarcodeScan(barcode) {
+        if (!barcode) return;
+
+        // Check if product is sold
+        const soldInfo = isProductSold(barcode);
+        if (soldInfo) {
+            alert(`⚠️ PRODUCT ALREADY SOLD!\n\nBarcode: ${barcode}\nBill No: ${soldInfo.billNo}\nSold Date: ${new Date(soldInfo.soldDate).toLocaleDateString('en-GB')}\n\nCannot split sold product.`);
+            return;
+        }
+
+        // Find product
+        const product = products.find(p => String(p.barcode).trim().toLowerCase() === barcode.toLowerCase());
+
+        if (!product) {
+            alert(`⚠️ Product Not Found!\n\nBarcode: ${barcode}\n\nThis product doesn't exist in inventory.`);
+            return;
+        }
+
+        if (product.pcs <= 1) {
+            alert(`⚠️ Cannot Split!\n\nThis product has only ${product.pcs} piece.\n\nSplitting requires at least 2 pieces.`);
+            return;
+        }
+
+        // Load product for splitting
+        loadTagSplitProduct(product);
+    }
+
+    function loadTagSplitProduct(product) {
+        currentTagSplitProduct = JSON.parse(JSON.stringify(product)); // Deep copy
+        tagSplitEntries = [];
+        tagRemainingPcs = product.pcs;
+        tagRemainingWeight = product.avgWt;
+
+        // Show product info
+        document.getElementById('currentTagBarcode').textContent = product.barcode;
+        document.getElementById('currentTagName').textContent = product.shortName;
+        document.getElementById('currentTagWeight').textContent = product.avgWt.toFixed(3) + 'g';
+        document.getElementById('currentTagPcs').textContent = product.pcs;
+
+        updateTagRemainingDisplay();
+        updateTagSplitEntriesTable();
+
+        // Show product section
+        document.getElementById('currentTagProduct').classList.remove('hidden');
+
+        // Focus on weight input
+        setTimeout(() => {
+            document.getElementById('tagSplitWeight').focus();
+        }, 100);
+    }
+
+    function updateTagRemainingDisplay() {
+        document.getElementById('tagRemainingPcs').textContent = tagRemainingPcs;
+        document.getElementById('tagRemainingWeight').textContent = tagRemainingWeight.toFixed(3) + 'g';
+    }
+
+    function generateTagSplitBarcode(originalBarcode, index) {
+        return `${originalBarcode}-S${index + 1}`;
+    }
+
+    function addTagSplitEntry() {
+        const weight = parseFloat(document.getElementById('tagSplitWeight').value);
+        const pcs = parseInt(document.getElementById('tagSplitPcs').value) || 1;
+
+        if (!weight || weight <= 0) {
+            alert('⚠️ Please enter a valid weight');
+            return;
+        }
+
+        if (pcs > tagRemainingPcs) {
+            alert(`⚠️ Cannot add ${pcs} pieces!\n\nOnly ${tagRemainingPcs} pieces remaining.`);
+            return;
+        }
+
+        const weightDifference = weight - tagRemainingWeight;
+        if (weightDifference > 0.001) { // 0.001g tolerance
+            alert(`⚠️ Weight exceeds remaining!\n\nEntered: ${weight.toFixed(3)}g\nRemaining: ${tagRemainingWeight.toFixed(3)}g\nExcess: ${weightDifference.toFixed(3)}g`);
+            return;
+        }
+
+        // Add entry
+        const entry = {
+            id: Date.now() + Math.random(),
+            newBarcode: generateTagSplitBarcode(currentTagSplitProduct.barcode, tagSplitEntries.length),
+            weight: weight,
+            pcs: pcs
+        };
+
+        tagSplitEntries.push(entry);
+
+        // Update remaining
+        tagRemainingPcs -= pcs;
+        tagRemainingWeight -= weight;
+
+        updateTagRemainingDisplay();
+        updateTagSplitEntriesTable();
+
+        // Clear inputs
+        document.getElementById('tagSplitWeight').value = '';
+        document.getElementById('tagSplitPcs').value = '1';
+        document.getElementById('tagSplitWeight').focus();
+    }
+
+    function updateTagSplitEntriesTable() {
+        const tbody = document.getElementById('tagSplitEntriesTableBody');
+        const count = document.getElementById('tagSplitEntriesCount');
+
+        tbody.innerHTML = '';
+        count.textContent = tagSplitEntries.length;
+
+        if (tagSplitEntries.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">No split entries yet</td></tr>';
+            return;
+        }
+
+        tagSplitEntries.forEach((entry, idx) => {
+            const row = document.createElement('tr');
+            row.className = 'border-b hover:bg-gray-50';
+
+            row.innerHTML = `
+            <td class="px-3 py-2">${idx + 1}</td>
+            <td class="px-3 py-2 font-mono text-xs font-bold text-blue-600">${entry.newBarcode}</td>
+            <td class="px-3 py-2 text-right font-bold">${entry.weight.toFixed(3)}g</td>
+            <td class="px-3 py-2 text-center">${entry.pcs}</td>
+            <td class="px-3 py-2 text-center">
+                <button onclick="removeTagSplitEntry(${idx})" 
+                    class="text-red-600 hover:text-red-800 font-bold">
+                    ✕
+                </button>
+            </td>
+        `;
+
+            tbody.appendChild(row);
+        });
+    }
+
+    function removeTagSplitEntry(index) {
+        const entry = tagSplitEntries[index];
+
+        // Restore remaining
+        tagRemainingPcs += entry.pcs;
+        tagRemainingWeight += entry.weight;
+
+        // Remove entry
+        tagSplitEntries.splice(index, 1);
+
+        updateTagRemainingDisplay();
+        updateTagSplitEntriesTable();
+    }
+
+    function completeTagSplit() {
+        if (tagSplitEntries.length === 0) {
+            alert('⚠️ No split entries added!\n\nPlease add at least one split piece.');
+            return;
+        }
+
+        if (tagRemainingPcs > 0 || Math.abs(tagRemainingWeight) > 0.001) {
+            const confirm = window.confirm(
+                `⚠️ Incomplete Split!\n\n` +
+                `Remaining Pieces: ${tagRemainingPcs}\n` +
+                `Remaining Weight: ${tagRemainingWeight.toFixed(3)}g\n\n` +
+                `Do you want to:\n` +
+                `• YES - Keep remaining as original product\n` +
+                `• NO - Cancel and continue splitting`
+            );
+
+            if (!confirm) {
+                return;
+            }
+        }
+
+        const originalBarcode = currentTagSplitProduct.barcode;
+
+        // Find original product index
+        const originalIndex = products.findIndex(p => p.barcode === originalBarcode);
+        if (originalIndex === -1) {
+            alert('❌ Error: Original product not found in inventory!');
+            return;
+        }
+
+        // Create new split products
+        const newProducts = tagSplitEntries.map(entry => ({
+            id: Date.now() + Math.random(),
+            barcode: entry.newBarcode,
+            sku: currentTagSplitProduct.sku,
+            styleCode: currentTagSplitProduct.styleCode,
+            shortName: currentTagSplitProduct.shortName,
+            size: currentTagSplitProduct.size,
+            avgWt: entry.weight,
+            purity: currentTagSplitProduct.purity,
+            mcRate: currentTagSplitProduct.mcRate,
+            mcType: currentTagSplitProduct.mcType,
+            pcs: entry.pcs,
+            boxCharges: currentTagSplitProduct.boxCharges || 0,
+            stoneCharges: currentTagSplitProduct.stoneCharges || 0,
+            metalType: currentTagSplitProduct.metalType,
+            isSold: false,
+            splitFrom: originalBarcode,
+            splitDate: new Date().toISOString()
+        }));
+
+        // Handle remaining
+        if (tagRemainingPcs > 0 && Math.abs(tagRemainingWeight) > 0.001) {
+            // Update original product with remaining
+            products[originalIndex].avgWt = tagRemainingWeight;
+            products[originalIndex].pcs = tagRemainingPcs;
+        } else {
+            // Remove original product (completely split)
+            products.splice(originalIndex, 1);
+        }
+
+        // Add new products
+        products.push(...newProducts);
+
+        // Save to localStorage
+        localStorage.setItem('products', JSON.stringify(products));
+
+        // Update display if on products tab
+        if (!document.getElementById('productsTab').classList.contains('hidden')) {
+            updateProductsTable();
+        }
+
+        // Show success message
+        const message =
+            `✅ Tag Split Completed!\n\n` +
+            `Original Barcode: ${originalBarcode}\n` +
+            `Split into: ${tagSplitEntries.length} new items\n\n` +
+            `New Barcodes:\n${newProducts.map(p => `• ${p.barcode} (${p.avgWt.toFixed(3)}g, ${p.pcs}pcs)`).join('\n')}\n\n` +
+            (tagRemainingPcs > 0 ? `Remaining: ${tagRemainingWeight.toFixed(3)}g, ${tagRemainingPcs}pcs kept in original barcode ${originalBarcode}` : `Original product ${originalBarcode} fully split and removed`);
+
+        alert(message);
+
+        // Ask to print barcodes
+        if (confirm('Do you want to print barcodes for the new split items?')) {
+            printTagSplitBarcodes(newProducts);
+        }
+
+        // Reset
+        cancelTagSplit();
+    }
+
+    function printTagSplitBarcodes(splitProducts) {
+        const printWindow = window.open('', '_blank');
+
+        if (!printWindow) {
+            alert('❌ Pop-up blocked! Please allow pop-ups for this site.');
+            return;
+        }
+
+        const barcodesHTML = splitProducts.map(product => `
+        <div style="page-break-inside: avoid; margin-bottom: 20px; border: 2px solid #333; padding: 15px; width: 280px; background: white;">
+            <div style="text-align: center; margin-bottom: 8px; font-family: 'Libre Barcode 128', cursive; font-size: 48px; letter-spacing: 3px;">
+                ${product.barcode}
+            </div>
+            <div style="text-align: center; font-family: monospace; font-size: 14px; margin-bottom: 8px; font-weight: bold; border-top: 1px solid #ccc; padding-top: 5px;">
+                ${product.barcode}
+            </div>
+            <div style="font-size: 10px; border-top: 2px solid #333; padding-top: 8px; line-height: 1.4;">
+                <div style="font-weight: bold; margin-bottom: 3px;">${product.shortName}</div>
+                <div>SKU: ${product.sku || '-'} | Style: ${product.styleCode || '-'}</div>
+                <div style="display: flex; justify-content: space-between; margin-top: 3px;">
+                    <span><strong>Weight:</strong> ${product.avgWt.toFixed(3)}g</span>
+                    <span><strong>Pcs:</strong> ${product.pcs}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span><strong>Metal:</strong> ${product.metalType.toUpperCase()}</span>
+                    <span><strong>Purity:</strong> ${product.purity}%</span>
+                </div>
+                <div style="margin-top: 3px; font-size: 8px; color: #666;">
+                    Split from: ${product.splitFrom} | ${new Date(product.splitDate).toLocaleDateString('en-GB')}
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+        printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Split Tag Barcodes - Print</title>
+            <link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap" rel="stylesheet">
+            <style>
+                body { 
+                    font-family: Arial, sans-serif; 
+                    padding: 20px; 
+                    background: #f5f5f5;
+                }
+                @media print {
+                    body { 
+                        padding: 0; 
+                        background: white;
+                    }
+                    .no-print { display: none; }
+                }
+            </style>
+        </head>
+        <body>
+            <h2 style="text-align: center; color: #333;" class="no-print">Split Product Barcodes</h2>
+            <button onclick="window.print()" class="no-print" 
+                style="margin: 15px auto; display: block; padding: 12px 24px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;">
+                🖨️ Print Barcodes
+            </button>
+            <div style="display: flex; flex-wrap: wrap; gap: 15px; justify-content: center;">
+                ${barcodesHTML}
+            </div>
+        </body>
+        </html>
+    `);
+
+        printWindow.document.close();
+    }
+
+    function cancelTagSplit() {
+        currentTagSplitProduct = null;
+        tagSplitEntries = [];
+        tagRemainingPcs = 0;
+        tagRemainingWeight = 0;
+
+        document.getElementById('currentTagProduct').classList.add('hidden');
+        document.getElementById('tagSplitWeight').value = '';
+        document.getElementById('tagSplitPcs').value = '1';
+        document.getElementById('tagSplitBarcodeInput').focus();
+    }
+
+    function showSplitHistory() {
+        const splitProducts = products.filter(p => p.splitFrom);
+
+        if (splitProducts.length === 0) {
+            alert('📊 No Split History\n\nNo products have been split yet.');
+            return;
+        }
+
+        // Group by original barcode
+        const splitGroups = {};
+        splitProducts.forEach(p => {
+            if (!splitGroups[p.splitFrom]) {
+                splitGroups[p.splitFrom] = [];
+            }
+            splitGroups[p.splitFrom].push(p);
+        });
+
+        let historyHTML = '📊 SPLIT HISTORY\n\n';
+
+        Object.keys(splitGroups).forEach(originalBarcode => {
+            const splits = splitGroups[originalBarcode];
+            const splitDate = new Date(splits[0].splitDate).toLocaleDateString('en-GB');
+
+            historyHTML += `Original: ${originalBarcode} (Split on ${splitDate})\n`;
+            historyHTML += `Split into ${splits.length} items:\n`;
+
+            splits.forEach(s => {
+                historyHTML += `  • ${s.barcode} - ${s.avgWt.toFixed(3)}g, ${s.pcs}pcs\n`;
+            });
+
+            historyHTML += '\n';
+        });
+
+        alert(historyHTML);
+    }
                     
 
 // ========== CASH ENTRY FUNCTIONS - FIXED ==========
