@@ -1173,7 +1173,7 @@
 
     <!-- Modal Overlay -->
     <div id="modalOverlay" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4"
-        onclick="event.target === this && closeModals()"></div>
+    onclick="if(event.target === this) closeModals()"></div>
     
     <!-- Rates Modal -->
     <div id="ratesModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
@@ -1416,6 +1416,129 @@
             </div>
         </div>
     </div>
+
+    <!-- Tag Split Modal -->
+<div id="tagSplitModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
+    <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-4xl w-full pointer-events-auto max-h-[90vh] overflow-y-auto"
+        onclick="event.stopPropagation()">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-2xl font-bold text-gray-800">✂️ Tag Splitting</h3>
+            <button onclick="closeTagSplitModal()" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+        </div>
+
+        <!-- Original Product Info -->
+        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-5 rounded-xl border-2 border-blue-200 mb-4">
+            <h4 class="font-bold text-blue-800 mb-3">Original Product Details</h4>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                    <p class="text-gray-600">Barcode</p>
+                    <p class="font-bold" id="splitOriginalBarcode"></p>
+                </div>
+                <div>
+                    <p class="text-gray-600">Product Name</p>
+                    <p class="font-bold" id="splitOriginalName"></p>
+                </div>
+                <div>
+                    <p class="text-gray-600">Total Weight</p>
+                    <p class="font-bold text-blue-600" id="splitOriginalWeight"></p>
+                </div>
+                <div>
+                    <p class="text-gray-600">Total Pieces</p>
+                    <p class="font-bold text-blue-600" id="splitOriginalPcs"></p>
+                </div>
+                <div>
+                    <p class="text-gray-600">Metal Type</p>
+                    <p class="font-bold capitalize" id="splitOriginalMetal"></p>
+                </div>
+                <div>
+                    <p class="text-gray-600">Purity</p>
+                    <p class="font-bold" id="splitOriginalPurity"></p>
+                </div>
+                <div>
+                    <p class="text-gray-600">MC Rate</p>
+                    <p class="font-bold" id="splitOriginalMC"></p>
+                </div>
+                <div>
+                    <p class="text-gray-600">Size</p>
+                    <p class="font-bold" id="splitOriginalSize"></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Remaining Info -->
+        <div class="bg-gradient-to-r from-orange-50 to-yellow-50 p-4 rounded-lg border-2 border-orange-300 mb-4">
+            <div class="grid grid-cols-2 gap-4">
+                <div class="text-center">
+                    <p class="text-sm text-gray-600">Remaining Pieces</p>
+                    <p class="text-3xl font-bold text-orange-600" id="splitRemainingPcs">0</p>
+                </div>
+                <div class="text-center">
+                    <p class="text-sm text-gray-600">Remaining Weight</p>
+                    <p class="text-3xl font-bold text-orange-600" id="splitRemainingWeight">0.00g</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Split Entry -->
+        <div class="bg-gray-50 p-4 rounded-lg mb-4">
+            <h4 class="font-bold text-gray-800 mb-3">Add Split Piece</h4>
+            <div class="grid grid-cols-3 gap-3">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Weight (grams) *</label>
+                    <input type="number" step="0.01" id="splitPieceWeight" 
+                        placeholder="0.00"
+                        class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Pieces</label>
+                    <input type="number" id="splitPiecePcs" value="1" min="1"
+                        class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="flex items-end">
+                    <button onclick="addSplitEntry()" 
+                        class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold">
+                        ➕ Add
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Split Entries Table -->
+        <div class="bg-white rounded-lg border mb-4">
+            <div class="bg-gray-100 px-4 py-3 border-b">
+                <h4 class="font-bold text-gray-800">Split Entries (<span id="splitEntriesCount">0</span>)</h4>
+            </div>
+            <div class="overflow-x-auto max-h-60">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50 sticky top-0">
+                        <tr>
+                            <th class="px-3 py-2 text-left">#</th>
+                            <th class="px-3 py-2 text-left">New Barcode</th>
+                            <th class="px-3 py-2 text-right">Weight (g)</th>
+                            <th class="px-3 py-2 text-center">Pieces</th>
+                            <th class="px-3 py-2 text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="splitEntriesTableBody">
+                        <!-- Will be populated -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex gap-3">
+            <button onclick="completeSplit()" 
+                class="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-lg">
+                ✅ Complete Split & Generate Barcodes
+            </button>
+            <button onclick="closeTagSplitModal()" 
+                class="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
 
 <!-- Quotation Format Selection Modal -->
 <div id="quotationFormatModal"
@@ -2322,8 +2445,7 @@ function generateSalesBillPDF() {
     const billNo = `SCB${String(billCounter).padStart(4, '0')}`;
     const date = new Date();
 
-    // SAVE BILL TO HISTORY
-    const billRecord = {
+  const billRecord = {
     id: Date.now(),
     billNo: billNo,
     quotationNo: selectedQuotationForBill.quotationNo,
@@ -2601,10 +2723,15 @@ billItems.forEach(item => {
         displayBills(savedBills);
     }
 
-                                function reprintBillByModalId() {
-                                        const billId = parseInt(document.getElementById('viewBillModal').getAttribute('data-bill-id'));
-                                        reprintBillById(billId);
-                                    }
+    function reprintBillByModalId() {
+    const modal = document.getElementById('viewBillModal');
+    const billId = modal ? parseInt(modal.getAttribute('data-bill-id')) : null;
+    if (!billId) {
+        alert('Bill ID not found!');
+        return;
+    }
+    reprintBillById(billId);
+}
 
                                     
 
@@ -2699,13 +2826,14 @@ billItems.forEach(item => {
                     });
                 }
 
-                // Auto-calculate item amount
-                ['itemWeight', 'itemRate', 'itemMcRate', 'itemPurity', 'itemBoxCharges', 'itemStoneCharges'].forEach(id => {
-                    const element = document.getElementById(id);
-                    if (element) {
-                        element.addEventListener('input', updateItemAmount);
-                    }
-                });
+                // Auto-calculate item amount (prevent duplicate listeners)
+['itemWeight', 'itemRate', 'itemMcRate', 'itemPurity', 'itemBoxCharges', 'itemStoneCharges'].forEach(id => {
+    const element = document.getElementById(id);
+    if (element && !element.hasAttribute('data-listener-added')) {
+        element.addEventListener('input', updateItemAmount);
+        element.setAttribute('data-listener-added', 'true');
+    }
+});
 
                 // Initialize Sales Bill Tab
                 refreshQuotationsList();
@@ -3107,9 +3235,10 @@ billItems.forEach(item => {
         <td class="px-4 py-3 text-right text-sm">₹${boxCharges.toFixed(2)}</td>
         <td class="px-4 py-3 text-right text-sm">₹${stoneCharges.toFixed(2)}</td>
         <td class="px-4 py-3 text-center">
-            <button onclick="editProduct(${originalIdx})" class="text-blue-600 hover:text-blue-800 font-medium mr-2">✏️</button>
-            <button onclick="deleteProduct(${originalIdx})" class="text-red-600 hover:text-red-800 font-medium">🗑️</button>
-        </td>
+        <button onclick="editProduct(${originalIdx})" class="text-blue-600 hover:text-blue-800 font-medium mr-2" title="Edit">✏️</button>
+        <button onclick="showTagSplitModal(${originalIdx})" class="text-green-600 hover:text-green-800 font-medium mr-2" title="Split Tag">✂️</button>
+        <button onclick="deleteProduct(${originalIdx})" class="text-red-600 hover:text-red-800 font-medium" title="Delete">🗑️</button>
+    </td>
     `;
         tbody.appendChild(row);
     });
@@ -4594,8 +4723,8 @@ function updateMCTypeLabel() {
         if (modal) modal.remove();
     }
 
-    function closeModals() {
-    // Hide all modals
+function closeModals() {
+    // Hide all static modals
     const modalIds = [
         'modalOverlay',
         'ratesModal',
@@ -4613,7 +4742,8 @@ function updateMCTypeLabel() {
         'viewBillModal',
         'reprintFormatModal',
         'cashEntryModal',
-        'convertQuotModal'
+        'convertQuotModal',
+        'tagSplitModal'
     ];
     
     modalIds.forEach(id => {
@@ -4625,12 +4755,33 @@ function updateMCTypeLabel() {
     });
     
     // Close dynamically created modals
-    const dynamicModals = ['cashReceiveModal', 'bankEntryModal', 'recordPaymentModal', 'addExpenseModal', 'addPurchaseModal', 'addMetalPurchaseModal'];
+    const dynamicModals = [
+        'cashReceiveModal', 
+        'bankEntryModal', 
+        'recordPaymentModal', 
+        'addExpenseModal', 
+        'addPurchaseModal', 
+        'addMetalPurchaseModal',
+        'addManualTransactionModal'
+    ];
     
     dynamicModals.forEach(id => {
         const modal = document.getElementById(id);
-        if (modal) modal.remove();
+        if (modal) {
+            try {
+                modal.remove();
+            } catch(e) {
+                console.error('Error removing modal:', id, e);
+            }
+        }
     });
+    
+    // Ensure overlay is hidden
+    const overlay = document.getElementById('modalOverlay');
+    if (overlay) {
+        overlay.classList.add('hidden');
+        overlay.classList.remove('flex');
+    }
 }
 
                 // ========== ROL MANAGEMENT FUNCTIONS ==========
@@ -5339,6 +5490,11 @@ function updateMCTypeLabel() {
             const tbody = document.getElementById('billsTableBody');
             const emptyState = document.getElementById('billsEmptyState');
 
+            if (!tbody) {
+                console.error('Bills table body not found!');
+                return;
+            }
+
             tbody.innerHTML = '';
 
             if (bills.length === 0) {
@@ -5363,36 +5519,41 @@ function updateMCTypeLabel() {
                 });
 
                 row.innerHTML = `
-        <td class="px-4 py-3 font-semibold text-green-600">${bill.billNo}</td>
-        <td class="px-4 py-3">
-            <div>${formattedDate}</div>
-            <div class="text-xs text-gray-500">${formattedTime}</div>
-        </td>
-        <td class="px-4 py-3">
-            <div class="font-medium">${bill.customer.name}</div>
-            <div class="text-xs text-gray-500">${bill.customer.mobile}</div>
-        </td>
-        <td class="px-4 py-3 text-center">
-            <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-sm">
-                ${bill.items.length} items
-            </span>
-        </td>
-        <td class="px-4 py-3 text-right">₹${bill.total.toFixed(2)}</td>
-        <td class="px-4 py-3 text-right">₹${bill.gst.toFixed(2)}</td>
-        <td class="px-4 py-3 text-right font-bold">₹${bill.netTotal.toFixed(2)}</td>
-        <td class="px-4 py-3 text-center">
-    <div class="flex gap-2 justify-center">
-        <button onclick="viewBillById(${bill.id})" 
-            class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-sm">
-            👁️ View
-        </button>
-        <button onclick="reprintBillById(${bill.id})" 
-            class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 text-sm">
-            🖨️ Reprint
-        </button>
-    </div>
-</td>
-    `;
+    <td class="px-4 py-3 font-semibold text-green-600">${bill.billNo}</td>
+    <td class="px-4 py-3">
+        <div>${formattedDate}</div>
+        <div class="text-xs text-gray-500">${formattedTime}</div>
+    </td>
+    <td class="px-4 py-3">
+        <div class="font-medium">${bill.customer.name}</div>
+        <div class="text-xs text-gray-500">${bill.customer.mobile}</div>
+    </td>
+    <td class="px-4 py-3 text-center">
+        <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-sm">
+            ${bill.items.length} items
+        </span>
+    </td>
+    <td class="px-4 py-3 text-right">₹${bill.total.toFixed(2)}</td>
+    <td class="px-4 py-3 text-right">₹${bill.gst.toFixed(2)}</td>
+    <td class="px-4 py-3 text-right font-bold">₹${bill.netTotal.toFixed(2)}</td>
+    <td class="px-4 py-3 text-center">
+        <span class="px-3 py-1 rounded-full text-xs font-bold ${bill.paymentStatus === 'paid' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}">
+            ${(bill.paymentStatus || 'unpaid').toUpperCase()}
+        </span>
+    </td>
+    <td class="px-4 py-3 text-center">
+        <div class="flex gap-2 justify-center">
+            <button onclick="viewBillById(${bill.id})" 
+                class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-sm">
+                👁️ View
+            </button>
+            <button onclick="reprintBillById(${bill.id})" 
+                class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 text-sm">
+                🖨️ Reprint
+            </button>
+        </div>
+    </td>
+`;
 
                 tbody.appendChild(row);
             });
@@ -5414,8 +5575,12 @@ function updateMCTypeLabel() {
                 document.getElementById('viewBillDate').textContent = date.toLocaleDateString('en-GB');
 
                 document.getElementById('viewBillCustomerName').textContent = bill.customer.name;
-                document.getElementById('viewBillCustomerAddress').textContent =
-                    `${bill.customer.address1}, ${bill.customer.address2}, ${bill.customer.city}`;
+                const address = [
+                    bill.customer.address1 || '',
+                    bill.customer.address2 || '',
+                    bill.customer.city || ''
+                ].filter(x => x).join(', ');
+                document.getElementById('viewBillCustomerAddress').textContent = address || 'N/A';
                 document.getElementById('viewBillCustomerMobile').textContent = bill.customer.mobile;
                 document.getElementById('viewBillRateSlab').textContent = bill.rateSlab || 'R';
 
@@ -5457,13 +5622,159 @@ function updateMCTypeLabel() {
 
         // Reprint bill by ID
         function reprintBillById(billId) {
-            const billIndex = savedBills.findIndex(b => b.id === billId);
-            if (billIndex < 0) {
-                alert('Bill not found!');
-                return;
-            }
-            reprintBillById(billIndex);
-        }
+    const bill = savedBills.find(b => b.id === billId);
+    if (!bill) {
+        alert('Bill not found!');
+        return;
+    }
+    
+    // Generate PDF using same logic as sales bill
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p', 'mm', 'a4');
+
+    const date = new Date(bill.date);
+    const formattedDate = date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    const customer = bill.customer;
+    const totalWeight = bill.items.reduce((sum, item) => sum + item.weight, 0);
+    const totalPCS = bill.items.length;
+
+    // Header
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'bold');
+    doc.text('JP JEWELLERY', 105, 15, { align: 'center' });
+
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'normal');
+    doc.text('2ND FLOOR, OLD NO.34, NEW NO.21, BOTHRA EMPORIUM', 105, 20, { align: 'center' });
+    doc.text('VEERAPPAN STREET, SOWCARPET', 105, 24, { align: 'center' });
+    doc.text('CHENNAI 600079 | 044-43593474', 105, 28, { align: 'center' });
+
+    doc.setFont(undefined, 'bold');
+    doc.text('TAX INVOICE', 105, 35, { align: 'center' });
+    doc.text('33AADFJ4897R1ZJ', 105, 39, { align: 'center' });
+
+    // Bill Info
+    doc.setFontSize(8);
+    doc.text('INVOICE No.:', 15, 48);
+    doc.setFont(undefined, 'normal');
+    doc.text(bill.billNo, 45, 48);
+
+    doc.setFont(undefined, 'bold');
+    doc.text('BILL DATE:', 150, 48);
+    doc.setFont(undefined, 'normal');
+    doc.text(formattedDate, 175, 48);
+
+    // Customer Info
+    doc.setFont(undefined, 'bold');
+    doc.setFontSize(9);
+    doc.text(customer.name.toUpperCase(), 15, 60);
+
+    doc.setFontSize(7);
+    doc.setFont(undefined, 'normal');
+    let yCustomer = 64;
+    if (customer.address1) {
+        doc.text(customer.address1, 15, yCustomer);
+        yCustomer += 4;
+    }
+    if (customer.address2) {
+        doc.text(customer.address2, 15, yCustomer);
+        yCustomer += 4;
+    }
+    if (customer.city) {
+        doc.text(customer.city, 15, yCustomer);
+        yCustomer += 4;
+    }
+    doc.text(`MOB: ${customer.mobile}`, 15, yCustomer);
+
+    // Items Table
+    const tableStartY = Math.max(yCustomer + 8, 85);
+
+    const tableData = bill.items.map((item, idx) => [
+        idx + 1,
+        item.name,
+        '711311',
+        totalPCS,
+        item.weight.toFixed(3),
+        item.purity.toFixed(1),
+        item.rate.toFixed(2),
+        item.amount.toFixed(2)
+    ]);
+
+    doc.autoTable({
+        startY: tableStartY,
+        head: [['Sl', 'ITEM', 'HSN', 'PCS', 'Weight In Gms', 'Purity', 'Rate', 'TOTAL']],
+        body: tableData,
+        theme: 'grid',
+        headStyles: {
+            fillColor: [220, 220, 220],
+            textColor: 0,
+            fontSize: 7,
+            fontStyle: 'bold',
+            halign: 'center',
+            cellPadding: 2
+        },
+        bodyStyles: {
+            fontSize: 7,
+            cellPadding: 1.5
+        },
+        columnStyles: {
+            0: { cellWidth: 10, halign: 'center' },
+            1: { cellWidth: 60, halign: 'left' },
+            2: { cellWidth: 20, halign: 'center' },
+            3: { cellWidth: 15, halign: 'center' },
+            4: { cellWidth: 25, halign: 'right' },
+            5: { cellWidth: 20, halign: 'center' },
+            6: { cellWidth: 20, halign: 'right' },
+            7: { cellWidth: 25, halign: 'right' }
+        },
+        margin: { left: 15, right: 15 }
+    });
+
+    // Totals
+    const finalY = doc.lastAutoTable.finalY + 10;
+    const cgst = bill.gst / 2;
+    const sgst = bill.gst / 2;
+
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'bold');
+    doc.text(`Total PCS: ${totalPCS}`, 15, finalY);
+    doc.text(`${totalWeight.toFixed(3)}`, 50, finalY);
+
+    const rightX = 150;
+    doc.text('GST Value:', rightX, finalY);
+    doc.setFont(undefined, 'normal');
+    doc.text(bill.total.toFixed(2), 195, finalY, { align: 'right' });
+
+    doc.setFont(undefined, 'bold');
+    doc.text('CGST@1.50%:', rightX, finalY + 5);
+    doc.setFont(undefined, 'normal');
+    doc.text(cgst.toFixed(2), 195, finalY + 5, { align: 'right' });
+
+    doc.setFont(undefined, 'bold');
+    doc.text('SGST@1.50%:', rightX, finalY + 10);
+    doc.setFont(undefined, 'normal');
+    doc.text(sgst.toFixed(2), 195, finalY + 10, { align: 'right' });
+
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'bold');
+    doc.text('Total Amount:', rightX, finalY + 17);
+    doc.text(bill.netTotal.toFixed(2), 195, finalY + 17, { align: 'right' });
+
+    // Footer
+    const footerY = finalY + 25;
+    doc.setFontSize(7);
+    doc.setFont(undefined, 'normal');
+    doc.text('BANK NAME: HDFC BANK', 15, footerY);
+    doc.text('AC NAME: JPJEWELLERY', 15, footerY + 4);
+    doc.text('AC NO: 50200016402896', 15, footerY + 8);
+    doc.text('IFSC CODE: HDFC0000214', 15, footerY + 12);
+
+    doc.setFont(undefined, 'bold');
+    doc.text('For JP JEWELLERY', 150, footerY + 10);
+
+    doc.save(`Bill_${bill.billNo}_REPRINT_${formattedDate.replace(/\//g, '-')}.pdf`);
+    alert('✅ Bill reprinted successfully!');
+}
 
    function updateBillStatistics() {
        const today = new Date();
@@ -5723,6 +6034,102 @@ function updateMCTypeLabel() {
                 XLSX.writeFile(wb, `Ledger_Transactions_${new Date().toISOString().split('T')[0]}.xlsx`);
                 alert('Transactions exported successfully!');
             }
+
+            function showAddManualTransactionModal() {
+    const modal = document.createElement('div');
+    modal.id = 'addManualTransactionModal';
+    modal.className = 'fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50';
+    modal.innerHTML = `
+        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full" onclick="event.stopPropagation()">
+            <h3 class="text-xl font-bold mb-4">➕ Add Manual Transaction</h3>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Transaction Type *</label>
+                    <select id="manualTxnType" class="w-full px-3 py-2 border rounded-lg">
+                        <option value="sale">Sale</option>
+                        <option value="purchase">Purchase</option>
+                        <option value="expense">Expense</option>
+                        <option value="cash_in">Cash In</option>
+                        <option value="cash_out">Cash Out</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-1">Amount (₹) *</label>
+                    <input type="number" step="0.01" id="manualTxnAmount" 
+                        placeholder="0.00"
+                        class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-1">Description *</label>
+                    <textarea id="manualTxnDescription" rows="2" 
+                        placeholder="Enter transaction details"
+                        class="w-full px-3 py-2 border rounded-lg"></textarea>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-1">Reference No</label>
+                    <input type="text" id="manualTxnReference" 
+                        placeholder="Optional"
+                        class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-1">Date</label>
+                    <input type="date" id="manualTxnDate" 
+                        value="${new Date().toISOString().split('T')[0]}"
+                        class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                
+                <div class="flex gap-3">
+                    <button onclick="saveManualTransaction()" 
+                        class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
+                        💾 Save
+                    </button>
+                    <button onclick="closeManualTransactionModal()" 
+                        class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
+function saveManualTransaction() {
+    const type = document.getElementById('manualTxnType').value;
+    const amount = parseFloat(document.getElementById('manualTxnAmount').value);
+    const description = document.getElementById('manualTxnDescription').value.trim();
+    const reference = document.getElementById('manualTxnReference').value.trim() || `MAN${Date.now()}`;
+    const date = document.getElementById('manualTxnDate').value;
+    
+    if (!amount || amount <= 0 || !description) {
+        alert('Please fill all required fields');
+        return;
+    }
+    
+    recordLedgerTransaction(type, {
+        amount: amount,
+        description: description,
+        reference: reference,
+        date: new Date(date).toISOString()
+    });
+    
+    closeManualTransactionModal();
+    updateLedgerDashboard();
+    showLedgerTransactions();
+    
+    alert(`✅ Transaction recorded!\n\nType: ${type}\nAmount: ₹${amount.toFixed(2)}`);
+}
+
+function closeManualTransactionModal() {
+    const modal = document.getElementById('addManualTransactionModal');
+    if (modal) modal.remove();
+}
 
         // ========== EXPENSE MANAGEMENT ==========
 
@@ -6889,98 +7296,115 @@ function updateMCTypeLabel() {
                     }
 
     // ========== CUSTOMER ACCOUNTS LEDGER ==========
-                    // FIXED VERSION - Replace entire function
-                    function showLedgerCustomerAccounts() {
-                        const container = document.getElementById('ledgerSubtabs');
+    function showLedgerCustomerAccounts() {
+    const container = document.getElementById('ledgerSubtabs');
+    if (!container) {
+        console.error('ledgerSubtabs container not found!');
+        return;
+    }
 
-                        container.innerHTML = `
-    <div class="bg-white p-6 rounded-xl shadow-lg">
-        <!-- Header stays the same -->
-        
-        <!-- Customer Accounts Grid -->
-        <div id="customerAccountsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <!-- Will be populated -->
+    container.innerHTML = `
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-gray-800">👥 Customer Accounts</h3>
+                <div class="flex gap-2">
+                    <button onclick="downloadAllCustomerLedgers()" 
+                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                        📥 Export All
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Search and Filter -->
+            <div class="bg-gray-50 p-4 rounded-lg mb-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <input type="text" id="customerLedgerSearch" 
+                        placeholder="🔍 Search by name or mobile..." 
+                        onkeyup="filterCustomerLedgers()"
+                        class="px-4 py-2 border rounded-lg">
+                    <select id="customerLedgerPeriod" onchange="filterCustomerLedgers()"
+                        class="px-4 py-2 border rounded-lg">
+                        <option value="all">All Time</option>
+                        <option value="month" selected>This Month</option>
+                        <option value="year">This Year</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Customer Accounts Grid -->
+            <div id="customerAccountsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Will be populated -->
+            </div>
+            
+            <!-- Empty State -->
+            <div id="customerAccountsEmpty" class="text-center py-12 hidden">
+                <div class="text-6xl mb-4">👥</div>
+                <h3 class="text-xl font-bold text-gray-700 mb-2">No Customer Accounts</h3>
+                <p class="text-gray-500">Generate sales bills to create customer accounts</p>
+            </div>
         </div>
-        
-        <!-- Empty State -->
-        <div id="customerAccountsEmpty" class="text-center py-12 hidden">
-            <div class="text-6xl mb-4">👥</div>
-            <h3 class="text-xl font-bold text-gray-700 mb-2">No Customer Accounts</h3>
-            <p class="text-gray-500">Generate sales bills to create customer accounts</p>
-        </div>
-    </div>
-`;
+    `;
 
-                        // ✅ Wait for DOM and retry if needed
-                        const attemptDisplay = (retries = 3) => {
-                            const grid = document.getElementById('customerAccountsGrid');
-                            if (grid) {
-                                displayCustomerAccounts();
-                            } else if (retries > 0) {
-                                setTimeout(() => attemptDisplay(retries - 1), 200);
-                            } else {
-                                console.error('Failed to load customer accounts grid');
-                            }
-                        };
-                        attemptDisplay();
-                    }
+    // Display accounts after DOM is ready
+setTimeout(() => {
+    displayCustomerAccounts();
+}, 50);
+}
 
                     // FIXED VERSION - Replace entire function
                     function displayCustomerAccounts() {
-                        const grid = document.getElementById('customerAccountsGrid');
-                        const emptyState = document.getElementById('customerAccountsEmpty');
+    const grid = document.getElementById('customerAccountsGrid');
+    const emptyState = document.getElementById('customerAccountsEmpty');
 
-                        if (!grid || !emptyState) {
-                            console.error('Grid element not found! Retrying...');
-                            // Retry after a moment
-                            setTimeout(displayCustomerAccounts, 200);
-                            return;
-                        }
+    if (!grid || !emptyState) {
+        console.error('Customer accounts UI elements not found!');
+        return;
+    }
 
-                        // Get unique customers from bills
-                        const customerMap = new Map();
+    // Get unique customers from bills
+    const customerMap = new Map();
 
-                        savedBills.forEach(bill => {
-                            const mobile = bill.customer.mobile;
-                            if (!customerMap.has(mobile)) {
-                                customerMap.set(mobile, {
-                                    customer: bill.customer,
-                                    bills: [],
-                                    totalAmount: 0,
-                                    totalPaid: 0,
-                                    balance: 0
-                                });
-                            }
+    savedBills.forEach(bill => {
+        const mobile = bill.customer.mobile;
+        if (!customerMap.has(mobile)) {
+            customerMap.set(mobile, {
+                customer: bill.customer,
+                bills: [],
+                totalAmount: 0,
+                totalPaid: 0,
+                balance: 0
+            });
+        }
 
-                            const account = customerMap.get(mobile);
-                            account.bills.push(bill);
-                            account.totalAmount += bill.netTotal;
-                            account.totalPaid += (bill.paidAmount || 0);
-                            account.balance = account.totalAmount - account.totalPaid;
-                        });
+        const account = customerMap.get(mobile);
+        account.bills.push(bill);
+        account.totalAmount += bill.netTotal;
+        account.totalPaid += (bill.paidAmount || 0);
+        account.balance = account.totalAmount - account.totalPaid;
+    });
 
-                        if (customerMap.size === 0) {
-                            grid.classList.add('hidden');
-                            emptyState.classList.remove('hidden');
-                            return;
-                        }
+    if (customerMap.size === 0) {
+        grid.classList.add('hidden');
+        emptyState.classList.remove('hidden');
+        return;
+    }
 
-                        grid.classList.remove('hidden');
-                        emptyState.classList.add('hidden');
-                        grid.innerHTML = '';
+    grid.classList.remove('hidden');
+    emptyState.classList.add('hidden');
+    grid.innerHTML = '';
 
-                        // Convert to array and sort by balance (highest first)
-                        const accounts = Array.from(customerMap.values()).sort((a, b) => b.balance - a.balance);
+    // Convert to array and sort by balance (highest first)
+    const accounts = Array.from(customerMap.values()).sort((a, b) => b.balance - a.balance);
 
-                        accounts.forEach(account => {
-                            const card = document.createElement('div');
-                            card.className = 'bg-gradient-to-br from-blue-50 to-indigo-50 p-5 rounded-xl border-2 border-blue-200 hover:shadow-lg transition cursor-pointer';
-                            card.onclick = () => viewCustomerLedger(account.customer.mobile);
+    accounts.forEach(account => {
+        const card = document.createElement('div');
+        card.className = 'bg-gradient-to-br from-blue-50 to-indigo-50 p-5 rounded-xl border-2 border-blue-200 hover:shadow-lg transition cursor-pointer';
+        card.onclick = () => viewCustomerLedger(account.customer.mobile);
 
-                            const balanceColor = account.balance > 0 ? 'text-red-600' : 'text-green-600';
-                            const balanceLabel = account.balance > 0 ? 'Outstanding' : 'Paid';
+        const balanceColor = account.balance > 0 ? 'text-red-600' : 'text-green-600';
+        const balanceLabel = account.balance > 0 ? 'Outstanding' : 'Paid';
 
-                            card.innerHTML = `
+        card.innerHTML = `
             <div class="flex justify-between items-start mb-3">
                 <div>
                     <h4 class="font-bold text-lg text-gray-800">${account.customer.name}</h4>
@@ -7011,9 +7435,9 @@ function updateMCTypeLabel() {
             </button>
         `;
 
-                            grid.appendChild(card);
-                        });
-                    }
+        grid.appendChild(card);
+    });
+}
 
 function filterCustomerLedgers() {
     const searchTerm = document.getElementById('customerLedgerSearch')?.value.toLowerCase() || '';
@@ -7258,6 +7682,10 @@ function displayCustomerLedgerTransactions(customerMobile, period = 'month') {
     
     // Calculate running balance
     let balance = 0;
+    if (!tbody) {
+    console.error('Ledger table body lost during transaction!');
+    return;
+}
     tbody.innerHTML = '';
     
     if (allTransactions.length === 0) {
@@ -7787,7 +8215,17 @@ function closePaymentModal() {
             return;
         }
 
-        const pvNo = document.getElementById('pvNumberLink').value.trim() || generatePVNumber();
+        let pvNo = document.getElementById('pvNumberLink').value.trim();
+        if (pvNo) {
+            // Validate existing PV
+            const existingPV = purchaseVouchers.find(p => p.pvNo === pvNo);
+            if (existingPV) {
+                alert(`⚠️ PV ${pvNo} already exists and is completed!\n\nPlease use a different PV number or leave blank to auto-generate.`);
+                return;
+            }
+        } else {
+            pvNo = generatePVNumber();
+        }
         const supplierName = document.getElementById('pvSupplierName').value.trim();
         const supplierInvoice = document.getElementById('pvSupplierInvoice').value.trim();
         const paymentStatus = document.getElementById('pvPaymentStatus').value;
@@ -8401,17 +8839,327 @@ function downloadAllCustomerLedgers() {
                         alert('Purchase report downloaded!');
                     }
 
-        // ========== CASH ENTRY FUNCTIONS ==========
+                    // ========== TAG SPLITTING FUNCTIONS ==========
+
+let currentSplitProduct = null;
+let splitEntries = [];
+let splitRemainingPcs = 0;
+let splitRemainingWeight = 0;
+
+function showTagSplitModal(productIndex) {
+    const product = products[productIndex];
+    
+    if (!product) {
+        alert('Product not found!');
+        return;
+    }
+    
+    if (product.pcs <= 1) {
+        alert('⚠️ Cannot split! Product has only 1 piece.\n\nTag splitting requires at least 2 pieces.');
+        return;
+    }
+    
+    // Store current product
+    currentSplitProduct = {
+        index: productIndex,
+        product: JSON.parse(JSON.stringify(product)) // Deep copy
+    };
+    
+    // Initialize
+    splitEntries = [];
+    splitRemainingPcs = product.pcs;
+    splitRemainingWeight = product.avgWt;
+    
+    // Populate modal
+    document.getElementById('splitOriginalBarcode').textContent = product.barcode;
+    document.getElementById('splitOriginalName').textContent = product.shortName;
+    document.getElementById('splitOriginalWeight').textContent = product.avgWt.toFixed(2) + 'g';
+    document.getElementById('splitOriginalPcs').textContent = product.pcs;
+    document.getElementById('splitOriginalMetal').textContent = product.metalType;
+    document.getElementById('splitOriginalPurity').textContent = product.purity + '%';
+    document.getElementById('splitOriginalMC').textContent = '₹' + product.mcRate;
+    document.getElementById('splitOriginalSize').textContent = product.size || '-';
+    
+    updateSplitRemaining();
+    updateSplitEntriesTable();
+    
+    // Show modal
+    document.getElementById('modalOverlay').classList.remove('hidden');
+    document.getElementById('modalOverlay').classList.add('flex');
+    document.getElementById('tagSplitModal').classList.remove('hidden');
+    
+    // Focus on weight input
+    setTimeout(() => {
+        document.getElementById('splitPieceWeight').focus();
+    }, 100);
+}
+
+function updateSplitRemaining() {
+    document.getElementById('splitRemainingPcs').textContent = splitRemainingPcs;
+    document.getElementById('splitRemainingWeight').textContent = splitRemainingWeight.toFixed(3) + 'g';
+}
+
+function generateSplitBarcode(originalBarcode, index) {
+    // Generate new barcode: Original-S1, Original-S2, etc.
+    return `${originalBarcode}-S${index + 1}`;
+}
+
+function addSplitEntry() {
+    const weight = parseFloat(document.getElementById('splitPieceWeight').value);
+    const pcs = parseInt(document.getElementById('splitPiecePcs').value) || 1;
+    
+    if (!weight || weight <= 0) {
+        alert('⚠️ Please enter a valid weight');
+        return;
+    }
+    
+    if (pcs > splitRemainingPcs) {
+        alert(`⚠️ Cannot add ${pcs} pieces!\n\nOnly ${splitRemainingPcs} pieces remaining.`);
+        return;
+    }
+    
+    if (weight > splitRemainingWeight) {
+        alert(`⚠️ Weight exceeds remaining!\n\nEntered: ${weight.toFixed(2)}g\nRemaining: ${splitRemainingWeight.toFixed(2)}g`);
+        return;
+    }
+    
+    // Add entry
+    const entry = {
+        id: Date.now() + Math.random(),
+        newBarcode: generateSplitBarcode(currentSplitProduct.product.barcode, splitEntries.length),
+        weight: weight,
+        pcs: pcs
+    };
+    
+    splitEntries.push(entry);
+    
+    // Update remaining
+    splitRemainingPcs -= pcs;
+    splitRemainingWeight -= weight;
+    
+    updateSplitRemaining();
+    updateSplitEntriesTable();
+    
+    // Clear inputs
+    document.getElementById('splitPieceWeight').value = '';
+    document.getElementById('splitPiecePcs').value = '1';
+    document.getElementById('splitPieceWeight').focus();
+}
+
+function updateSplitEntriesTable() {
+    const tbody = document.getElementById('splitEntriesTableBody');
+    const count = document.getElementById('splitEntriesCount');
+    
+    tbody.innerHTML = '';
+    count.textContent = splitEntries.length;
+    
+    if (splitEntries.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">No split entries yet</td></tr>';
+        return;
+    }
+    
+    splitEntries.forEach((entry, idx) => {
+        const row = document.createElement('tr');
+        row.className = 'border-b hover:bg-gray-50';
+        
+        row.innerHTML = `
+            <td class="px-3 py-2">${idx + 1}</td>
+            <td class="px-3 py-2 font-mono text-xs font-bold text-blue-600">${entry.newBarcode}</td>
+            <td class="px-3 py-2 text-right font-bold">${entry.weight.toFixed(3)}g</td>
+            <td class="px-3 py-2 text-center">${entry.pcs}</td>
+            <td class="px-3 py-2 text-center">
+                <button onclick="removeSplitEntry(${idx})" 
+                    class="text-red-600 hover:text-red-800 font-bold">
+                    ✕
+                </button>
+            </td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+}
+
+function removeSplitEntry(index) {
+    const entry = splitEntries[index];
+    
+    // Restore remaining
+    splitRemainingPcs += entry.pcs;
+    splitRemainingWeight += entry.weight;
+    
+    // Remove entry
+    splitEntries.splice(index, 1);
+    
+    updateSplitRemaining();
+    updateSplitEntriesTable();
+}
+
+function completeSplit() {
+    if (splitEntries.length === 0) {
+        alert('⚠️ No split entries added!\n\nPlease add at least one split piece.');
+        return;
+    }
+    
+    if (splitRemainingPcs > 0 || splitRemainingWeight > 0.01) {
+        const confirm = window.confirm(
+            `⚠️ Incomplete Split!\n\n` +
+            `Remaining Pieces: ${splitRemainingPcs}\n` +
+            `Remaining Weight: ${splitRemainingWeight.toFixed(2)}g\n\n` +
+            `Do you want to:\n` +
+            `• YES - Keep remaining as original product\n` +
+            `• NO - Cancel and continue splitting`
+        );
+        
+        if (!confirm) {
+            return;
+        }
+    }
+    
+    const originalProduct = currentSplitProduct.product;
+    
+    // Create new products from split entries
+    const newProducts = splitEntries.map(entry => ({
+        id: Date.now() + Math.random(),
+        barcode: entry.newBarcode,
+        sku: originalProduct.sku,
+        styleCode: originalProduct.styleCode,
+        shortName: originalProduct.shortName,
+        size: originalProduct.size,
+        avgWt: entry.weight,
+        purity: originalProduct.purity,
+        mcRate: originalProduct.mcRate,
+        mcType: originalProduct.mcType,
+        pcs: entry.pcs,
+        boxCharges: originalProduct.boxCharges || 0,
+        stoneCharges: originalProduct.stoneCharges || 0,
+        metalType: originalProduct.metalType,
+        isSold: false,
+        splitFrom: originalProduct.barcode,
+        splitDate: new Date().toISOString()
+    }));
+    
+    // Handle remaining
+    if (splitRemainingPcs > 0 && splitRemainingWeight > 0.01) {
+        // Update original product with remaining
+        products[currentSplitProduct.index].avgWt = splitRemainingWeight;
+        products[currentSplitProduct.index].pcs = splitRemainingPcs;
+    } else {
+        // Remove original product (completely split)
+        products.splice(currentSplitProduct.index, 1);
+    }
+    
+    // Add new products
+    products.push(...newProducts);
+    
+    // Save to localStorage
+    localStorage.setItem('products', JSON.stringify(products));
+    
+    // Update display
+    updateProductsTable();
+    
+    // Show success message
+    const message = 
+        `✅ Tag Split Completed!\n\n` +
+        `Original Barcode: ${originalProduct.barcode}\n` +
+        `Split into: ${splitEntries.length} new items\n\n` +
+        `New Barcodes:\n${newProducts.map(p => `• ${p.barcode} (${p.avgWt.toFixed(2)}g, ${p.pcs}pcs)`).join('\n')}\n\n` +
+        (splitRemainingPcs > 0 ? `Remaining: ${splitRemainingWeight.toFixed(2)}g, ${splitRemainingPcs}pcs kept in original` : 'Original product fully split');
+    
+    alert(message);
+    
+    // Ask to print barcodes
+    if (confirm('Do you want to print barcodes for the new split items?')) {
+        printSplitBarcodes(newProducts);
+    }
+    
+    closeTagSplitModal();
+}
+
+function printSplitBarcodes(splitProducts) {
+    // Create print window
+    const printWindow = window.open('', '_blank');
+    
+    const barcodesHTML = splitProducts.map(product => `
+        <div style="page-break-inside: avoid; margin-bottom: 20px; border: 1px solid #ccc; padding: 10px; width: 250px;">
+            <div style="text-align: center; margin-bottom: 5px;">
+                <img src="https://barcode.tec-it.com/barcode.ashx?data=${product.barcode}&code=Code128&translate-esc=on" 
+                    alt="${product.barcode}" style="max-width: 100%;">
+            </div>
+            <div style="text-align: center; font-family: monospace; font-size: 10px; margin-bottom: 5px;">
+                ${product.barcode}
+            </div>
+            <div style="font-size: 9px; border-top: 1px solid #ccc; padding-top: 5px;">
+                <div><strong>${product.shortName}</strong></div>
+                <div>SKU: ${product.sku || '-'} | Style: ${product.styleCode || '-'}</div>
+                <div>Weight: ${product.avgWt.toFixed(2)}g | Pcs: ${product.pcs}</div>
+                <div>Metal: ${product.metalType.toUpperCase()} | Purity: ${product.purity}%</div>
+            </div>
+        </div>
+    `).join('');
+    
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Split Barcodes</title>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 20px; }
+                @media print {
+                    body { padding: 0; }
+                }
+            </style>
+        </head>
+        <body>
+            <h2 style="text-align: center;">Split Product Barcodes</h2>
+            <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                ${barcodesHTML}
+            </div>
+            <script>
+                window.onload = function() {
+                    setTimeout(function() {
+                        window.print();
+                    }, 500);
+                };
+            </script>
+        </body>
+        </html>
+    `);
+    
+    printWindow.document.close();
+}
+function closeTagSplitModal() {
+    document.getElementById('tagSplitModal').classList.add('hidden');
+    document.getElementById('modalOverlay').classList.add('hidden');
+    
+    // Reset
+    currentSplitProduct = null;
+    splitEntries = [];
+    splitRemainingPcs = 0;
+    splitRemainingWeight = 0;
+    
+    document.getElementById('splitPieceWeight').value = '';
+    document.getElementById('splitPiecePcs').value = '1';
+}
+
+// Add keyboard support for split entry
+document.addEventListener('DOMContentLoaded', function() {
+    const splitWeightInput = document.getElementById('splitPieceWeight');
+    if (splitWeightInput) {
+        splitWeightInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addSplitEntry();
+            }
+        });
+    }
+});
+                    
+
+// ========== CASH ENTRY FUNCTIONS - FIXED ==========
 
 function showCashEntryModal() {
     document.getElementById('modalOverlay').classList.remove('hidden');
     document.getElementById('modalOverlay').classList.add('flex');
     document.getElementById('cashEntryModal').classList.remove('hidden');
-}
-
-function closeCashEntryModal() {
-    document.getElementById('cashEntryModal').classList.add('hidden');
-    document.getElementById('modalOverlay').classList.add('hidden');
 }
 
 function updateCashEntryFields() {
@@ -8437,6 +9185,11 @@ function updateCashEntryFields() {
             <option value="Other Payment">Other Payment</option>
         `;
     }
+}
+
+function closeCashEntryModal() {
+    document.getElementById('cashEntryModal').classList.add('hidden');
+    document.getElementById('modalOverlay').classList.add('hidden');
 }
 
 function saveCashEntry() {
@@ -8489,11 +9242,13 @@ function saveCashEntry() {
     }
 }
 
-    function showBankEntryModal() {
-        const modal = document.createElement('div');
-        modal.id = 'bankEntryModal';
-        modal.className = 'fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50';
-        modal.innerHTML = `
+// ========== BANK ENTRY FUNCTIONS - FIXED ==========
+
+function showBankEntryModal() {
+    const modal = document.createElement('div');
+    modal.id = 'bankEntryModal';
+    modal.className = 'fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50';
+    modal.innerHTML = `
         <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full" onclick="event.stopPropagation()">
             <h3 class="text-xl font-bold mb-4">🏦 Bank Entry</h3>
             
@@ -8565,13 +9320,11 @@ function saveCashEntry() {
         </div>
     `;
 
-        document.body.appendChild(modal);
+    document.body.appendChild(modal);
 
-        // Populate customer dropdown after modal is added to DOM
-        setTimeout(() => {
-            populateBankEntryCustomers();
-        }, 100);
-    }
+    populateBankEntryCustomers();
+}
+
 
     function showAddMetalPurchaseForPV() {
     const modal = document.createElement('div');
@@ -8657,6 +9410,13 @@ function saveCashEntry() {
     `;
     
     document.body.appendChild(modal);
+
+// Show overlay
+const overlay = document.getElementById('modalOverlay');
+if (overlay) {
+    overlay.classList.remove('hidden');
+    overlay.classList.add('flex');
+}
 }
 
 function saveMetalPurchaseEntry() {
@@ -8715,20 +9475,22 @@ function closeMetalPurchaseModal() {
     const modal = document.getElementById('addMetalPurchaseModal');
     if (modal) modal.remove();
 }
-    function closeBankEntryModal() {
-        const modal = document.getElementById('bankEntryModal');
-        if (modal) modal.remove();
-    }
-    function updateBankEntryType() {
-        const type = document.getElementById('bankEntryType').value;
-        const customerDiv = document.getElementById('customerSelectDiv');
 
-        if (type === 'customer_payment') {
-            customerDiv.classList.remove('hidden');
-        } else {
-            customerDiv.classList.add('hidden');
-        }
+function closeBankEntryModal() {
+    const modal = document.getElementById('bankEntryModal');
+    if (modal) modal.remove();
+}
+
+function updateBankEntryType() {
+    const type = document.getElementById('bankEntryType').value;
+    const customerDiv = document.getElementById('customerSelectDiv');
+
+    if (type === 'customer_payment') {
+        customerDiv.classList.remove('hidden');
+    } else {
+        customerDiv.classList.add('hidden');
     }
+}
 
 function populateBankEntryCustomers() {
     const select = document.getElementById('bankEntryCustomer');
@@ -8810,21 +9572,18 @@ function saveBankEntry() {
     
     switch (type) {
         case 'deposit':
-            // Cash to Bank
             recordLedgerTransaction(transactionTypes.BANK_DEPOSIT, transactionData);
             accountBalances.cash -= amount;
             accountBalances.bank += amount;
             break;
             
         case 'withdrawal':
-            // Bank to Cash
             recordLedgerTransaction(transactionTypes.BANK_WITHDRAWAL, transactionData);
             accountBalances.bank -= amount;
             accountBalances.cash += amount;
             break;
             
         case 'customer_payment':
-            // Customer payment via bank
             const customerMobile = document.getElementById('bankEntryCustomer').value;
             if (!customerMobile) {
                 alert('Please select a customer');
@@ -8837,7 +9596,6 @@ function saveBankEntry() {
                 return;
             }
             
-            // Update customer bills
             let remainingAmount = amount;
             const updatedBills = [];
             
@@ -8870,7 +9628,6 @@ function saveBankEntry() {
             break;
             
         case 'supplier_payment':
-            // Payment to supplier via bank
             recordLedgerTransaction(transactionTypes.PAYMENT_MADE, transactionData);
             accountBalances.bank -= amount;
             accountBalances.payables = Math.max(0, accountBalances.payables - amount);
@@ -8884,15 +9641,9 @@ function saveBankEntry() {
     
     alert(`✅ Bank Entry Recorded!\n\nType: ${type.replace('_', ' ').toUpperCase()}\nAmount: ₹${amount.toFixed(2)}\nReference: ${reference}`);
     
-    // Refresh ledger if visible
     if (!document.getElementById('ledgerTab').classList.contains('hidden')) {
         showLedgerTransactions();
     }
-}
-
-function closeBankEntryModal() {
-    const modal = document.getElementById('bankEntryModal');
-    if (modal) modal.remove();
 }
 
 // ========== GLOBAL ERROR HANDLER  ==========
@@ -8903,4 +9654,4 @@ window.addEventListener('error', function(e) {
             </script>
     </body>
     
-    </html>
+    </html>  
