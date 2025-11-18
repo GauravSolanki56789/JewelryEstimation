@@ -4037,15 +4037,35 @@ function saveProduct() {
             );
 
             if (existingItemIndex >= 0) {
-                alert(`⚠️ This exact item (Barcode: ${barcode}) is already added!\n${product.shortName}\nSKU: ${product.sku || 'N/A'}\n\nIf you need multiple pieces, edit the quantity manually.`);
-
+                // No alert - just highlight and scroll to existing item
                 const tableBody = document.getElementById('productTableBody');
-                if (tableBody && tableBody.children[existingItemIndex]) {
-                    const existingRow = tableBody.children[existingItemIndex];
-                    existingRow.style.backgroundColor = '#fff3cd';
-                    setTimeout(() => {
-                        existingRow.style.backgroundColor = '';
-                    }, 1000);
+                if (tableBody) {
+                    // Try to find by data-barcode attribute first (more reliable)
+                    let existingRow = Array.from(tableBody.children).find(row => 
+                        row.getAttribute('data-barcode') && 
+                        row.getAttribute('data-barcode').toLowerCase() === barcode.toLowerCase()
+                    );
+                    
+                    // Fallback to index if data-barcode not found
+                    if (!existingRow && tableBody.children[existingItemIndex]) {
+                        existingRow = tableBody.children[existingItemIndex];
+                    }
+                    
+                    if (existingRow) {
+                        // Highlight the row
+                        existingRow.style.backgroundColor = '#fff3cd';
+                        existingRow.style.transition = 'background-color 0.3s';
+                        existingRow.style.boxShadow = '0 0 10px rgba(255, 193, 7, 0.5)';
+                        
+                        // Scroll to the row
+                        existingRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        
+                        // Remove highlight after 2 seconds
+                        setTimeout(() => {
+                            existingRow.style.backgroundColor = '';
+                            existingRow.style.boxShadow = '';
+                        }, 2000);
+                    }
                 }
 
                 document.getElementById('barcodeInput').value = '';
@@ -4104,6 +4124,30 @@ function saveProduct() {
             updateItemsTable();
             updateSummary();
             clearItemForm();
+
+            // Scroll to the newly added item
+            setTimeout(() => {
+                const tableBody = document.getElementById('productTableBody');
+                if (tableBody) {
+                    // Find the row by data-item-id for more reliability
+                    const newRow = Array.from(tableBody.children).find(row => 
+                        row.getAttribute('data-item-id') == item.id
+                    ) || (tableBody.children.length > 0 ? tableBody.children[tableBody.children.length - 1] : null);
+                    
+                    if (newRow) {
+                        newRow.style.backgroundColor = '#d4edda';
+                        newRow.style.transition = 'background-color 0.3s';
+                        newRow.style.boxShadow = '0 0 10px rgba(40, 167, 69, 0.5)';
+                        newRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        
+                        // Remove highlight after 2 seconds
+                        setTimeout(() => {
+                            newRow.style.backgroundColor = '';
+                            newRow.style.boxShadow = '';
+                        }, 2000);
+                    }
+                }
+            }, 100);
 
             const barcodeInput = document.getElementById('barcodeInput');
             barcodeInput.style.backgroundColor = '#d4edda';
@@ -4255,6 +4299,10 @@ function updateMCTypeLabel() {
         items.forEach((item, index) => {
             const row = document.createElement('tr');
             row.className = 'border-b hover:bg-blue-50 transition-colors';
+            row.setAttribute('data-item-id', item.id);
+            if (item.barcode) {
+                row.setAttribute('data-barcode', item.barcode);
+            }
 
             const metalColors = {
                 'gold': 'bg-yellow-100 text-yellow-800',
@@ -4417,6 +4465,9 @@ function updateMCTypeLabel() {
     const total = items.reduce((sum, item) => sum + item.amount, 0);
     const gst = total * 0.03;
     const netTotal = total + gst;
+    const discount = window.cashReceiveDiscount || 0;
+    const advance = window.cashReceiveAdvance || 0;
+    const finalAmount = netTotal - discount + advance;
     const quotationNo = `Q${String(quotationCounter).padStart(4, '0')}`;
 
     // SAVE QUOTATION TO HISTORY
@@ -4438,6 +4489,9 @@ function updateMCTypeLabel() {
         total: total,
         gst: gst,
         netTotal: netTotal,
+        discount: discount,
+        advance: advance,
+        finalAmount: finalAmount,
         rateSlab: currentRateSlab,
         isBilled: false,
         paymentReceived: isCashReceived,
@@ -4453,15 +4507,15 @@ function updateMCTypeLabel() {
             quotationNo: quotationNo,
             customerName: currentCustomer.name,
             customerMobile: currentCustomer.mobile,
-            amount: netTotal,
-            description: `Cash received for Quotation ${quotationNo} - ${currentCustomer.name}`,
+            amount: finalAmount,
+            description: `Cash received for Quotation ${quotationNo} - ${currentCustomer.name}${discount > 0 ? ` (Discount: ₹${discount.toFixed(2)})` : ''}${advance > 0 ? ` (Advance: ₹${advance.toFixed(2)})` : ''}`,
             category: 'Sales Revenue',
             paymentMethod: 'Cash',
             reference: quotationNo
         });
         
         // Update cash balance
-        accountBalances.cash += netTotal;
+        accountBalances.cash += finalAmount;
         localStorage.setItem('accountBalances', JSON.stringify(accountBalances));
     }
 
@@ -4637,8 +4691,39 @@ function updateMCTypeLabel() {
 
     doc.setFont(undefined, 'bold');
     doc.text('NET TOTAL:', 110, finalY + 21);
-    doc.setFont(undefined, 'bold');
+    doc.setFont(undefined, 'normal');
     doc.text(netTotal.toFixed(2), 190, finalY + 21, { align: 'right' });
+    
+    // Add discount and advance if applicable
+    let yOffset = 26;
+    if (discount > 0) {
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(220, 53, 69);
+        doc.text('DISCOUNT:', 110, finalY + yOffset);
+        doc.setFont(undefined, 'normal');
+        doc.text(`-${discount.toFixed(2)}`, 190, finalY + yOffset, { align: 'right' });
+        doc.setTextColor(0, 0, 0);
+        yOffset += 5;
+    }
+    
+    if (advance > 0) {
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(0, 123, 255);
+        doc.text('ADVANCE:', 110, finalY + yOffset);
+        doc.setFont(undefined, 'normal');
+        doc.text(`+${advance.toFixed(2)}`, 190, finalY + yOffset, { align: 'right' });
+        doc.setTextColor(0, 0, 0);
+        yOffset += 5;
+    }
+    
+    if (discount > 0 || advance > 0) {
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(0, 128, 0);
+        doc.text('FINAL AMOUNT:', 110, finalY + yOffset);
+        doc.setFont(undefined, 'bold');
+        doc.text(finalAmount.toFixed(2), 190, finalY + yOffset, { align: 'right' });
+        doc.setTextColor(0, 0, 0);
+    }
 
     doc.save(`Quotation_${quotationNo}_${date.replace(/\//g, '-')}.pdf`);
 
@@ -4744,7 +4829,45 @@ function updateMCTypeLabel() {
                     <label class="block text-sm font-medium mb-1">Amount Received (₹) *</label>
                     <input type="number" step="0.01" id="cashReceivedAmount" 
                         value="${netTotal.toFixed(2)}"
-                        class="w-full px-3 py-2 border-2 border-green-300 rounded-lg text-lg font-bold">
+                        class="w-full px-3 py-2 border-2 border-green-300 rounded-lg text-lg font-bold"
+                        oninput="updateCashReceiveTotals()">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-1">Discount (₹)</label>
+                    <input type="number" step="0.01" id="cashReceiveDiscount" 
+                        value="0.00"
+                        placeholder="0.00"
+                        class="w-full px-3 py-2 border rounded-lg"
+                        oninput="updateCashReceiveTotals()">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-1">Advance Payment (₹)</label>
+                    <input type="number" step="0.01" id="cashReceiveAdvance" 
+                        value="0.00"
+                        placeholder="0.00"
+                        class="w-full px-3 py-2 border rounded-lg"
+                        oninput="updateCashReceiveTotals()">
+                </div>
+                
+                <div class="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                    <div class="flex justify-between text-sm mb-1">
+                        <span>Net Total:</span>
+                        <span class="font-semibold">₹${netTotal.toFixed(2)}</span>
+                    </div>
+                    <div class="flex justify-between text-sm mb-1" id="discountRow">
+                        <span>Discount:</span>
+                        <span class="font-semibold text-red-600" id="discountAmount">₹0.00</span>
+                    </div>
+                    <div class="flex justify-between text-sm mb-1" id="advanceRow">
+                        <span>Advance:</span>
+                        <span class="font-semibold text-blue-600" id="advanceAmount">₹0.00</span>
+                    </div>
+                    <div class="flex justify-between text-lg font-bold border-t border-blue-300 pt-2 mt-2">
+                        <span>Amount to Receive:</span>
+                        <span class="text-green-700" id="finalAmountToReceive">₹${netTotal.toFixed(2)}</span>
+                    </div>
                 </div>
                 
                 <div>
@@ -4779,17 +4902,71 @@ function updateMCTypeLabel() {
     `;
 
         document.body.appendChild(modal);
+        
+        // Initialize totals display
+        updateCashReceiveTotals();
+    }
+
+    function updateCashReceiveTotals() {
+        const netTotal = items.reduce((sum, item) => sum + item.amount, 0) * 1.03;
+        const discount = parseFloat(document.getElementById('cashReceiveDiscount')?.value || 0);
+        const advance = parseFloat(document.getElementById('cashReceiveAdvance')?.value || 0);
+        
+        const discountEl = document.getElementById('discountAmount');
+        const advanceEl = document.getElementById('advanceAmount');
+        const finalAmountEl = document.getElementById('finalAmountToReceive');
+        const discountRow = document.getElementById('discountRow');
+        const advanceRow = document.getElementById('advanceRow');
+        
+        if (discountEl) {
+            discountEl.textContent = `₹${discount.toFixed(2)}`;
+            if (discountRow) {
+                discountRow.style.display = discount > 0 ? 'flex' : 'none';
+            }
+        }
+        
+        if (advanceEl) {
+            advanceEl.textContent = `₹${advance.toFixed(2)}`;
+            if (advanceRow) {
+                advanceRow.style.display = advance > 0 ? 'flex' : 'none';
+            }
+        }
+        
+        if (finalAmountEl) {
+            const finalAmount = netTotal - discount + advance;
+            finalAmountEl.textContent = `₹${Math.max(0, finalAmount).toFixed(2)}`;
+        }
+        
+        // Update amount received field to match final amount
+        const amountReceivedEl = document.getElementById('cashReceivedAmount');
+        if (amountReceivedEl) {
+            const finalAmount = netTotal - discount + advance;
+            amountReceivedEl.value = Math.max(0, finalAmount).toFixed(2);
+        }
+    }
+
+    function closeCashReceiveModal() {
+        const modal = document.getElementById('cashReceiveModal');
+        if (modal) {
+            modal.remove();
+        }
     }
 
     function processCashReceive() {
         const amountReceived = parseFloat(document.getElementById('cashReceivedAmount').value);
         const method = document.getElementById('cashReceiveMethod').value;
         const reference = document.getElementById('cashReceiveReference').value.trim();
+        const discount = parseFloat(document.getElementById('cashReceiveDiscount')?.value || 0);
+        const advance = parseFloat(document.getElementById('cashReceiveAdvance')?.value || 0);
 
         if (!amountReceived || amountReceived <= 0) {
             alert('Please enter a valid amount');
             return;
         }
+
+        // Store discount and advance in global scope for quotation generation
+        window.cashReceiveDiscount = discount;
+        window.cashReceiveAdvance = advance;
 
         // Close modal first
         closeCashReceiveModal();

@@ -1,9 +1,15 @@
-
-
 3)Resolve all the errors .
 4)Approval system 
 5)Sample bill and bill pdf format 
-6)Some buttons in the sales bill history is not working 
+
+1)Upon repetition of the same already scanned product i should not recieve a pop up instead ,that particular product in the scanned product should be highlighted permanently and I should be taken to the highlihted product at that moment.
+2)When I type S and press enter in SKU in Manual Entry I should be able to add rings of a prticular weight and a particular mc rate/gm which I will enter in the manual entry ,but the rate ,i.e the silver rate should show automatically and upon adding in the scanned product the silver rate must also be updated there. 
+3)Similarily when I type A , (which denotes silver articles) and press enter in SKU in Manual Entry I should be able to add Silver Articles or Idols of a prticular weight and a particular mc rate/gm which I will enter in the manual entry ,but the rate ,i.e the silver rate should show automatically and upon adding in the scanned product the silver rate must also be updated there. 
+4)In the Cash Recieve - Quotation i should enter the amount recieved and the discount or advance payment should be filled up automatically based on the calculation. Btw it should also be editable . 
+5)The Rate /g should take only two decimal points upon updation of the current rates.
+6)The cash recieve - quottion is too wide , make it a bit small so that i can recieve or cancel easily .
+4)Floor Transfer New feature development
+5)Barcoding test 
 
 
 Need to make a software for Value Refrigerants also 
