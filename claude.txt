@@ -9,7 +9,7 @@
 5)The Rate /g should take only two decimal points upon updation of the current rates.
 6)The cash recieve - quottion is too wide , make it a bit small so that i can recieve or cancel easily .
 4)Floor Transfer New feature development
-5)Barcoding test 
+5)Barcoding test  
 
 
 Need to make a software for Value Refrigerants also 

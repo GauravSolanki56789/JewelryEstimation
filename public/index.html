@@ -33,7 +33,41 @@
 </style>
 </head>
 <body class="bg-gradient-to-br from-amber-50 to-orange-50 min-h-screen">
-    <div id="app" class="max-w-7xl mx-auto p-4">
+    <!-- Authentication Modal -->
+    <div id="authModal" class="fixed inset-0 flex items-center justify-center z-50 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+        <div class="bg-white p-10 rounded-lg shadow-2xl max-w-md w-full mx-4 border-2 border-gray-200">
+            <div class="text-center mb-8">
+                <div class="text-4xl font-bold text-gray-800 mb-2">Gaurav Softwares</div>
+                <div class="text-xl text-gray-600 mb-6">Jewellery Estimation</div>
+                <div class="h-1 w-24 bg-amber-600 mx-auto"></div>
+            </div>
+            <form onsubmit="event.preventDefault(); handleLogin();">
+                <div class="space-y-5">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Username</label>
+                        <input type="text" id="authUsername" required
+                            class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition" 
+                            autofocus placeholder="Enter your username">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Password</label>
+                        <input type="password" id="authPassword" required
+                            class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition" 
+                            onkeypress="if(event.key==='Enter') {event.preventDefault(); handleLogin();}" 
+                            placeholder="Enter your password">
+                    </div>
+                    <button type="submit" class="w-full px-4 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-bold text-lg shadow-lg transition transform hover:scale-105">
+                        Sign In
+                    </button>
+                </div>
+            </form>
+            <div class="mt-6 text-center text-xs text-gray-500">
+                © 2025 Gaurav Softwares. All rights reserved.
+            </div>
+        </div>
+    </div>
+
+    <div id="app" class="max-w-7xl mx-auto p-4 hidden">
         <!-- Header -->
         <div class="bg-white rounded-2xl shadow-2xl overflow-hidden mb-6">
             <div class="bg-gradient-to-r from-amber-600 to-orange-600 text-white p-6">
@@ -42,7 +76,14 @@
                         <h1 class="text-3xl font-bold mb-2">💎 Jewellery Estimation Software</h1>
                         <p class="text-amber-100" id="quotationNo">Quotation No: Q0001</p>
                     </div>
-                    <div class="flex gap-3 flex-wrap">
+                    <div class="flex gap-3 flex-wrap items-center">
+                        <div class="flex items-center gap-2 text-sm" id="userInfoSection">
+                            <span class="text-amber-100" id="currentUserName">User: Guest</span>
+                            <span id="userManagementBtn" class="hidden">
+                                <button onclick="showUserManagement()" class="px-3 py-1 bg-white text-amber-600 rounded text-xs hover:bg-amber-50">👥 Manage Users</button>
+                            </span>
+                            <button onclick="logout()" class="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700">Logout</button>
+                        </div>
                         <button onclick="showTab('billing')" id="btnBilling"
                             class="px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition">📋
                             Billing</button>
@@ -70,8 +111,6 @@
                             Split/Merge</button>
                         <button onclick="showTab('tagsearch')" id="btnTagSearch"
                             class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">🔍 Tag Search</button>
-                        <button onclick="showTab('approval')" id="btnApproval"
-                            class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">✅ Approval</button>
                         <button onclick="showTab('floor')" id="btnFloor"
                             class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">🏢 Floor</button>
                     </div>
@@ -87,10 +126,12 @@
         <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div>
                 <label class="block text-xs font-medium text-gray-700 mb-1">Customer</label>
-                <select id="customerSelect" onchange="loadCustomerDetails()"
+                <input type="text" id="customerSelect" list="customerList" 
+                    oninput="handleCustomerInput()" onchange="handleCustomerSelect()"
+                    placeholder="Type or select customer..."
                     class="w-full px-3 py-2 text-sm border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500">
-                    <option value="">-- Select --</option>
-                </select>
+                <datalist id="customerList">
+                </datalist>
             </div>
             <div>
                 <label class="block text-xs font-medium text-gray-700 mb-1">Mobile</label>
@@ -322,6 +363,8 @@
                 <button onclick="showAddProductModal()"
                     class="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-bold text-sm">➕ Add
                     Product</button>
+                <button onclick="showBulkUpdateModal()"
+                    class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-bold text-sm">⚙️ Bulk Update MC</button>
             </div>
         </div>
 
@@ -509,14 +552,24 @@
                             </select>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Date</label>
-                            <select id="quotationDateFilter" onchange="filterQuotations()"
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Remarks</label>
+                            <select id="quotationRemarksFilter" onchange="filterQuotations()"
                                 class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-                                <option value="all">All Dates</option>
-                                <option value="today">Today</option>
-                                <option value="week">This Week</option>
-                                <option value="month">This Month</option>
+                                <option value="all">All Remarks</option>
+                                <option value="rate-unfixed">Rate-Unfixed</option>
+                                <option value="approval">Approval</option>
+                                <option value="repair and polish">Repair and Polish</option>
                             </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">From Date</label>
+                            <input type="date" id="quotationFromDate" onchange="filterQuotations()"
+                                class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">To Date</label>
+                            <input type="date" id="quotationToDate" onchange="filterQuotations()"
+                                class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                         </div>
                     </div>
                 </div>
@@ -554,6 +607,7 @@
                                 <th class="px-4 py-3 text-right text-sm font-semibold">GST</th>
                                 <th class="px-4 py-3 text-right text-sm font-semibold">Net Total</th>
                                 <th class="px-4 py-3 text-center text-sm font-semibold">Status</th>
+                                <th class="px-4 py-3 text-center text-sm font-semibold">Remarks</th>
                                 <th class="px-4 py-3 text-center text-sm font-semibold">Actions</th>
                             </tr>
                         </thead>
@@ -1112,68 +1166,6 @@
     </div>
 </div>
 
-<!-- Approval Tab -->
-<div id="approvalTab" class="space-y-6 hidden">
-    <div class="bg-white p-6 rounded-xl shadow-lg">
-        <h2 class="text-2xl font-bold text-gray-800 mb-6">✅ Approval Management</h2>
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <!-- Approval Issue -->
-            <div class="bg-gradient-to-r from-orange-50 to-red-50 p-6 rounded-xl border-2 border-orange-200">
-                <h3 class="text-xl font-bold mb-4">📤 Approval Issue</h3>
-                <p class="text-sm text-gray-600 mb-4">When customer takes pieces but doesn't pay</p>
-                <div class="space-y-3">
-                    <input type="text" id="approvalIssueQuotation" placeholder="Quotation Number" 
-                        class="w-full px-3 py-2 border rounded-lg">
-                    <input type="text" id="approvalIssueCustomer" placeholder="Customer Name" 
-                        class="w-full px-3 py-2 border rounded-lg">
-                    <textarea id="approvalIssueNotes" placeholder="Notes..." 
-                        class="w-full px-3 py-2 border rounded-lg" rows="3"></textarea>
-                    <button onclick="createApprovalIssue()" 
-                        class="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-bold">
-                        Create Approval Issue
-                    </button>
-                </div>
-            </div>
-
-            <!-- Approval Return -->
-            <div class="bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-xl border-2 border-green-200">
-                <h3 class="text-xl font-bold mb-4">📥 Approval Return</h3>
-                <p class="text-sm text-gray-600 mb-4">Return items from approval issue</p>
-                <div class="space-y-3">
-                    <select id="approvalReturnIssue" class="w-full px-3 py-2 border rounded-lg">
-                        <option value="">-- Select Approval Issue --</option>
-                    </select>
-                    <textarea id="approvalReturnNotes" placeholder="Return Notes..." 
-                        class="w-full px-3 py-2 border rounded-lg" rows="3"></textarea>
-                    <button onclick="createApprovalReturn()" 
-                        class="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">
-                        Create Approval Return
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Approval Issues List -->
-        <div class="bg-white border-2 border-gray-300 rounded-xl p-6">
-            <h3 class="text-xl font-bold mb-4">📋 Approval Issues</h3>
-            <div class="overflow-x-auto">
-                <table class="w-full">
-                    <thead class="bg-gray-100">
-                        <tr>
-                            <th class="px-4 py-2 text-left">Date</th>
-                            <th class="px-4 py-2 text-left">Quotation</th>
-                            <th class="px-4 py-2 text-left">Customer</th>
-                            <th class="px-4 py-2 text-left">Notes</th>
-                            <th class="px-4 py-2 text-left">Status</th>
-                        </tr>
-                    </thead>
-                    <tbody id="approvalIssuesTableBody"></tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-</div>
 
 <!-- Floor Management Tab -->
 <div id="floorTab" class="space-y-6 hidden">
@@ -1479,6 +1471,41 @@
                     <button onclick="saveRates()"
                         class="flex-1 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-medium">Save
                         Rates</button>
+                    <button onclick="closeModals()"
+                        class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk MC Rate Update Modal -->
+    <div id="bulkUpdateModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full pointer-events-auto"
+            onclick="event.stopPropagation()">
+            <h3 class="text-xl font-bold mb-4">⚙️ Bulk Update MC Rate</h3>
+            <div class="bg-blue-50 border-l-4 border-blue-500 p-3 mb-4">
+                <p class="text-sm text-blue-800">Update MC Rate, Box Charges, or Stone Charges for all products with a specific Style Code</p>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Style Code</label>
+                    <input type="text" id="bulkStyleCode" placeholder="e.g., emerald idol" class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">MC Rate (per gram)</label>
+                    <input type="number" step="0.01" id="bulkMcRate" placeholder="Leave empty to skip" class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Box Charges</label>
+                    <input type="number" step="0.01" id="bulkBoxCharges" placeholder="Leave empty to skip" class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Stone Charges</label>
+                    <input type="number" step="0.01" id="bulkStoneCharges" placeholder="Leave empty to skip" class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="saveBulkUpdate()"
+                        class="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">Update</button>
                     <button onclick="closeModals()"
                         class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">Cancel</button>
                 </div>
@@ -1868,6 +1895,7 @@
                         <tr>
                             <th class="px-2 py-2 text-left">#</th>
                             <th class="px-2 py-2 text-left">Item</th>
+                            <th class="px-2 py-2 text-left">Barcode</th>
                             <th class="px-2 py-2 text-right">Weight</th>
                             <th class="px-2 py-2 text-right">Rate</th>
                             <th class="px-2 py-2 text-right">MC</th>
@@ -2185,6 +2213,10 @@
 
         let items = [];
         let rates = JSON.parse(localStorage.getItem('rates') || '{"gold":7500,"silver":156,"platinum":3500}');
+        // Ensure rates are numbers, not strings
+        rates.gold = parseFloat(rates.gold) || 7500;
+        rates.silver = parseFloat(rates.silver) || 156;
+        rates.platinum = parseFloat(rates.platinum) || 3500;
         let customers = JSON.parse(localStorage.getItem('customers') || '[]');
         let products = JSON.parse(localStorage.getItem('products') || '[]');
         let currentCustomer = null;
@@ -2210,9 +2242,6 @@ let tagSplitSequenceStart = 0;
         let doubleScannedBarcodes = JSON.parse(localStorage.getItem('doubleScannedBarcodes') || '[]');
         // Floor management
         let floors = JSON.parse(localStorage.getItem('floors') || '["estimation floor"]');
-        // Approval tracking
-        let approvalIssues = JSON.parse(localStorage.getItem('approvalIssues') || '[]');
-        let approvalReturns = JSON.parse(localStorage.getItem('approvalReturns') || '[]');
 
 const STATIC_MODAL_IDS = [
     'pvUploadModal',
@@ -2230,8 +2259,154 @@ const STATIC_MODAL_IDS = [
     'viewBillModal',
     'convertQuotModal',
     'reprintFormatModal',
-    'cashEntryModal'
+    'cashEntryModal',
+    'bulkUpdateModal'
 ];
+
+// ========== DIALOG SYSTEM ==========
+function showDialog(title, message, type = 'info', callback = null) {
+    const dialog = document.createElement('div');
+    dialog.className = 'fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50';
+    dialog.id = 'customDialog';
+    
+    const icon = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warning' ? '⚠️' : 'ℹ️';
+    const bgColor = type === 'error' ? 'bg-red-50 border-red-500' : type === 'success' ? 'bg-green-50 border-green-500' : type === 'warning' ? 'bg-yellow-50 border-yellow-500' : 'bg-blue-50 border-blue-500';
+    const btnColor = type === 'error' ? 'bg-red-600 hover:bg-red-700' : type === 'success' ? 'bg-green-600 hover:bg-green-700' : type === 'warning' ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-blue-600 hover:bg-blue-700';
+    
+    dialog.innerHTML = `
+        <div class="bg-white p-6 rounded-lg shadow-2xl max-w-md w-full mx-4 border-2 ${bgColor}">
+            <div class="flex items-center gap-3 mb-4">
+                <span class="text-3xl">${icon}</span>
+                <h3 class="text-xl font-bold text-gray-800">${title}</h3>
+            </div>
+            <p class="text-gray-700 mb-6">${message}</p>
+            <div class="flex justify-end">
+                <button onclick="closeDialog()" class="px-6 py-2 ${btnColor} text-white rounded-lg font-medium">
+                    OK
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(dialog);
+    
+    if (callback) {
+        setTimeout(() => {
+            closeDialog();
+            callback();
+        }, 100);
+    }
+}
+
+function showConfirmDialog(title, message, onConfirm, onCancel = null) {
+    const dialog = document.createElement('div');
+    dialog.className = 'fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50';
+    dialog.id = 'customDialog';
+    
+    dialog.innerHTML = `
+        <div class="bg-white p-6 rounded-lg shadow-2xl max-w-md w-full mx-4 border-2 border-blue-500">
+            <div class="flex items-center gap-3 mb-4">
+                <span class="text-3xl">⚠️</span>
+                <h3 class="text-xl font-bold text-gray-800">${title}</h3>
+            </div>
+            <p class="text-gray-700 mb-6">${message}</p>
+            <div class="flex justify-end gap-3">
+                <button onclick="closeDialog()" class="px-6 py-2 bg-gray-500 text-white rounded-lg font-medium hover:bg-gray-600">
+                    Cancel
+                </button>
+                <button onclick="confirmDialog()" class="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(dialog);
+    window.currentConfirmCallback = onConfirm;
+    window.currentCancelCallback = onCancel;
+}
+
+function closeDialog() {
+    const dialog = document.getElementById('customDialog');
+    if (dialog) {
+        dialog.remove();
+    }
+    window.currentConfirmCallback = null;
+    window.currentCancelCallback = null;
+}
+
+function confirmDialog() {
+    if (window.currentConfirmCallback) {
+        window.currentConfirmCallback();
+    }
+    closeDialog();
+}
+
+// Replace all alert() calls with showDialog
+const originalAlert = window.alert;
+window.alert = function(message) {
+    showDialog('Information', message, 'info');
+};
+
+// Replace all confirm() calls with showConfirmDialog
+const originalConfirm = window.confirm;
+window.confirm = function(message) {
+    let result = false;
+    showConfirmDialog('Confirmation', message, () => { result = true; }, () => { result = false; });
+    return result;
+};
+
+// ========== AUTHENTICATION ==========
+let AUTH_USERS = JSON.parse(localStorage.getItem('authUsers') || JSON.stringify({
+    'admin': { password: '123456', role: 'admin', allowedTabs: ['all'] },
+    'Gaurav': { password: '@GauravSolanki56789__', role: 'admin', allowedTabs: ['all'] }
+}));
+
+let currentUser = null;
+
+function saveAuthUsers() {
+    localStorage.setItem('authUsers', JSON.stringify(AUTH_USERS));
+}
+
+function handleLogin() {
+    const username = document.getElementById('authUsername').value.trim();
+    const password = document.getElementById('authPassword').value;
+
+    if (AUTH_USERS[username] && AUTH_USERS[username].password === password) {
+        currentUser = { 
+            username, 
+            role: AUTH_USERS[username].role,
+            allowedTabs: AUTH_USERS[username].allowedTabs || ['all']
+        };
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        document.getElementById('authModal').classList.add('hidden');
+        document.getElementById('app').classList.remove('hidden');
+        updateTabVisibility();
+    } else {
+        showDialog('Login Failed', 'Invalid username or password!', 'error');
+        document.getElementById('authPassword').value = '';
+    }
+}
+
+// Check authentication on load
+document.addEventListener('DOMContentLoaded', function() {
+    const savedUser = localStorage.getItem('currentUser');
+    if (savedUser) {
+        try {
+            currentUser = JSON.parse(savedUser);
+            if (AUTH_USERS[currentUser.username] && AUTH_USERS[currentUser.username].password) {
+                currentUser.allowedTabs = AUTH_USERS[currentUser.username].allowedTabs || ['all'];
+                document.getElementById('authModal').classList.add('hidden');
+                document.getElementById('app').classList.remove('hidden');
+                updateTabVisibility();
+                return;
+            }
+        } catch(e) {}
+    }
+    // Show auth modal if not authenticated
+    document.getElementById('authModal').classList.remove('hidden');
+    document.getElementById('app').classList.add('hidden');
+});
 
         // ========== ACCOUNTS LEDGER DATA STRUCTURES ==========
 
@@ -3073,6 +3248,12 @@ billItems.forEach(item => {
                 }
 
         function showTab(tab) {
+                // Check if user has access to this tab
+                if (currentUser && !currentUser.allowedTabs.includes('all') && !currentUser.allowedTabs.includes(tab)) {
+                    showDialog('Access Denied', 'You do not have permission to access this tab.', 'error');
+                    return;
+                }
+                
                 // Hide all tabs
                 document.getElementById('billingTab').classList.add('hidden');
                 document.getElementById('productsTab').classList.add('hidden');
@@ -3085,7 +3266,6 @@ billItems.forEach(item => {
                 document.getElementById('pvTab').classList.add('hidden'); 
                 document.getElementById('tagsplitTab').classList.add('hidden');
                 document.getElementById('tagsearchTab').classList.add('hidden');
-                document.getElementById('approvalTab').classList.add('hidden');
                 document.getElementById('floorTab').classList.add('hidden');
 
                 // Reset all buttons
@@ -3100,7 +3280,6 @@ billItems.forEach(item => {
                 document.getElementById('btnPV').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition'; 
                 document.getElementById('btnTagSplit').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
                 document.getElementById('btnTagSearch').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
-                document.getElementById('btnApproval').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
                 document.getElementById('btnFloor').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
 
                 if (tab === 'billing') {
@@ -3165,11 +3344,6 @@ billItems.forEach(item => {
                             searchInput.focus();
                         }
                     }, 100);
-                } else if (tab === 'approval') {
-                    document.getElementById('approvalTab').classList.remove('hidden');
-                    document.getElementById('btnApproval').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
-                    updateApprovalIssuesTable();
-                    updateApprovalReturnDropdown();
                 } else if (tab === 'floor') {
                     document.getElementById('floorTab').classList.remove('hidden');
                     document.getElementById('btnFloor').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
@@ -3179,9 +3353,9 @@ billItems.forEach(item => {
             }
 
         function updateRatesDisplay() {
-                document.getElementById('goldRate').textContent = `₹${rates.gold}/gm`;
-                document.getElementById('silverRate').textContent = `₹${rates.silver.toFixed(2)}/gm`;
-                document.getElementById('platinumRate').textContent = `₹${rates.platinum}/gm`;
+                document.getElementById('goldRate').textContent = `₹${parseFloat(rates.gold).toFixed(2)}/gm`;
+                document.getElementById('silverRate').textContent = `₹${parseFloat(rates.silver).toFixed(2)}/gm`;
+                document.getElementById('platinumRate').textContent = `₹${parseFloat(rates.platinum).toFixed(2)}/gm`;
             }
 
         function showRatesModal() {
@@ -3232,10 +3406,10 @@ billItems.forEach(item => {
                 const silverInput = parseFloat(document.getElementById('rateSilver').value) || 0;
                 const platinumInput = parseFloat(document.getElementById('ratePlatinum').value) || 0;
 
-                // Apply 3% discount for silver (wholesale)
-                rates.gold = parseFloat(goldInput).toFixed(2);
-                rates.silver = parseFloat(silverInput * 0.97).toFixed(2); // 3% discount
-                rates.platinum = parseFloat(platinumInput).toFixed(2);
+                // Apply 3% discount for silver (wholesale) - ensure numbers, not strings
+                rates.gold = parseFloat(goldInput);
+                rates.silver = parseFloat(silverInput * 0.97); // 3% discount
+                rates.platinum = parseFloat(platinumInput);
 
                 localStorage.setItem('rates', JSON.stringify(rates));
                 updateRatesDisplay();
@@ -3264,29 +3438,72 @@ billItems.forEach(item => {
                 }
 
                 closeModals();
-                alert(`✅ Rates Updated!\n\nGold: ₹${rates.gold}/gm\nSilver: ₹${rates.silver}/gm (3% wholesale discount applied)\nPlatinum: ₹${rates.platinum}/gm\n\n${updatedCount} items recalculated.`);
+                alert(`✅ Rates Updated!\n\nGold: ₹${parseFloat(rates.gold).toFixed(2)}/gm\nSilver: ₹${parseFloat(rates.silver).toFixed(2)}/gm (3% wholesale discount applied)\nPlatinum: ₹${parseFloat(rates.platinum).toFixed(2)}/gm\n\n${updatedCount} items recalculated.`);
             }
 
         function updateCustomerDropdown() {
-            const select = document.getElementById('customerSelect');
-            select.innerHTML = '<option value="">-- Select Customer --</option>';
-            customers.forEach((customer, idx) => {
+            const datalist = document.getElementById('customerList');
+            datalist.innerHTML = '';
+            customers.forEach((customer) => {
                 const option = document.createElement('option');
-                option.value = idx;
-                option.textContent = customer.name;
-                select.appendChild(option);
+                option.value = customer.name;
+                option.setAttribute('data-customer-idx', customers.indexOf(customer));
+                datalist.appendChild(option);
             });
         }
 
+        function handleCustomerInput() {
+            const input = document.getElementById('customerSelect');
+            const customerName = input.value.trim();
+            if (!customerName) {
+                document.getElementById('customerDetailsDisplay').classList.add('hidden');
+                document.getElementById('customerMobile').value = '';
+                currentCustomer = null;
+                return;
+            }
+            const customer = customers.find(c => c.name.toLowerCase() === customerName.toLowerCase());
+            if (customer) {
+                loadCustomerByObject(customer);
+            }
+        }
+
+        function handleCustomerSelect() {
+            const input = document.getElementById('customerSelect');
+            const customerName = input.value.trim();
+            const customer = customers.find(c => c.name.toLowerCase() === customerName.toLowerCase());
+            if (customer) {
+                loadCustomerByObject(customer);
+            }
+        }
+
+        function loadCustomerByObject(customer) {
+            currentCustomer = customer;
+            document.getElementById('custName').textContent = customer.name;
+            document.getElementById('custAddress').textContent = `${customer.address1}, ${customer.address2}, ${customer.city}`;
+            document.getElementById('customerMobile').value = customer.mobile;
+            document.getElementById('customerDetailsDisplay').classList.remove('hidden');
+            updateRateSlabInfo();
+            if (items.length > 0) {
+                recalculateItemsWithRateSlab();
+            }
+        }
+
         function loadCustomerDetails() {
-                const idx = document.getElementById('customerSelect').value;
-                if (idx === '') {
+                const customerName = document.getElementById('customerSelect').value.trim();
+                if (!customerName) {
                     document.getElementById('customerDetailsDisplay').classList.add('hidden');
                     document.getElementById('customerMobile').value = '';
                     currentCustomer = null;
                     return;
                 }
-                currentCustomer = customers[idx];
+                const customer = customers.find(c => c.name.toLowerCase() === customerName.toLowerCase());
+                if (customer) {
+                    loadCustomerByObject(customer);
+                } else {
+                    document.getElementById('customerDetailsDisplay').classList.add('hidden');
+                    document.getElementById('customerMobile').value = '';
+                    currentCustomer = null;
+                }
                 document.getElementById('custName').textContent = currentCustomer.name;
                 document.getElementById('custAddress').textContent = `${currentCustomer.address1}, ${currentCustomer.address2}, ${currentCustomer.city}`;
                 document.getElementById('customerMobile').value = currentCustomer.mobile;
@@ -4033,6 +4250,72 @@ function saveProduct() {
             document.getElementById('bulkUploadModal').classList.remove('hidden');
         }
 
+        function showBulkUpdateModal() {
+            document.getElementById('bulkStyleCode').value = '';
+            document.getElementById('bulkMcRate').value = '';
+            document.getElementById('bulkBoxCharges').value = '';
+            document.getElementById('bulkStoneCharges').value = '';
+            document.getElementById('modalOverlay').classList.remove('hidden');
+            document.getElementById('modalOverlay').classList.add('flex');
+            document.getElementById('bulkUpdateModal').classList.remove('hidden');
+        }
+
+        function saveBulkUpdate() {
+            const styleCode = document.getElementById('bulkStyleCode').value.trim();
+            const mcRate = document.getElementById('bulkMcRate').value;
+            const boxCharges = document.getElementById('bulkBoxCharges').value;
+            const stoneCharges = document.getElementById('bulkStoneCharges').value;
+
+            if (!styleCode) {
+                alert('Please enter a Style Code');
+                return;
+            }
+
+            const matchingProducts = products.filter(p => p.styleCode && p.styleCode.toLowerCase() === styleCode.toLowerCase());
+            
+            if (matchingProducts.length === 0) {
+                alert(`No products found with Style Code: ${styleCode}`);
+                return;
+            }
+
+            let updatedCount = 0;
+            matchingProducts.forEach(product => {
+                let updated = false;
+                
+                if (mcRate && mcRate.trim() !== '') {
+                    product.mcRate = parseFloat(mcRate);
+                    updated = true;
+                }
+                
+                if (boxCharges && boxCharges.trim() !== '') {
+                    product.boxCharges = parseFloat(boxCharges);
+                    updated = true;
+                }
+                
+                if (stoneCharges && stoneCharges.trim() !== '') {
+                    product.stoneCharges = parseFloat(stoneCharges);
+                    updated = true;
+                }
+
+                if (updated) {
+                    const productIndex = products.findIndex(p => p.id === product.id);
+                    if (productIndex >= 0) {
+                        products[productIndex] = product;
+                        updatedCount++;
+                    }
+                }
+            });
+
+            if (updatedCount > 0) {
+                localStorage.setItem('products', JSON.stringify(products));
+                updateProductsTable();
+                closeModals();
+                alert(`✅ Updated ${updatedCount} product(s) with Style Code: ${styleCode}`);
+            } else {
+                alert('No fields were updated. Please enter at least one value.');
+            }
+        }
+
         function handleExcelUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -4265,7 +4548,8 @@ function saveProduct() {
                 return;
             }
             
-            // Move product to estimation floor when scanned for quotation
+            // Store original floor and move product to estimation floor when scanned for quotation
+            const originalFloor = product.floor || 'estimation floor';
             if (product.floor && product.floor !== 'estimation floor') {
                 product.floor = 'estimation floor';
                 const productIndex = products.findIndex(p => p.id === product.id);
@@ -4321,6 +4605,7 @@ function saveProduct() {
                 metalType: product.metalType,
                 boxCharges: 0,
                 stoneCharges: 0,
+                originalFloor: originalFloor, // Store original floor for restoration
                 id: Date.now()
             };
 
@@ -5620,6 +5905,7 @@ function updateMCTypeLabel() {
                                     const date = new Date(quotation.date).toLocaleDateString('en-GB');
                                     const itemCount = quotation.items.length;
 
+                                    const remarksValue = quotation.remarks || '';
                                     row.innerHTML = `
     <td class="px-4 py-3 font-mono text-sm font-bold text-blue-600">${quotation.quotationNo}</td>
     <td class="px-4 py-3 text-sm">${date}</td>
@@ -5635,8 +5921,19 @@ function updateMCTypeLabel() {
                                         }
     </td>
     <td class="px-4 py-3 text-center">
+        <select onchange="updateQuotationRemarks(${quotation.id}, this.value)" 
+            class="px-2 py-1 text-xs border rounded-lg focus:ring-2 focus:ring-blue-500">
+            <option value="">-- Select --</option>
+            <option value="rate-unfixed" ${remarksValue === 'rate-unfixed' ? 'selected' : ''}>Rate-Unfixed</option>
+            <option value="approval" ${remarksValue === 'approval' ? 'selected' : ''}>Approval</option>
+            <option value="repair and polish" ${remarksValue === 'repair and polish' ? 'selected' : ''}>Repair and Polish</option>
+        </select>
+    </td>
+    <td class="px-4 py-3 text-center">
         <button onclick="viewQuotationDetails(${quotation.id})" 
             class="text-blue-600 hover:text-blue-800 font-medium mr-2" title="View">👁️</button>
+        <button onclick="editQuotation(${quotation.id})" 
+            class="text-green-600 hover:text-green-800 font-medium mr-2" title="Edit">✏️</button>
         <button onclick="deleteQuotation(${quotation.id})" 
             class="text-red-600 hover:text-red-800 font-medium" title="Delete">🗑️</button>
     </td>
@@ -5720,6 +6017,7 @@ function updateMCTypeLabel() {
                                     row.innerHTML = `
             <td class="px-2 py-2">${idx + 1}</td>
             <td class="px-2 py-2">${item.name}</td>
+            <td class="px-2 py-2 font-mono text-xs">${item.barcode || '-'}</td>
             <td class="px-2 py-2 text-right">${item.weight.toFixed(2)}g</td>
             <td class="px-2 py-2 text-right">₹${item.rate}</td>
             <td class="px-2 py-2 text-right">₹${item.mcRate}</td>
@@ -5739,14 +6037,94 @@ function updateMCTypeLabel() {
                                 document.getElementById('viewQuotationModal').classList.remove('hidden');
                             }
 
+                            function updateQuotationRemarks(id, remarks) {
+                                const quotation = savedQuotations.find(q => q.id === id);
+                                if (quotation) {
+                                    quotation.remarks = remarks;
+                                    localStorage.setItem('savedQuotations', JSON.stringify(savedQuotations));
+                                }
+                            }
+
+                            function editQuotation(id) {
+                                const quotation = savedQuotations.find(q => q.id === id);
+                                if (!quotation) return;
+
+                                // Switch to billing tab
+                                showTab('billing');
+
+                                // Load customer - set the input field value to customer name
+                                const customer = customers.find(c => c.name === quotation.customer.name);
+                                if (customer) {
+                                    document.getElementById('customerSelect').value = customer.name;
+                                    loadCustomerByObject(customer);
+                                }
+
+                                // Load items into billing
+                                items = quotation.items.map(item => ({
+                                    ...item,
+                                    id: Date.now() + Math.random() // New IDs for editing
+                                }));
+
+                                // Update rate slab
+                                currentRateSlab = quotation.rateSlab || 'R';
+                                document.getElementById('rateSlab').value = currentRateSlab;
+                                updateRateSlabInfo();
+
+                                // Recalculate with current rates
+                                items.forEach(item => {
+                                    if (item.metalType) {
+                                        const currentRate = parseFloat(rates[item.metalType] || rates.silver);
+                                        item.rate = parseFloat(currentRate.toFixed(2));
+                                        const originalMCRate = item.originalMcRate || parseFloat(item.mcRate);
+                                        const adjustedMCRate = getAdjustedMCRate(originalMCRate);
+                                        item.mcRate = parseFloat(adjustedMCRate.toFixed(2));
+                                        
+                                        if (item.mcType === 'PieceCost') {
+                                            item.amount = (item.rate * item.weight) + item.mcRate + (item.boxCharges || 0) + (item.stoneCharges || 0);
+                                        } else {
+                                            item.amount = (item.rate + item.mcRate) * item.weight + (item.boxCharges || 0) + (item.stoneCharges || 0);
+                                        }
+                                    }
+                                });
+
+                                updateItemsTable();
+                                updateSummary();
+
+                                // Store quotation ID for update
+                                window.editingQuotationId = id;
+
+                                alert(`Quotation ${quotation.quotationNo} loaded for editing. Make your changes and save as a new quotation or update existing.`);
+                            }
+
                             function deleteQuotation(id) {
                                 if (!confirm('Are you sure you want to delete this quotation?')) return;
+
+                                const quotation = savedQuotations.find(q => q.id === id);
+                                if (!quotation) return;
+
+                                // Return items to their original floors
+                                quotation.items.forEach(item => {
+                                    if (item.barcode && item.originalFloor) {
+                                        const product = products.find(p => p.barcode === item.barcode);
+                                        if (product) {
+                                            product.floor = item.originalFloor;
+                                            const productIndex = products.findIndex(p => p.id === product.id);
+                                            if (productIndex >= 0) {
+                                                products[productIndex] = product;
+                                            }
+                                        }
+                                    }
+                                });
+                                
+                                if (quotation.items.some(item => item.barcode && item.originalFloor)) {
+                                    localStorage.setItem('products', JSON.stringify(products));
+                                }
 
                                 savedQuotations = savedQuotations.filter(q => q.id !== id);
                                 localStorage.setItem('savedQuotations', JSON.stringify(savedQuotations));
 
                                 loadQuotationsHistory();
-                                alert('Quotation deleted successfully!');
+                                alert('Quotation deleted successfully! Items returned to original floors.');
                             }
 
                             function downloadAllQuotations() {
@@ -8034,7 +8412,7 @@ function viewCustomerLedger(customerMobile) {
                         class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
                         💰 Record Payment
                     </button>
-                    <button onclick="downloadCustomerLedger('${customerMobile}')" 
+                    <button onclick="showCustomerLedgerDownloadOptions('${customerMobile}')" 
                         class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                         📥 Download
                     </button>
@@ -9208,15 +9586,95 @@ function uploadStockForPendingPV(pvNo) {
                         alert('PV Report downloaded!');
                     }
 
-function downloadCustomerLedger(customerMobile) {
-    const customer = savedBills.find(b => b.customer.mobile === customerMobile)?.customer;
-    if (!customer) return;
+function showCustomerLedgerDownloadOptions(customerMobile) {
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50';
+    modal.id = 'ledgerDownloadModal';
     
-    const customerBills = savedBills.filter(bill => bill.customer.mobile === customerMobile);
-    const paymentTransactions = ledgerTransactions.filter(txn => 
+    const currentYear = new Date().getFullYear();
+    let yearOptions = '';
+    for (let y = currentYear; y >= 2020; y--) {
+        yearOptions += `<option value="${y}">Year ${y}</option>`;
+    }
+    
+    modal.innerHTML = `
+        <div class="bg-white p-6 rounded-lg shadow-2xl max-w-md w-full mx-4">
+            <h3 class="text-xl font-bold mb-4">Download Customer Ledger</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Select Period</label>
+                    <select id="ledgerPeriodSelect" class="w-full px-3 py-2 border rounded-lg">
+                        <option value="all">All Time</option>
+                        <option value="month">This Month</option>
+                        <option value="year">This Year</option>
+                        <option value="2024">Year 2024</option>
+                        ${yearOptions}
+                    </select>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="closeLedgerDownloadModal()" class="flex-1 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                        Cancel
+                    </button>
+                    <button onclick="downloadCustomerLedgerWithFilter('${customerMobile}')" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        Download
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
+function closeLedgerDownloadModal() {
+    const modal = document.getElementById('ledgerDownloadModal');
+    if (modal) modal.remove();
+}
+
+function downloadCustomerLedgerWithFilter(customerMobile) {
+    const period = document.getElementById('ledgerPeriodSelect').value;
+    downloadCustomerLedger(customerMobile, period);
+    closeLedgerDownloadModal();
+}
+
+function downloadCustomerLedger(customerMobile, period = 'all') {
+    const customer = savedBills.find(b => b.customer.mobile === customerMobile)?.customer;
+    if (!customer) {
+        showDialog('Error', 'Customer not found!', 'error');
+        return;
+    }
+    
+    let customerBills = savedBills.filter(bill => bill.customer.mobile === customerMobile);
+    let paymentTransactions = ledgerTransactions.filter(txn => 
         txn.type === transactionTypes.PAYMENT_RECEIVED && 
         txn.customerMobile === customerMobile
     );
+    
+    // Apply date filter
+    const now = new Date();
+    let startDate = null;
+    
+    if (period === 'month') {
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    } else if (period === 'year') {
+        startDate = new Date(now.getFullYear(), 0, 1);
+    } else if (period && period !== 'all') {
+        startDate = new Date(parseInt(period), 0, 1);
+        const endDate = new Date(parseInt(period), 11, 31, 23, 59, 59);
+        customerBills = customerBills.filter(bill => {
+            const billDate = new Date(bill.date);
+            return billDate >= startDate && billDate <= endDate;
+        });
+        paymentTransactions = paymentTransactions.filter(txn => {
+            const txnDate = new Date(txn.date);
+            return txnDate >= startDate && txnDate <= endDate;
+        });
+    }
+    
+    if (startDate && period !== 'all' && !period.match(/^\d{4}$/)) {
+        customerBills = customerBills.filter(bill => new Date(bill.date) >= startDate);
+        paymentTransactions = paymentTransactions.filter(txn => new Date(txn.date) >= startDate);
+    }
     
     const wb = XLSX.utils.book_new();
     
@@ -10366,145 +10824,6 @@ function searchTag() {
 }
 
 // ========== APPROVAL FUNCTIONS ==========
-function createApprovalIssue() {
-    const quotationNo = document.getElementById('approvalIssueQuotation').value.trim();
-    const customerName = document.getElementById('approvalIssueCustomer').value.trim();
-    const notes = document.getElementById('approvalIssueNotes').value.trim();
-    
-    if (!quotationNo || !customerName) {
-        alert('Please enter quotation number and customer name');
-        return;
-    }
-    
-    // Find quotation
-    const quotation = savedQuotations.find(q => q.quotationNo === quotationNo);
-    if (!quotation) {
-        alert('Quotation not found!');
-        return;
-    }
-    
-    if (quotation.customer.name.toLowerCase() !== customerName.toLowerCase()) {
-        alert('Customer name does not match quotation!');
-        return;
-    }
-    
-    const approvalIssue = {
-        id: Date.now(),
-        quotationNo: quotationNo,
-        quotationId: quotation.id,
-        customerName: customerName,
-        customerMobile: quotation.customer.mobile,
-        date: new Date().toISOString(),
-        notes: notes,
-        status: 'active',
-        items: quotation.items.map(item => ({
-            barcode: item.barcode,
-            name: item.name,
-            weight: item.weight
-        }))
-    };
-    
-    approvalIssues.push(approvalIssue);
-    localStorage.setItem('approvalIssues', JSON.stringify(approvalIssues));
-    
-    // Clear form
-    document.getElementById('approvalIssueQuotation').value = '';
-    document.getElementById('approvalIssueCustomer').value = '';
-    document.getElementById('approvalIssueNotes').value = '';
-    
-    updateApprovalIssuesTable();
-    alert('✅ Approval issue created successfully!');
-}
-
-function createApprovalReturn() {
-    const issueId = parseInt(document.getElementById('approvalReturnIssue').value);
-    const notes = document.getElementById('approvalReturnNotes').value.trim();
-    
-    if (!issueId) {
-        alert('Please select an approval issue');
-        return;
-    }
-    
-    const issue = approvalIssues.find(ai => ai.id === issueId);
-    if (!issue) {
-        alert('Approval issue not found!');
-        return;
-    }
-    
-    if (issue.status !== 'active') {
-        alert('This approval issue is already closed!');
-        return;
-    }
-    
-    const approvalReturn = {
-        id: Date.now(),
-        issueId: issueId,
-        quotationNo: issue.quotationNo,
-        customerName: issue.customerName,
-        returnDate: new Date().toISOString(),
-        notes: notes
-    };
-    
-    approvalReturns.push(approvalReturn);
-    localStorage.setItem('approvalReturns', JSON.stringify(approvalReturns));
-    
-    // Mark issue as returned
-    issue.status = 'returned';
-    localStorage.setItem('approvalIssues', JSON.stringify(approvalIssues));
-    
-    // Clear form
-    document.getElementById('approvalReturnIssue').value = '';
-    document.getElementById('approvalReturnNotes').value = '';
-    
-    updateApprovalIssuesTable();
-    updateApprovalReturnDropdown();
-    alert('✅ Approval return recorded successfully!');
-}
-
-function updateApprovalIssuesTable() {
-    const tbody = document.getElementById('approvalIssuesTableBody');
-    if (!tbody) return;
-    
-    tbody.innerHTML = '';
-    
-    if (approvalIssues.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-3 text-center text-gray-500">No approval issues</td></tr>';
-        return;
-    }
-    
-    approvalIssues.forEach(issue => {
-        const row = document.createElement('tr');
-        row.className = 'border-b hover:bg-gray-50';
-        const date = new Date(issue.date).toLocaleDateString('en-GB');
-        const statusColor = issue.status === 'active' ? 'text-orange-600' : 'text-green-600';
-        const statusText = issue.status === 'active' ? 'Active' : 'Returned';
-        
-        row.innerHTML = `
-            <td class="px-4 py-2">${date}</td>
-            <td class="px-4 py-2 font-bold">${issue.quotationNo}</td>
-            <td class="px-4 py-2">${issue.customerName}</td>
-            <td class="px-4 py-2">${issue.notes || '-'}</td>
-            <td class="px-4 py-2"><span class="font-bold ${statusColor}">${statusText}</span></td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-function updateApprovalReturnDropdown() {
-    const select = document.getElementById('approvalReturnIssue');
-    if (!select) return;
-    
-    select.innerHTML = '<option value="">-- Select Approval Issue --</option>';
-    
-    approvalIssues
-        .filter(issue => issue.status === 'active')
-        .forEach(issue => {
-            const option = document.createElement('option');
-            option.value = issue.id;
-            option.textContent = `${issue.quotationNo} - ${issue.customerName}`;
-            select.appendChild(option);
-        });
-}
 
 // ========== FLOOR MANAGEMENT FUNCTIONS ==========
 function createFloor() {
@@ -10557,11 +10876,11 @@ function deleteFloor(floorName) {
 }
 
 function transferProductFloor() {
-    const barcode = document.getElementById('transferBarcodeInput').value.trim();
+    const barcodeInput = document.getElementById('transferBarcodeInput').value.trim();
     const fromFloor = document.getElementById('transferFromFloor').value;
     const toFloor = document.getElementById('transferToFloor').value;
     
-    if (!barcode || !fromFloor || !toFloor) {
+    if (!barcodeInput || !fromFloor || !toFloor) {
         alert('Please fill all fields');
         return;
     }
@@ -10571,27 +10890,49 @@ function transferProductFloor() {
         return;
     }
     
-    const product = products.find(p => p.barcode && p.barcode.toLowerCase() === barcode.toLowerCase());
-    if (!product) {
-        alert('Product not found!');
+    // Support multiple barcodes separated by comma, newline, or space
+    const barcodes = barcodeInput.split(/[,\n\s]+/).map(b => b.trim()).filter(b => b);
+    
+    if (barcodes.length === 0) {
+        alert('Please enter at least one barcode');
         return;
     }
     
-    if (product.floor !== fromFloor) {
-        alert(`Product is not in "${fromFloor}". Current floor: ${product.floor || 'Not assigned'}`);
-        return;
-    }
+    let successCount = 0;
+    let errorMessages = [];
     
-    product.floor = toFloor;
-    const productIndex = products.findIndex(p => p.id === product.id);
-    if (productIndex >= 0) {
-        products[productIndex] = product;
+    barcodes.forEach(barcode => {
+        const product = products.find(p => p.barcode && p.barcode.toLowerCase() === barcode.toLowerCase());
+        if (!product) {
+            errorMessages.push(`Barcode ${barcode}: Product not found!`);
+            return;
+        }
+        
+        if (product.floor !== fromFloor) {
+            errorMessages.push(`Barcode ${barcode}: Product is not in "${fromFloor}". Current floor: ${product.floor || 'Not assigned'}`);
+            return;
+        }
+        
+        product.floor = toFloor;
+        const productIndex = products.findIndex(p => p.id === product.id);
+        if (productIndex >= 0) {
+            products[productIndex] = product;
+            successCount++;
+        }
+    });
+    
+    if (successCount > 0) {
         localStorage.setItem('products', JSON.stringify(products));
+        updateFloorsTable();
     }
     
     document.getElementById('transferBarcodeInput').value = '';
-    updateFloorsTable();
-    alert(`✅ Product transferred from "${fromFloor}" to "${toFloor}"`);
+    
+    if (errorMessages.length > 0) {
+        alert(`✅ ${successCount} product(s) transferred successfully!\n\nErrors:\n${errorMessages.join('\n')}`);
+    } else {
+        alert(`✅ ${successCount} product(s) transferred from "${fromFloor}" to "${toFloor}"`);
+    }
 }
 
 function updateFloorsTable() {
