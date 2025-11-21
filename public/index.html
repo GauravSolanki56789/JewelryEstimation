@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jewellery Estimation Software - Complete</title>
+    <title>JP Jewellery Estimations - Complete</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -38,7 +38,7 @@
         <div class="bg-white p-10 rounded-lg shadow-2xl max-w-md w-full mx-4 border-2 border-gray-200">
             <div class="text-center mb-8">
                 <div class="text-4xl font-bold text-gray-800 mb-2">Gaurav Softwares</div>
-                <div class="text-xl text-gray-600 mb-6">Jewellery Estimation</div>
+                <div class="text-xl text-gray-600 mb-6">JP Jewellery Estimations</div>
                 <div class="h-1 w-24 bg-amber-600 mx-auto"></div>
             </div>
             <form onsubmit="event.preventDefault(); handleLogin();">
@@ -73,7 +73,7 @@
             <div class="bg-gradient-to-r from-amber-600 to-orange-600 text-white p-6">
                 <div class="flex justify-between items-center flex-wrap gap-4">
                     <div>
-                        <h1 class="text-3xl font-bold mb-2">💎 Jewellery Estimation Software</h1>
+                        <h1 class="text-3xl font-bold mb-2">💎 JP Jewellery Estimations</h1>
                         <p class="text-amber-100" id="quotationNo">Quotation No: Q0001</p>
                     </div>
                     <div class="flex gap-3 flex-wrap items-center">
@@ -448,13 +448,26 @@
         
                 <!-- Filter Section -->
                 <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border-2 border-blue-200 mb-4">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Style Code</label>
-                            <select id="rolStyleCodeFilter" onchange="updateROLDisplay()"
+                            <input type="text" id="rolStyleCodeFilter" list="rolStyleCodeList" 
+                                placeholder="Type or select style code..." 
+                                onchange="updateROLDisplay()" oninput="updateROLDisplay()"
                                 class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-                                <option value="all">All Style Codes</option>
-                            </select>
+                            <datalist id="rolStyleCodeList">
+                                <!-- Will be populated dynamically -->
+                            </datalist>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Product Name</label>
+                            <input type="text" id="rolProductNameFilter" list="rolProductNameList" 
+                                placeholder="Type or select product name..." 
+                                onchange="updateROLDisplay()" oninput="updateROLDisplay()"
+                                class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                            <datalist id="rolProductNameList">
+                                <!-- Will be populated dynamically -->
+                            </datalist>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Filter View</label>
@@ -1767,6 +1780,28 @@
     </div>
 </div>
 
+<!-- User Management Modal -->
+<div id="userManagementModal" class="fixed inset-0 flex items-center justify-center z-50 hidden bg-black bg-opacity-50 p-4">
+    <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-2xl font-bold text-gray-800">👥 User Management</h3>
+            <button onclick="document.getElementById('userManagementModal').classList.add('hidden')" 
+                class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+        </div>
+        
+        <div class="mb-4">
+            <button onclick="addNewUser()" 
+                class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">
+                ➕ Add New User
+            </button>
+        </div>
+        
+        <div id="userManagementList" class="space-y-3">
+            <!-- Users will be rendered here -->
+        </div>
+    </div>
+</div>
+
 <!-- Stock Report Format Selection Modal -->
 <div id="stockReportModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
     <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full pointer-events-auto"
@@ -2209,6 +2244,15 @@
                 }
 
                 console.log('✅ Data integrity check completed');
+                
+                // Update quotation number display on page load
+                if (typeof getNextQuotationNumber === 'function') {
+                    const nextQuotNum = getNextQuotationNumber();
+                    const quotNoEl = document.getElementById('quotationNo');
+                    if (quotNoEl) {
+                        quotNoEl.textContent = `Quotation No: Q${String(nextQuotNum).padStart(4, '0')}`;
+                    }
+                }
             });
 
         let items = [];
@@ -2220,7 +2264,12 @@
         let customers = JSON.parse(localStorage.getItem('customers') || '[]');
         let products = JSON.parse(localStorage.getItem('products') || '[]');
         let currentCustomer = null;
-        let quotationCounter = parseInt(localStorage.getItem('quotationCounter') || '1');
+        // Initialize quotation counter based on saved quotations
+        function getNextQuotationNumber() {
+            const savedQuotations = JSON.parse(localStorage.getItem('savedQuotations') || '[]');
+            return savedQuotations.length + 1;
+        }
+        let quotationCounter = getNextQuotationNumber();
         let bulkUploadData = [];
         let bulkUploadCustomerData = [];
         let currentRateSlab = 'R'; 
@@ -2420,6 +2469,151 @@ function updateTabVisibility() {
     });
 }
 
+function showUserManagement() {
+    const modal = document.getElementById('userManagementModal');
+    if (!modal) {
+        showDialog('Error', 'User management modal not found. Please refresh the page.', 'error');
+        return;
+    }
+    modal.classList.remove('hidden');
+    renderUserManagement();
+}
+
+function renderUserManagement() {
+    const userListDiv = document.getElementById('userManagementList');
+    if (!userListDiv) return;
+    
+    userListDiv.innerHTML = '';
+    
+    Object.keys(AUTH_USERS).forEach(username => {
+        const user = AUTH_USERS[username];
+        const isProtected = username === 'admin' || username === 'Gaurav';
+        
+        const userCard = document.createElement('div');
+        userCard.className = 'bg-white p-4 rounded-lg border-2 border-gray-200 mb-3';
+        userCard.innerHTML = `
+            <div class="flex justify-between items-start">
+                <div class="flex-1">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="font-bold text-lg">${username}</span>
+                        ${isProtected ? '<span class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">Protected</span>' : ''}
+                        <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">${user.role || 'user'}</span>
+                    </div>
+                    <div class="text-sm text-gray-600 mb-2">
+                        <div><strong>Role Type:</strong> ${user.role === 'admin' ? 'Admin' : 'User'}</div>
+                        <div><strong>Allowed Tabs:</strong> ${user.allowedTabs && user.allowedTabs.includes('all') ? 'All Tabs' : (user.allowedTabs || []).join(', ') || 'None'}</div>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="editUser('${username}')" class="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">✏️ Edit</button>
+                    ${!isProtected ? `<button onclick="deleteUser('${username}')" class="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700">🗑️ Delete</button>` : ''}
+                </div>
+            </div>
+        `;
+        userListDiv.appendChild(userCard);
+    });
+}
+
+function editUser(username) {
+    const user = AUTH_USERS[username];
+    if (!user) return;
+    
+    const newPassword = prompt(`Enter new password for ${username} (leave empty to keep current):`);
+    if (newPassword === null) return;
+    
+    if (newPassword) {
+        user.password = newPassword;
+    }
+    
+    const newRole = prompt(`Enter role name for ${username} (current: ${user.role || 'user'}):`, user.role || 'user');
+    if (newRole === null) return;
+    user.role = newRole;
+    
+    const isAdmin = confirm(`Is ${username} an admin? (OK for Admin, Cancel for User)`);
+    user.role = isAdmin ? 'admin' : newRole;
+    
+    const allTabs = ['billing', 'products', 'customers', 'rol', 'quotations', 'salesbill', 'billhistory', 'ledger', 'pv', 'tagsplit', 'tagsearch', 'floor'];
+    const currentTabs = user.allowedTabs || [];
+    const hasAllTabs = currentTabs.includes('all');
+    
+    let tabsMessage = `Select tabs for ${username}:\n\n`;
+    tabsMessage += `Current: ${hasAllTabs ? 'All Tabs' : currentTabs.join(', ') || 'None'}\n\n`;
+    tabsMessage += 'Enter "all" for all tabs, or comma-separated list:\n';
+    tabsMessage += allTabs.join(', ');
+    
+    const tabsInput = prompt(tabsMessage, hasAllTabs ? 'all' : currentTabs.join(', '));
+    if (tabsInput === null) return;
+    
+    if (tabsInput.trim().toLowerCase() === 'all') {
+        user.allowedTabs = ['all'];
+    } else {
+        const selectedTabs = tabsInput.split(',').map(t => t.trim()).filter(t => allTabs.includes(t));
+        user.allowedTabs = selectedTabs;
+    }
+    
+    AUTH_USERS[username] = user;
+    saveAuthUsers();
+    renderUserManagement();
+    showDialog('Success', `User ${username} updated successfully!`, 'success');
+}
+
+function deleteUser(username) {
+    if (username === 'admin' || username === 'Gaurav') {
+        showDialog('Error', 'Cannot delete protected users!', 'error');
+        return;
+    }
+    
+    showConfirmDialog('Delete User', `Are you sure you want to delete user "${username}"?`, () => {
+        delete AUTH_USERS[username];
+        saveAuthUsers();
+        renderUserManagement();
+        showDialog('Success', `User ${username} deleted successfully!`, 'success');
+    });
+}
+
+function addNewUser() {
+    const username = prompt('Enter username:');
+    if (!username || !username.trim()) return;
+    
+    if (AUTH_USERS[username]) {
+        showDialog('Error', 'Username already exists!', 'error');
+        return;
+    }
+    
+    const password = prompt('Enter password:');
+    if (!password) return;
+    
+    const roleName = prompt('Enter role name (e.g., Accounts, Sales, ROL):', 'User');
+    if (roleName === null) return;
+    
+    const isAdmin = confirm('Is this user an admin? (OK for Admin, Cancel for User)');
+    
+    const allTabs = ['billing', 'products', 'customers', 'rol', 'quotations', 'salesbill', 'billhistory', 'ledger', 'pv', 'tagsplit', 'tagsearch', 'floor'];
+    let tabsMessage = `Select tabs for ${username}:\n\n`;
+    tabsMessage += 'Enter "all" for all tabs, or comma-separated list:\n';
+    tabsMessage += allTabs.join(', ');
+    
+    const tabsInput = prompt(tabsMessage, 'all');
+    if (tabsInput === null) return;
+    
+    let allowedTabs = [];
+    if (tabsInput.trim().toLowerCase() === 'all') {
+        allowedTabs = ['all'];
+    } else {
+        allowedTabs = tabsInput.split(',').map(t => t.trim()).filter(t => allTabs.includes(t));
+    }
+    
+    AUTH_USERS[username] = {
+        password: password,
+        role: isAdmin ? 'admin' : roleName,
+        allowedTabs: allowedTabs
+    };
+    
+    saveAuthUsers();
+    renderUserManagement();
+    showDialog('Success', `User ${username} created successfully!`, 'success');
+}
+
 function handleLogin() {
     const username = document.getElementById('authUsername').value.trim();
     const password = document.getElementById('authPassword').value;
@@ -2442,6 +2636,15 @@ function handleLogin() {
 
 // Check authentication on load
 document.addEventListener('DOMContentLoaded', function() {
+    // Update quotation number on page load
+    if (typeof getNextQuotationNumber === 'function') {
+        const nextQuotNum = getNextQuotationNumber();
+        const quotNoEl = document.getElementById('quotationNo');
+        if (quotNoEl) {
+            quotNoEl.textContent = `Quotation No: Q${String(nextQuotNum).padStart(4, '0')}`;
+        }
+    }
+    
     const savedUser = localStorage.getItem('currentUser');
     if (savedUser) {
         try {
@@ -5355,9 +5558,9 @@ function updateMCTypeLabel() {
 
     doc.save(`Quotation_${quotationNo}_${date.replace(/\//g, '-')}.pdf`);
 
-    quotationCounter++;
-    localStorage.setItem('quotationCounter', quotationCounter);
-    document.getElementById('quotationNo').textContent = `Quotation No: Q${String(quotationCounter).padStart(4, '0')}`;
+    // Update quotation number for next quotation
+    const nextQuotationNumber = getNextQuotationNumber();
+    document.getElementById('quotationNo').textContent = `Quotation No: Q${String(nextQuotationNumber).padStart(4, '0')}`;
 
     closeModals();
     
@@ -5612,32 +5815,49 @@ function updateMCTypeLabel() {
                 // ========== ROL MANAGEMENT FUNCTIONS ==========
 
                     function initializeROL() {
-                            // Populate style code filter dropdown
-                            const styleCodeFilter = document.getElementById('rolStyleCodeFilter');
-                            if (!styleCodeFilter) return;
+                            // Populate style code datalist
+                            const styleCodeList = document.getElementById('rolStyleCodeList');
+                            if (styleCodeList) {
+                                styleCodeList.innerHTML = '';
+                                const uniqueStyleCodes = [...new Set(products.map(p => p.styleCode).filter(s => s && s.trim() !== ''))];
+                                uniqueStyleCodes.sort().forEach(styleCode => {
+                                    const option = document.createElement('option');
+                                    option.value = styleCode;
+                                    styleCodeList.appendChild(option);
+                                });
+                            }
 
-                            styleCodeFilter.innerHTML = '<option value="all">All Style Codes</option>';
-
-                            const uniqueStyleCodes = [...new Set(products.map(p => p.styleCode).filter(s => s && s.trim() !== ''))];
-                            uniqueStyleCodes.sort().forEach(styleCode => {
-                                const option = document.createElement('option');
-                                option.value = styleCode;
-                                option.textContent = styleCode;
-                                styleCodeFilter.appendChild(option);
-                            });
+                            // Populate product name datalist
+                            const productNameList = document.getElementById('rolProductNameList');
+                            if (productNameList) {
+                                productNameList.innerHTML = '';
+                                const uniqueProductNames = [...new Set(products.map(p => p.shortName).filter(n => n && n.trim() !== ''))];
+                                uniqueProductNames.sort().forEach(productName => {
+                                    const option = document.createElement('option');
+                                    option.value = productName;
+                                    productNameList.appendChild(option);
+                                });
+                            }
 
                             // Initialize display
                             updateROLDisplay();
                         }
 
                     function updateROLDisplay() {
-                        const styleCodeFilter = document.getElementById('rolStyleCodeFilter').value;
+                        const styleCodeFilterEl = document.getElementById('rolStyleCodeFilter');
+                        const productNameFilterEl = document.getElementById('rolProductNameFilter');
                         const viewFilter = document.getElementById('rolViewFilter').value;
+
+                        const styleCodeFilter = styleCodeFilterEl ? styleCodeFilterEl.value.trim() : '';
+                        const productNameFilter = productNameFilterEl ? productNameFilterEl.value.trim() : '';
 
                         // Get filtered products
                         let filteredProducts = products;
-                        if (styleCodeFilter !== 'all') {
-                            filteredProducts = products.filter(p => p.styleCode === styleCodeFilter);
+                        if (styleCodeFilter && styleCodeFilter !== 'all') {
+                            filteredProducts = filteredProducts.filter(p => p.styleCode && p.styleCode.toLowerCase().includes(styleCodeFilter.toLowerCase()));
+                        }
+                        if (productNameFilter) {
+                            filteredProducts = filteredProducts.filter(p => p.shortName && p.shortName.toLowerCase().includes(productNameFilter.toLowerCase()));
                         }
 
                         // Merge with ROL data
@@ -5808,12 +6028,19 @@ function updateMCTypeLabel() {
                         }
 
                         function downloadROLReport() {
-                            const styleCodeFilter = document.getElementById('rolStyleCodeFilter').value;
+                            const styleCodeFilterEl = document.getElementById('rolStyleCodeFilter');
+                            const productNameFilterEl = document.getElementById('rolProductNameFilter');
+                            
+                            const styleCodeFilter = styleCodeFilterEl ? styleCodeFilterEl.value.trim() : '';
+                            const productNameFilter = productNameFilterEl ? productNameFilterEl.value.trim() : '';
 
                             // Get filtered products
                             let filteredProducts = products;
-                            if (styleCodeFilter !== 'all') {
-                                filteredProducts = products.filter(p => p.styleCode === styleCodeFilter);
+                            if (styleCodeFilter && styleCodeFilter !== 'all') {
+                                filteredProducts = filteredProducts.filter(p => p.styleCode && p.styleCode.toLowerCase().includes(styleCodeFilter.toLowerCase()));
+                            }
+                            if (productNameFilter) {
+                                filteredProducts = filteredProducts.filter(p => p.shortName && p.shortName.toLowerCase().includes(productNameFilter.toLowerCase()));
                             }
 
                             // Merge with ROL data and filter only items needing reorder
@@ -5846,7 +6073,8 @@ function updateMCTypeLabel() {
                             const headerData = [
                                 ['REORDER LEVEL (ROL) REPORT'],
                                 ['Generated:', date],
-                                ['Style Code Filter:', styleCodeFilter === 'all' ? 'All Style Codes' : styleCodeFilter],
+                                ['Style Code Filter:', styleCodeFilter || 'All Style Codes'],
+                                ['Product Name Filter:', productNameFilter || 'All Products'],
                                 ['Items Requiring Reorder:', rolItems.length],
                                 ['']
                             ];
