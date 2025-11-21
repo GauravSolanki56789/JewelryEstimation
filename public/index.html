@@ -2255,18 +2255,96 @@
                 }
             });
 
+        // ========== PERFORMANCE OPTIMIZATION ==========
+        // localStorage cache to reduce reads
+        const localStorageCache = {};
+        const localStorageWriteQueue = {};
+        let localStorageWriteTimer = null;
+
+        // Optimized localStorage getter with cache
+        function getCachedItem(key, defaultValue = null) {
+            if (localStorageCache[key] !== undefined) {
+                return localStorageCache[key];
+            }
+            try {
+                const value = localStorage.getItem(key);
+                const parsed = value ? JSON.parse(value) : defaultValue;
+                localStorageCache[key] = parsed;
+                return parsed;
+            } catch (e) {
+                return defaultValue;
+            }
+        }
+
+        // Batched localStorage setter (debounced writes)
+        function setCachedItem(key, value) {
+            localStorageCache[key] = value;
+            localStorageWriteQueue[key] = value;
+            
+            // Clear existing timer
+            if (localStorageWriteTimer) {
+                clearTimeout(localStorageWriteTimer);
+            }
+            
+            // Batch writes every 100ms
+            localStorageWriteTimer = setTimeout(() => {
+                Object.keys(localStorageWriteQueue).forEach(k => {
+                    try {
+                        localStorage.setItem(k, JSON.stringify(localStorageWriteQueue[k]));
+                    } catch (e) {
+                        console.error('localStorage write error:', e);
+                    }
+                });
+                localStorageWriteQueue = {};
+            }, 100);
+        }
+
+        // Debounce function for input handlers
+        function debounce(func, wait = 300) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // Throttle function for scroll/resize handlers
+        function throttle(func, limit = 100) {
+            let inThrottle;
+            return function(...args) {
+                if (!inThrottle) {
+                    func.apply(this, args);
+                    inThrottle = true;
+                    setTimeout(() => inThrottle = false, limit);
+                }
+            };
+        }
+
+        // DOM query cache
+        const domCache = {};
+        function getCachedElement(id) {
+            if (!domCache[id]) {
+                domCache[id] = document.getElementById(id);
+            }
+            return domCache[id];
+        }
+
         let items = [];
-        let rates = JSON.parse(localStorage.getItem('rates') || '{"gold":7500,"silver":156,"platinum":3500}');
+        let rates = getCachedItem('rates', {gold:7500, silver:156, platinum:3500});
         // Ensure rates are numbers, not strings
         rates.gold = parseFloat(rates.gold) || 7500;
         rates.silver = parseFloat(rates.silver) || 156;
         rates.platinum = parseFloat(rates.platinum) || 3500;
-        let customers = JSON.parse(localStorage.getItem('customers') || '[]');
-        let products = JSON.parse(localStorage.getItem('products') || '[]');
+        let customers = getCachedItem('customers', []);
+        let products = getCachedItem('products', []);
         let currentCustomer = null;
         // Initialize quotation counter based on saved quotations
         function getNextQuotationNumber() {
-            const savedQuotations = JSON.parse(localStorage.getItem('savedQuotations') || '[]');
+            const savedQuotations = getCachedItem('savedQuotations', []);
             return savedQuotations.length + 1;
         }
         let quotationCounter = getNextQuotationNumber();
@@ -2280,7 +2358,7 @@
                 'R3': 10,
                 'R4': 15
             };
-        let rolData = JSON.parse(localStorage.getItem('rolData') || '[]');
+        let rolData = getCachedItem('rolData', []);
         let bulkUploadROLData = [];
 let currentTagSplitProduct = null;
 let tagSplitEntries = [];
@@ -2288,9 +2366,9 @@ let tagRemainingPcs = 0;
 let tagRemainingWeight = 0;
 let tagSplitSequenceStart = 0;
         // Track double scans for permanent highlighting
-        let doubleScannedBarcodes = JSON.parse(localStorage.getItem('doubleScannedBarcodes') || '[]');
+        let doubleScannedBarcodes = getCachedItem('doubleScannedBarcodes', []);
         // Floor management
-        let floors = JSON.parse(localStorage.getItem('floors') || '["estimation floor"]');
+        let floors = getCachedItem('floors', ['estimation floor']);
 
 const STATIC_MODAL_IDS = [
     'pvUploadModal',
@@ -2467,21 +2545,24 @@ window.confirm = function(message) {
 };
 
 // ========== AUTHENTICATION ==========
-let AUTH_USERS = JSON.parse(localStorage.getItem('authUsers') || JSON.stringify({
+let AUTH_USERS = getCachedItem('authUsers', {
     'admin': { password: '123456', role: 'admin', allowedTabs: ['all'] },
     'Gaurav': { password: '@GauravSolanki56789__', role: 'admin', allowedTabs: ['all'] }
-}));
+});
 
 let currentUser = null;
 
 function saveAuthUsers() {
-    localStorage.setItem('authUsers', JSON.stringify(AUTH_USERS));
+    setCachedItem('authUsers', AUTH_USERS);
+    // Clear cache to force reload on next access
+    delete localStorageCache['authUsers'];
 }
 
 function logout() {
     showConfirmDialog('Logout', 'Are you sure you want to log out?', () => {
         currentUser = null;
-        localStorage.removeItem('currentUser');
+        delete localStorageCache['currentUser'];
+        try { localStorage.removeItem('currentUser'); } catch(e) {}
         document.getElementById('authModal').classList.remove('hidden');
         document.getElementById('app').classList.add('hidden');
         const usernameInput = document.getElementById('authUsername');
@@ -2718,11 +2799,11 @@ async function addNewUser() {
 
 // Make handleLogin globally accessible
 window.handleLogin = function() {
-    // Reload AUTH_USERS from localStorage to get latest users
-    AUTH_USERS = JSON.parse(localStorage.getItem('authUsers') || JSON.stringify({
+    // Reload AUTH_USERS from cache to get latest users
+    AUTH_USERS = getCachedItem('authUsers', {
         'admin': { password: '123456', role: 'admin', allowedTabs: ['all'] },
         'Gaurav': { password: '@GauravSolanki56789__', role: 'admin', allowedTabs: ['all'] }
-    }));
+    });
     
     const username = document.getElementById('authUsername').value.trim();
     const password = document.getElementById('authPassword').value;
@@ -2733,7 +2814,7 @@ window.handleLogin = function() {
             role: AUTH_USERS[username].role,
             allowedTabs: AUTH_USERS[username].allowedTabs || ['all']
         };
-        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        setCachedItem('currentUser', currentUser);
         document.getElementById('authModal').classList.add('hidden');
         document.getElementById('app').classList.remove('hidden');
         updateTabVisibility();
@@ -2745,11 +2826,11 @@ window.handleLogin = function() {
 
 // Check authentication on load
 document.addEventListener('DOMContentLoaded', function() {
-    // Reload AUTH_USERS from localStorage to get latest users
-    AUTH_USERS = JSON.parse(localStorage.getItem('authUsers') || JSON.stringify({
+    // Reload AUTH_USERS from cache to get latest users
+    AUTH_USERS = getCachedItem('authUsers', {
         'admin': { password: '123456', role: 'admin', allowedTabs: ['all'] },
         'Gaurav': { password: '@GauravSolanki56789__', role: 'admin', allowedTabs: ['all'] }
-    }));
+    });
     
     // Update quotation number on page load
     if (typeof getNextQuotationNumber === 'function') {
@@ -2760,15 +2841,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    const savedUser = localStorage.getItem('currentUser');
+    const savedUser = getCachedItem('currentUser', null);
     if (savedUser) {
         try {
-            currentUser = JSON.parse(savedUser);
+            currentUser = savedUser;
             // Reload AUTH_USERS again to ensure we have latest data
-            AUTH_USERS = JSON.parse(localStorage.getItem('authUsers') || JSON.stringify({
+            AUTH_USERS = getCachedItem('authUsers', {
                 'admin': { password: '123456', role: 'admin', allowedTabs: ['all'] },
                 'Gaurav': { password: '@GauravSolanki56789__', role: 'admin', allowedTabs: ['all'] }
-            }));
+            });
             if (AUTH_USERS[currentUser.username] && AUTH_USERS[currentUser.username].password) {
                 currentUser.allowedTabs = AUTH_USERS[currentUser.username].allowedTabs || ['all'];
                 document.getElementById('authModal').classList.add('hidden');
@@ -2786,15 +2867,15 @@ document.addEventListener('DOMContentLoaded', function() {
         // ========== ACCOUNTS LEDGER DATA STRUCTURES ==========
 
             // Core ledger storage
-            let ledgerTransactions = JSON.parse(localStorage.getItem('ledgerTransactions') || '[]');
-            let cashBook = JSON.parse(localStorage.getItem('cashBook') || '[]');
-            let bankAccounts = JSON.parse(localStorage.getItem('bankAccounts') || '[]');
-            let expenses = JSON.parse(localStorage.getItem('expenses') || '[]');
-            let metalPurchases = JSON.parse(localStorage.getItem('metalPurchases') || '[]');
-            let suppliers = JSON.parse(localStorage.getItem('suppliers') || '[]');
+            let ledgerTransactions = getCachedItem('ledgerTransactions', []);
+            let cashBook = getCachedItem('cashBook', []);
+            let bankAccounts = getCachedItem('bankAccounts', []);
+            let expenses = getCachedItem('expenses', []);
+            let metalPurchases = getCachedItem('metalPurchases', []);
+            let suppliers = getCachedItem('suppliers', []);
 
             // Initialize account balances properly
-                let accountBalances = JSON.parse(localStorage.getItem('accountBalances') || JSON.stringify({
+                let accountBalances = getCachedItem('accountBalances', {
                     cash: 0,
                     bank: 0,
                     receivables: 0,
@@ -2802,10 +2883,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     goldStock: 0,
                     silverStock: 0,
                     platinumStock: 0
-                }));
+                });
 
                 // NEW: Purchase Voucher System
-                let purchaseVouchers = JSON.parse(localStorage.getItem('purchaseVouchers') || '[]');
+                let purchaseVouchers = getCachedItem('purchaseVouchers', []);
                 let pvCounter = parseInt(localStorage.getItem('pvCounter') || '1');
 
                 // Function to generate PV number
@@ -2870,7 +2951,7 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     ledgerTransactions.unshift(transaction);
-    localStorage.setItem('ledgerTransactions', JSON.stringify(ledgerTransactions));
+    setCachedItem('ledgerTransactions', ledgerTransactions);
 
     // Don't auto-update balances here - let calling functions handle it
     return transaction;
@@ -2914,7 +2995,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         break;
                 }
 
-                localStorage.setItem('accountBalances', JSON.stringify(accountBalances));
+                setCachedItem('accountBalances', accountBalances);
             }
 
 
@@ -3159,7 +3240,7 @@ billItems = selectedQuotationForBill.items.map(item => {
                         const productIndex = products.findIndex(p => p.barcode === barcode);
                         if (productIndex >= 0) {
                             products.splice(productIndex, 1);
-                            localStorage.setItem('products', JSON.stringify(products));
+                            setCachedItem('products', products);
                         }
                     }
 
@@ -3198,7 +3279,7 @@ function generateSalesBillPDF() {
 };
 
     savedBills.unshift(billRecord);
-    localStorage.setItem('savedBills', JSON.stringify(savedBills));
+    setCachedItem('savedBills', savedBills);
 
     // ✅ AUTOMATIC LEDGER ENTRY FOR SALE
     const ledgerEntry = recordLedgerTransaction(transactionTypes.SALE, {
@@ -3235,7 +3316,7 @@ function generateSalesBillPDF() {
         }
     });
 
-    localStorage.setItem('accountBalances', JSON.stringify(accountBalances));
+    setCachedItem('accountBalances', accountBalances);
 
     // ✅ Update ledger dashboard if visible
     if (!document.getElementById('ledgerTab').classList.contains('hidden')) {
@@ -3277,7 +3358,7 @@ billItems.forEach(item => {
         savedQuotations[quotIndex].isBilled = true;
         savedQuotations[quotIndex].billNo = billNo;
         savedQuotations[quotIndex].billDate = date.toISOString();
-        localStorage.setItem('savedQuotations', JSON.stringify(savedQuotations));
+        setCachedItem('savedQuotations', savedQuotations);
     }
 
     // ========== PDF GENERATION (MATCHING SAMPLE) ==========
@@ -3786,7 +3867,7 @@ billItems.forEach(item => {
                 rates.silver = parseFloat(silverInput * 0.97); // 3% discount
                 rates.platinum = parseFloat(platinumInput);
 
-                localStorage.setItem('rates', JSON.stringify(rates));
+                setCachedItem('rates', rates);
                 updateRatesDisplay();
 
                 // Recalculate all items with new rates
@@ -3988,7 +4069,7 @@ billItems.forEach(item => {
                 customers.push(customer);
                 alert('Customer added!');
             }
-            localStorage.setItem('customers', JSON.stringify(customers));
+            setCachedItem('customers', customers);
             updateCustomerDropdown();
             loadCustomersDisplay();
             closeModals();
@@ -3997,7 +4078,7 @@ billItems.forEach(item => {
         function deleteCustomer(idx) {
             if (!confirm('Delete this customer?')) return;
             customers.splice(idx, 1);
-            localStorage.setItem('customers', JSON.stringify(customers));
+            setCachedItem('customers', customers);
             updateCustomerDropdown();
             loadCustomersDisplay();
             alert('Customer deleted!');
@@ -4030,140 +4111,103 @@ billItems.forEach(item => {
             });
         }
 
+    // Optimized table update with requestAnimationFrame
+    let tableUpdatePending = false;
     function updateProductsTable() {
-        const searchTerm = document.getElementById('productSearch') ? document.getElementById('productSearch').value.toLowerCase().trim() : '';
-        const tbody = document.getElementById('productsTableBody');
-        tbody.innerHTML = '';
-
-        let displayProducts = products.filter(p => p.isSold !== true);
-
-        // Apply search filter if search term exists
-        if (searchTerm) {
-            displayProducts = displayProducts.filter(product => {
-                return (
-                    (product.barcode && product.barcode.toLowerCase().includes(searchTerm)) ||
-                    (product.sku && product.sku.toLowerCase().includes(searchTerm)) ||
-                    (product.styleCode && product.styleCode.toLowerCase().includes(searchTerm)) ||
-                    (product.shortName && product.shortName.toLowerCase().includes(searchTerm)) ||
-                    (product.metalType && product.metalType.toLowerCase().includes(searchTerm))
-                );
-            });
-        }
-
-        if (displayProducts.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="10" class="text-center py-8 text-gray-500">No products found.</td></tr>';
-            return;
-        }
-
-        displayProducts.forEach((product) => {
-            const originalIdx = products.findIndex(p => p.id === product.id);
-            const row = document.createElement('tr');
-            row.className = 'border-b hover:bg-gray-50';
-            const barcode = product.barcode || '-';
-            const sku = product.sku || '-';
-            const styleCode = product.styleCode || '-';
-            const shortName = product.shortName || 'Unnamed Product';
-            const size = product.size || '-';
-            const avgWt = product.avgWt || 0;
-            const metalType = product.metalType || 'gold';
-            const purity = product.purity || 100;
-            const mcRate = product.mcRate || 0;
-            const mcType = product.mcType || 'MC/GM';
-            const pcs = product.pcs || 1;
-            const boxCharges = product.boxCharges || 0;
-            const stoneCharges = product.stoneCharges || 0;
-            row.innerHTML = `
-        <td class="px-4 py-3 font-mono text-sm">${barcode}</td>
-        <td class="px-4 py-3 text-sm">${sku}</td>
-        <td class="px-4 py-3 text-sm font-semibold text-blue-600">${styleCode}</td>
-        <td class="px-4 py-3 font-medium">${shortName}</td>
-        <td class="px-4 py-3 text-sm">${size}</td>
-        <td class="px-4 py-3 text-sm">${avgWt.toFixed(2)}g</td>
-        <td class="px-4 py-3 capitalize text-sm">${metalType}</td>
-        <td class="px-4 py-3 text-sm">${purity}%</td>
-        <td class="px-4 py-3 text-sm">
-            ${mcType === 'PieceCost'
-                    ? `₹${mcRate.toFixed(2)} (Piece)`
-                    : `₹${mcRate} /gm`}
-        </td>
-        <td class="px-4 py-3 text-center">
-            <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-bold">
-                ${pcs} pcs
-            </span>
-        </td>
-        <td class="px-4 py-3 text-right text-sm">₹${boxCharges.toFixed(2)}</td>
-        <td class="px-4 py-3 text-right text-sm">₹${stoneCharges.toFixed(2)}</td>
-        <td class="px-4 py-3 text-center">
-        <button onclick="editProduct(${originalIdx})" class="text-blue-600 hover:text-blue-800 font-medium mr-2" title="Edit">✏️</button>
-        <button onclick="deleteProduct(${originalIdx})" class="text-red-600 hover:text-red-800 font-medium" title="Delete">🗑️</button>
-    </td>
-    `;
-        tbody.appendChild(row);
-    });
-}
-
-    function filterProducts() {
-            const searchTerm = document.getElementById('productSearch').value.toLowerCase().trim();
-
-            if (!searchTerm) {
-                updateProductsTable();
+        if (tableUpdatePending) return;
+        tableUpdatePending = true;
+        
+        requestAnimationFrame(() => {
+            const searchEl = getCachedElement('productSearch');
+            const searchTerm = searchEl ? searchEl.value.toLowerCase().trim() : '';
+            const tbody = getCachedElement('productsTableBody');
+            if (!tbody) {
+                tableUpdatePending = false;
                 return;
             }
 
-            const tbody = document.getElementById('productsTableBody');
-            tbody.innerHTML = '';
+            let displayProducts = products.filter(p => p.isSold !== true);
 
-            const filteredProducts = products.filter(product => {
-                const searchableFields = [
-                    product.barcode || '',
-                    product.sku || '',
-                    product.styleCode || '',
-                    product.shortName || '',
-                    product.metalType || '',
-                    product.size || ''
-                ].map(field => field.toString().toLowerCase());
-
-                return searchableFields.some(field => field.includes(searchTerm));
-            });
-
-            if (filteredProducts.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="10" class="text-center py-8 text-gray-500">No products found matching your search.</td></tr>';
-                return;
+            // Apply search filter if search term exists
+            if (searchTerm) {
+                displayProducts = displayProducts.filter(product => {
+                    return (
+                        (product.barcode && product.barcode.toLowerCase().includes(searchTerm)) ||
+                        (product.sku && product.sku.toLowerCase().includes(searchTerm)) ||
+                        (product.styleCode && product.styleCode.toLowerCase().includes(searchTerm)) ||
+                        (product.shortName && product.shortName.toLowerCase().includes(searchTerm)) ||
+                        (product.metalType && product.metalType.toLowerCase().includes(searchTerm))
+                    );
+                });
             }
 
-            filteredProducts.forEach((product) => {
-                const originalIdx = products.findIndex(p => p.id === product.id);
+            // Use DocumentFragment for faster DOM updates
+            const fragment = document.createDocumentFragment();
+            
+            if (displayProducts.length === 0) {
                 const row = document.createElement('tr');
-                row.className = 'border-b hover:bg-gray-50';
-                row.innerHTML = `
-    <td class="px-4 py-3 font-mono text-sm">${product.barcode}</td>
-    <td class="px-4 py-3 text-sm">${product.sku || '-'}</td>
-    <td class="px-4 py-3 text-sm font-semibold text-blue-600">${product.styleCode || '-'}</td>
-    <td class="px-4 py-3 font-medium">${product.shortName}</td>
-    <td class="px-4 py-3 text-sm">${product.size || '-'}</td>
-    <td class="px-4 py-3 text-sm">${(product.avgWt || 0).toFixed(2)}g</td>
-    <td class="px-4 py-3 capitalize text-sm">${product.metalType}</td>
-    <td class="px-4 py-3 text-sm">${product.purity}%</td>
-    <td class="px-4 py-3 text-sm">
-        ${product.mcType === 'PieceCost'
-                        ? `₹${product.mcRate.toFixed(2)} (Piece)`
-                        : `₹${product.mcRate} /gm`}
-    </td>
-    <td class="px-4 py-3 text-center">
-        <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-bold">
-            ${product.pcs || 1} pcs
-        </span>
-    </td>
-    <td class="px-4 py-3 text-right text-sm">₹${(product.boxCharges || 0).toFixed(2)}</td>
-    <td class="px-4 py-3 text-right text-sm">₹${(product.stoneCharges || 0).toFixed(2)}</td>
-    <td class="px-4 py-3 text-center">
-        <button onclick="editProduct(${originalIdx})" class="text-blue-600 hover:text-blue-800 font-medium mr-2">✏️</button>
-        <button onclick="deleteProduct(${originalIdx})" class="text-red-600 hover:text-red-800 font-medium">🗑️</button>
-    </td>
-`;
-                tbody.appendChild(row);
-            });
-        }
+                row.innerHTML = '<td colspan="10" class="text-center py-8 text-gray-500">No products found.</td>';
+                fragment.appendChild(row);
+            } else {
+                displayProducts.forEach((product) => {
+                    const originalIdx = products.findIndex(p => p.id === product.id);
+                    const row = document.createElement('tr');
+                    row.className = 'border-b hover:bg-gray-50';
+                    const barcode = product.barcode || '-';
+                    const sku = product.sku || '-';
+                    const styleCode = product.styleCode || '-';
+                    const shortName = product.shortName || 'Unnamed Product';
+                    const size = product.size || '-';
+                    const avgWt = product.avgWt || 0;
+                    const metalType = product.metalType || 'gold';
+                    const purity = product.purity || 100;
+                    const mcRate = product.mcRate || 0;
+                    const mcType = product.mcType || 'MC/GM';
+                    const pcs = product.pcs || 1;
+                    const boxCharges = product.boxCharges || 0;
+                    const stoneCharges = product.stoneCharges || 0;
+                    row.innerHTML = `
+                <td class="px-4 py-3 font-mono text-sm">${barcode}</td>
+                <td class="px-4 py-3 text-sm">${sku}</td>
+                <td class="px-4 py-3 text-sm font-semibold text-blue-600">${styleCode}</td>
+                <td class="px-4 py-3 font-medium">${shortName}</td>
+                <td class="px-4 py-3 text-sm">${size}</td>
+                <td class="px-4 py-3 text-sm">${avgWt.toFixed(2)}g</td>
+                <td class="px-4 py-3 capitalize text-sm">${metalType}</td>
+                <td class="px-4 py-3 text-sm">${purity}%</td>
+                <td class="px-4 py-3 text-sm">
+                    ${mcType === 'PieceCost'
+                            ? `₹${mcRate.toFixed(2)} (Piece)`
+                            : `₹${mcRate} /gm`}
+                </td>
+                <td class="px-4 py-3 text-center">
+                    <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-bold">
+                        ${pcs} pcs
+                    </span>
+                </td>
+                <td class="px-4 py-3 text-right text-sm">₹${boxCharges.toFixed(2)}</td>
+                <td class="px-4 py-3 text-right text-sm">₹${stoneCharges.toFixed(2)}</td>
+                <td class="px-4 py-3 text-center">
+                <button onclick="editProduct(${originalIdx})" class="text-blue-600 hover:text-blue-800 font-medium mr-2" title="Edit">✏️</button>
+                <button onclick="deleteProduct(${originalIdx})" class="text-red-600 hover:text-red-800 font-medium" title="Delete">🗑️</button>
+            </td>
+            `;
+                    fragment.appendChild(row);
+                });
+            }
+            
+            tbody.innerHTML = '';
+            tbody.appendChild(fragment);
+            tableUpdatePending = false;
+        });
+    }
+
+    // Debounced search function
+    const debouncedUpdateProductsTable = debounce(updateProductsTable, 300);
+    
+    function filterProducts() {
+        debouncedUpdateProductsTable();
+    }
 
     function downloadStockReport() {
             if (products.length === 0) {
@@ -4851,7 +4895,7 @@ function saveProduct() {
                 return;
             }
             customers.push(...bulkUploadCustomerData);
-            localStorage.setItem('customers', JSON.stringify(customers));
+            setCachedItem('customers', customers);
             updateCustomerDropdown();
             loadCustomersDisplay();
             closeModals();
@@ -5450,7 +5494,7 @@ function updateMCTypeLabel() {
     };
 
     savedQuotations.unshift(quotationRecord);
-    localStorage.setItem('savedQuotations', JSON.stringify(savedQuotations));
+    setCachedItem('savedQuotations', savedQuotations);
 
     // ⭐ IF CASH RECEIVED - RECORD IN LEDGER IMMEDIATELY
     if (isCashReceived) {
@@ -5467,7 +5511,7 @@ function updateMCTypeLabel() {
         
         // Update cash balance
         accountBalances.cash += finalAmount;
-        localStorage.setItem('accountBalances', JSON.stringify(accountBalances));
+        setCachedItem('accountBalances', accountBalances);
     }
 
     // Generate PDF (same as before)
@@ -6141,7 +6185,7 @@ function updateMCTypeLabel() {
                                 }
                             });
 
-                            localStorage.setItem('rolData', JSON.stringify(rolData));
+                            setCachedItem('rolData', rolData);
                             updateROLDisplay();
                             closeModals();
                             alert(`Successfully uploaded ${bulkUploadROLData.length} ROL items!`);
@@ -6441,7 +6485,7 @@ function updateMCTypeLabel() {
                                 const quotation = savedQuotations.find(q => q.id === id);
                                 if (quotation) {
                                     quotation.remarks = remarks;
-                                    localStorage.setItem('savedQuotations', JSON.stringify(savedQuotations));
+                                    setCachedItem('savedQuotations', savedQuotations);
                                 }
                             }
 
@@ -6517,11 +6561,11 @@ function updateMCTypeLabel() {
                                 });
                                 
                                 if (quotation.items.some(item => item.barcode && item.originalFloor)) {
-                                    localStorage.setItem('products', JSON.stringify(products));
+                                    setCachedItem('products', products);
                                 }
 
                                 savedQuotations = savedQuotations.filter(q => q.id !== id);
-                                localStorage.setItem('savedQuotations', JSON.stringify(savedQuotations));
+                                setCachedItem('savedQuotations', savedQuotations);
 
                                 loadQuotationsHistory();
                                 alert('Quotation deleted successfully! Items returned to original floors.');
@@ -6562,7 +6606,7 @@ function updateMCTypeLabel() {
                                     savedQuotations = savedQuotations.filter(q => new Date(q.date) >= cutoffDate);
                                     const after = savedQuotations.length;
 
-                                    localStorage.setItem('savedQuotations', JSON.stringify(savedQuotations));
+                                    setCachedItem('savedQuotations', savedQuotations);
                                     loadQuotationsHistory();
 
                                     showDialog('Success', `Deleted ${before - after} old quotation(s)!`, 'success');
@@ -6902,7 +6946,7 @@ function updateMCTypeLabel() {
             }
             
             savedBills.splice(billIndex, 1);
-            localStorage.setItem('savedBills', JSON.stringify(savedBills));
+            setCachedItem('savedBills', savedBills);
             
             // Refresh bills display
             displayBills(savedBills);
@@ -7126,7 +7170,7 @@ function updateMCTypeLabel() {
            savedBills = savedBills.filter(b => new Date(b.date) >= cutoffDate);
            const after = savedBills.length;
 
-           localStorage.setItem('savedBills', JSON.stringify(savedBills));
+           setCachedItem('savedBills', savedBills);
            loadBillHistory();
 
            showDialog('Success', `Deleted ${before - after} old bill(s)!`, 'success');
@@ -7709,7 +7753,7 @@ function closeManualTransactionModal() {
     };
 
     expenses.unshift(expense);
-    localStorage.setItem('expenses', JSON.stringify(expenses));
+    setCachedItem('expenses', expenses);
 
     // Record in ledger
     recordLedgerTransaction(transactionTypes.EXPENSE, {
@@ -7723,7 +7767,7 @@ function closeManualTransactionModal() {
 
     // Update cash balance
     accountBalances.cash -= amount;
-    localStorage.setItem('accountBalances', JSON.stringify(accountBalances));
+    setCachedItem('accountBalances', accountBalances);
 
     closeExpenseModal();
     updateLedgerDashboard();
@@ -7739,15 +7783,15 @@ function closeManualTransactionModal() {
                 if (!expense) return;
 
                 expenses = expenses.filter(e => e.id !== id);
-                localStorage.setItem('expenses', JSON.stringify(expenses));
+                setCachedItem('expenses', expenses);
 
                 // Remove from ledger
                 ledgerTransactions = ledgerTransactions.filter(t => t.reference !== `EXP${id}`);
-                localStorage.setItem('ledgerTransactions', JSON.stringify(ledgerTransactions));
+                setCachedItem('ledgerTransactions', ledgerTransactions);
 
                 // Update balances
                 accountBalances.cash += expense.amount; // Add back the expense amount
-                localStorage.setItem('accountBalances', JSON.stringify(accountBalances));
+                setCachedItem('accountBalances', accountBalances);
 
                 showLedgerExpenses();
                 updateLedgerDashboard();
@@ -8153,7 +8197,7 @@ function closeManualTransactionModal() {
         accountBalances.payables += totalAmount;
     }
 
-    localStorage.setItem('accountBalances', JSON.stringify(accountBalances));
+    setCachedItem('accountBalances', accountBalances);
 
     // Record in ledger
     recordLedgerTransaction(transactionTypes.PURCHASE, {
@@ -8200,11 +8244,11 @@ function closeManualTransactionModal() {
                         accountBalances.cash += purchase.totalAmount;
                     }
 
-                    localStorage.setItem('accountBalances', JSON.stringify(accountBalances));
+                    setCachedItem('accountBalances', accountBalances);
 
                     // Remove from ledger
                     ledgerTransactions = ledgerTransactions.filter(t => t.reference !== purchase.invoiceNo);
-                    localStorage.setItem('ledgerTransactions', JSON.stringify(ledgerTransactions));
+                    setCachedItem('ledgerTransactions', ledgerTransactions);
 
                     showLedgerPurchases();
                     updateLedgerDashboard();
@@ -9205,7 +9249,7 @@ function savePayment(customerMobile) {
         }
     });
     
-    localStorage.setItem('savedBills', JSON.stringify(savedBills));
+    setCachedItem('savedBills', savedBills);
     
     // Record in ledger
     recordLedgerTransaction(transactionTypes.PAYMENT_RECEIVED, {
@@ -9222,7 +9266,7 @@ function savePayment(customerMobile) {
     // Update balances
     accountBalances.cash += amount;
     accountBalances.receivables = Math.max(0, accountBalances.receivables - amount);
-    localStorage.setItem('accountBalances', JSON.stringify(accountBalances));
+    setCachedItem('accountBalances', accountBalances);
     
     closePaymentModal();
     updateLedgerDashboard();
@@ -9622,7 +9666,7 @@ function closePaymentModal() {
         };
 
         purchaseVouchers.unshift(pvRecord);
-        localStorage.setItem('purchaseVouchers', JSON.stringify(purchaseVouchers)); 
+        setCachedItem('purchaseVouchers', purchaseVouchers); 
 
         // ✅ Update metal stocks
         bulkUploadPVData.forEach(item => {
@@ -9635,7 +9679,7 @@ function closePaymentModal() {
             }
         });
 
-        localStorage.setItem('accountBalances', JSON.stringify(accountBalances));
+        setCachedItem('accountBalances', accountBalances);
 
         // ✅ Record in ledger
         recordLedgerTransaction(transactionTypes.PURCHASE, {
@@ -9656,7 +9700,7 @@ function closePaymentModal() {
             accountBalances.payables += totalValue;
         }
 
-        localStorage.setItem('accountBalances', JSON.stringify(accountBalances));
+        setCachedItem('accountBalances', accountBalances);
 
         closeModals();
         alert(`✅ PV Created Successfully!\n\nPV Number: ${pvNo}\nProducts Added: ${bulkUploadPVData.length}\nTotal Weight: ${totalWeight.toFixed(2)}g\nTotal Value: ₹${totalValue.toFixed(2)}\n\nStock updated in inventory.`);
@@ -10762,7 +10806,7 @@ function saveCashEntry() {
         accountBalances.cash -= amount;
     }
     
-    localStorage.setItem('accountBalances', JSON.stringify(accountBalances));
+    setCachedItem('accountBalances', accountBalances);
     
     closeCashEntryModal();
     updateLedgerDashboard();
@@ -11148,7 +11192,7 @@ function saveBankEntry() {
                     }
                 });
             
-            localStorage.setItem('savedBills', JSON.stringify(savedBills));
+            setCachedItem('savedBills', savedBills);
             
             transactionData.customerName = customer.name;
             transactionData.customerMobile = customerMobile;
@@ -11167,7 +11211,7 @@ function saveBankEntry() {
             break;
     }
     
-    localStorage.setItem('accountBalances', JSON.stringify(accountBalances));
+    setCachedItem('accountBalances', accountBalances);
     
     closeBankEntryModal();
     updateLedgerDashboard();
