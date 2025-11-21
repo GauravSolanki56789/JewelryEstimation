@@ -432,11 +432,11 @@
         <div id="rolTab" class="space-y-6 hidden">
             <div class="bg-white p-6 rounded-xl shadow-lg">
                 <div class="flex justify-between items-center mb-6 flex-wrap gap-3">
-                    <h2 class="text-2xl font-bold text-gray-800">📊 Reorder Level (ROL) Management</h2>
+                    <h2 class="text-2xl font-bold text-gray-800">📊 Reorder Level (ROL) Management - Style Code Based</h2>
                     <div class="flex gap-2 flex-wrap">
-                        <button onclick="downloadROLReport()"
+                        <button onclick="downloadROLReportForStyleCode()"
                             class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-sm">📥
-                            Download ROL Report</button>
+                            Download ROL Data</button>
                         <button onclick="downloadROLSample()"
                             class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-bold text-sm">📋
                             Download Sample</button>
@@ -446,81 +446,113 @@
                     </div>
                 </div>
         
-                <!-- Filter Section -->
-                <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border-2 border-blue-200 mb-4">
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Style Code</label>
-                            <input type="text" id="rolStyleCodeFilter" list="rolStyleCodeList" 
-                                placeholder="Type or select style code..." 
-                                onchange="updateROLDisplay()" oninput="updateROLDisplay()"
-                                class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                <!-- Style Code Selection Section -->
+                <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border-2 border-blue-200 mb-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Select Style Code</label>
+                            <input type="text" id="rolSelectedStyleCode" list="rolStyleCodeList" 
+                                placeholder="Type or select style code to view/upload ROL data..." 
+                                onchange="loadROLForStyleCode()" oninput="loadROLForStyleCode()"
+                                class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-lg">
                             <datalist id="rolStyleCodeList">
                                 <!-- Will be populated dynamically -->
                             </datalist>
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Product Name</label>
-                            <input type="text" id="rolProductNameFilter" list="rolProductNameList" 
-                                placeholder="Type or select product name..." 
-                                onchange="updateROLDisplay()" oninput="updateROLDisplay()"
-                                class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-                            <datalist id="rolProductNameList">
-                                <!-- Will be populated dynamically -->
-                            </datalist>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Filter View</label>
-                            <select id="rolViewFilter" onchange="updateROLDisplay()"
-                                class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-                                <option value="all">Show All Items</option>
-                                <option value="reorder">Show Only Reorder Required</option>
-                            </select>
-                        </div>
                         <div class="flex items-end">
-                            <button onclick="updateROLDisplay()"
-                                class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">🔄
-                                Refresh</button>
+                            <button onclick="clearROLSelection()"
+                                class="w-full px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-medium">🔄
+                                Clear</button>
                         </div>
                     </div>
                 </div>
-        
-                <!-- ROL Statistics -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                    <div class="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-4 rounded-lg shadow">
-                        <p class="text-sm opacity-90">Total Items</p>
-                        <p class="text-3xl font-bold" id="rolTotalItems">0</p>
-                    </div>
-                    <div class="bg-gradient-to-br from-red-500 to-red-600 text-white p-4 rounded-lg shadow">
-                        <p class="text-sm opacity-90">Reorder Required</p>
-                        <p class="text-3xl font-bold" id="rolReorderCount">0</p>
-                    </div>
-                    <div class="bg-gradient-to-br from-green-500 to-green-600 text-white p-4 rounded-lg shadow">
-                        <p class="text-sm opacity-90">Stock OK</p>
-                        <p class="text-3xl font-bold" id="rolStockOK">0</p>
-                    </div>
-                    <div class="bg-gradient-to-br from-yellow-500 to-yellow-600 text-white p-4 rounded-lg shadow">
-                        <p class="text-sm opacity-90">Total Required</p>
-                        <p class="text-3xl font-bold" id="rolTotalRequired">0</p>
+
+                <!-- ROL Counters Display (Only shown when style code is selected) -->
+                <div id="rolCountersSection" class="hidden mb-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Wholesale Counter (Multiple Pieces) -->
+                        <div class="bg-gradient-to-br from-orange-500 to-orange-600 text-white p-6 rounded-xl shadow-lg">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-xl font-bold">📦 Wholesale Counter</h3>
+                                <span class="text-sm opacity-90">(Multiple Pieces - Weight in gms)</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <p class="text-sm opacity-90 mb-1">ROL Set (gms)</p>
+                                    <p class="text-3xl font-bold" id="rolWholesaleSet">0</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm opacity-90 mb-1">Available (gms)</p>
+                                    <p class="text-3xl font-bold" id="rolWholesaleAvailable">0</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm opacity-90 mb-1">Required (gms)</p>
+                                    <p class="text-3xl font-bold" id="rolWholesaleRequired">0</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm opacity-90 mb-1">Status</p>
+                                    <p class="text-2xl font-bold" id="rolWholesaleStatus">OK</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Retail Counter (Single Piece) -->
+                        <div class="bg-gradient-to-br from-green-500 to-green-600 text-white p-6 rounded-xl shadow-lg">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-xl font-bold">🛍️ Retail Counter</h3>
+                                <span class="text-sm opacity-90">(Single Piece - Number of pieces)</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <p class="text-sm opacity-90 mb-1">ROL Set (pcs)</p>
+                                    <p class="text-3xl font-bold" id="rolRetailSet">0</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm opacity-90 mb-1">Available (pcs)</p>
+                                    <p class="text-3xl font-bold" id="rolRetailAvailable">0</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm opacity-90 mb-1">Required (pcs)</p>
+                                    <p class="text-3xl font-bold" id="rolRetailRequired">0</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm opacity-90 mb-1">Status</p>
+                                    <p class="text-2xl font-bold" id="rolRetailStatus">OK</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-        
-                <!-- ROL Table -->
-                <div class="overflow-x-auto">
-                    <table class="w-full">
-                        <thead class="bg-gray-100">
-                            <tr>
-                                <th class="px-4 py-3 text-left text-sm font-semibold">Barcode</th>
-                                <th class="px-4 py-3 text-left text-sm font-semibold">Style Code</th>
-                                <th class="px-4 py-3 text-left text-sm font-semibold">Product Name</th>
-                                <th class="px-4 py-3 text-center text-sm font-semibold">ROL Set</th>
-                                <th class="px-4 py-3 text-center text-sm font-semibold">Available</th>
-                                <th class="px-4 py-3 text-center text-sm font-semibold">Required</th>
-                                <th class="px-4 py-3 text-center text-sm font-semibold">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="rolTableBody"></tbody>
-                    </table>
+
+                <!-- ROL Items Table (Only shown when style code is selected) -->
+                <div id="rolItemsSection" class="hidden">
+                    <h3 class="text-lg font-bold mb-4">ROL Items for Selected Style Code</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full border-collapse border border-gray-300">
+                            <thead class="bg-gray-200">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-sm font-semibold border">Design (Product Name)</th>
+                                    <th class="px-4 py-3 text-left text-sm font-semibold border">SKU</th>
+                                    <th class="px-4 py-3 text-center text-sm font-semibold border">Size</th>
+                                    <th class="px-4 py-3 text-center text-sm font-semibold border bg-orange-100">ROL Wholesale (gms)</th>
+                                    <th class="px-4 py-3 text-center text-sm font-semibold border bg-orange-100">Available Wholesale (gms)</th>
+                                    <th class="px-4 py-3 text-center text-sm font-semibold border bg-green-100">ROL Retail (pcs)</th>
+                                    <th class="px-4 py-3 text-center text-sm font-semibold border bg-green-100">Available Retail (pcs)</th>
+                                    <th class="px-4 py-3 text-center text-sm font-semibold border">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rolItemsTableBody">
+                                <!-- Will be populated when style code is selected -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Empty State -->
+                <div id="rolEmptyState" class="text-center py-16">
+                    <div class="text-6xl mb-4">📊</div>
+                    <h4 class="text-xl font-bold text-gray-700 mb-2">Select a Style Code</h4>
+                    <p class="text-gray-500">Choose a style code above to view or upload ROL data</p>
                 </div>
             </div>
         </div>
@@ -1858,11 +1890,12 @@
     <div id="rolUploadModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
         <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-3xl w-full pointer-events-auto max-h-[90vh] overflow-y-auto"
             onclick="event.stopPropagation()">
-            <h3 class="text-xl font-bold mb-4">📤 Upload ROL Data from Excel</h3>
+            <h3 class="text-xl font-bold mb-4">📤 Upload ROL Data from Excel (Style Code Based)</h3>
             <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
                 <h4 class="font-bold text-blue-800 mb-2">📋 Required Excel Columns:</h4>
-                <p class="text-sm text-blue-700 font-mono">Barcode | StyleCode | ProductName | ROL</p>
-                <p class="text-sm text-blue-700 mt-2"><strong>Note:</strong> Barcode must match existing products</p>
+                <p class="text-sm text-blue-700 font-mono">StyleCode | Design (Product Name) | SKU | Size | ROL Wholesale (gms) | ROL Retail (pcs)</p>
+                <p class="text-sm text-blue-700 mt-2"><strong>Note:</strong> ROL is style-code based. Single piece = Retail (pcs), Multiple pieces = Wholesale (gms)</p>
+                <p class="text-sm text-blue-700 mt-1"><strong>Format:</strong> Wholesale ROL in grams (gms), Retail ROL in number of pieces (pcs)</p>
             </div>
             <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-4 bg-gray-50">
                 <input type="file" id="rolExcelFileInput" accept=".xlsx,.xls" class="hidden"
@@ -1879,10 +1912,12 @@
                     <table class="w-full text-sm">
                         <thead class="bg-gray-100 sticky top-0">
                             <tr>
-                                <th class="px-2 py-2 text-left">Barcode</th>
                                 <th class="px-2 py-2 text-left">Style Code</th>
-                                <th class="px-2 py-2 text-left">Product Name</th>
-                                <th class="px-2 py-2 text-center">ROL</th>
+                                <th class="px-2 py-2 text-left">Design</th>
+                                <th class="px-2 py-2 text-left">SKU</th>
+                                <th class="px-2 py-2 text-center">Size</th>
+                                <th class="px-2 py-2 text-center bg-orange-100">ROL Wholesale (gms)</th>
+                                <th class="px-2 py-2 text-center bg-green-100">ROL Retail (pcs)</th>
                             </tr>
                         </thead>
                         <tbody id="rolPreviewTableBody"></tbody>
@@ -2358,8 +2393,11 @@
                 'R3': 10,
                 'R4': 15
             };
-        let rolData = getCachedItem('rolData', []);
+        // New ROL data structure: style-code based with wholesale/retail
+        // Structure: { styleCode: { items: [{ design, sku, size, rolWholesale, rolRetail, availableWholesale, availableRetail }] } }
+        let rolData = getCachedItem('rolData', {}); // Changed from array to object keyed by style code
         let bulkUploadROLData = [];
+        let currentSelectedROLStyleCode = null;
 let currentTagSplitProduct = null;
 let tagSplitEntries = [];
 let tagRemainingPcs = 0;
@@ -3324,7 +3362,7 @@ function generateSalesBillPDF() {
         showLedgerCustomerAccounts(); // Refresh customer accounts
     }
 
-    //Mark products as sold and update barcodes
+    //Mark products as sold and update barcodes + Deduct from ROL counters
     billItems.forEach(item => {
         if (item.barcode) {
             // Mark as sold
@@ -3333,20 +3371,45 @@ function generateSalesBillPDF() {
             }
             // Remove from inventory
             removeProductFromInventory(item.barcode);
+            
+            // ✅ DEDUCT FROM ROL COUNTERS
+            if (item.styleCode && rolData[item.styleCode]) {
+                const styleROLData = rolData[item.styleCode];
+                const product = products.find(p => p.barcode === item.barcode);
+                
+                if (product) {
+                    // Find matching ROL item by SKU and size
+                    const rolItem = styleROLData.items.find(ri => 
+                        (ri.sku && product.sku && ri.sku.toLowerCase() === product.sku.toLowerCase()) &&
+                        (ri.size && product.size && ri.size.toLowerCase() === product.size.toLowerCase())
+                    );
+                    
+                    if (rolItem) {
+                        // Determine if single piece (retail) or multiple pieces (wholesale)
+                        const isSinglePiece = (product.pcs || 1) === 1;
+                        
+                        if (isSinglePiece) {
+                            // Retail: Deduct pieces
+                            rolItem.availableRetail = Math.max(0, (parseFloat(rolItem.availableRetail || 0) - 1));
+                        } else {
+                            // Wholesale: Deduct weight in grams
+                            const weightToDeduct = parseFloat(item.weight || 0);
+                            rolItem.availableWholesale = Math.max(0, (parseFloat(rolItem.availableWholesale || 0) - weightToDeduct));
+                        }
+                    }
+                }
+            }
         }
     });
-
-    // Mark products as sold and update barcodes
-billItems.forEach(item => {
-    if (item.barcode) {
-        // Mark as sold
-        if (!soldProducts.find(sp => sp.barcode === item.barcode)) {
-            markProductAsSold(item.barcode, billNo);
+    
+    // Save updated ROL data
+    if (billItems.some(item => item.styleCode && rolData[item.styleCode])) {
+        setCachedItem('rolData', rolData);
+        // Refresh ROL display if visible
+        if (!document.getElementById('rolTab').classList.contains('hidden') && currentSelectedROLStyleCode) {
+            loadROLForStyleCode();
         }
-        // Remove from inventory
-        removeProductFromInventory(item.barcode);
     }
-});
     // Update products table if visible
     if (!document.getElementById('productsTab').classList.contains('hidden')) {
         updateProductsTable();
@@ -3704,6 +3767,10 @@ billItems.forEach(item => {
                 }
 
         function showTab(tab) {
+                // Initialize ROL when tab is shown
+                if (tab === 'rol' && typeof initializeROL === 'function') {
+                    initializeROL();
+                }
                 // Check if user has access to this tab
                 if (currentUser && !currentUser.allowedTabs.includes('all') && !currentUser.allowedTabs.includes(tab)) {
                     showDialog('Access Denied', 'You do not have permission to access this tab.', 'error');
@@ -3753,7 +3820,7 @@ billItems.forEach(item => {
                     document.getElementById('rolTab').classList.remove('hidden');
                     document.getElementById('btnROL').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
                     initializeROL();
-                    updateROLDisplay();
+                    // ROL display is now loaded via loadROLForStyleCode() when style code is selected
                 } else if (tab === 'quotations') {
                     document.getElementById('quotationsTab').classList.remove('hidden');
                     document.getElementById('btnQuotations').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
@@ -4559,6 +4626,8 @@ function saveProduct() {
     }
     
     const editIndex = document.getElementById('editProductIndex').value;
+    const isNewProduct = editIndex === '';
+    
     if (editIndex !== '') {
         product.id = products[editIndex].id;
         products[editIndex] = product;
@@ -4567,9 +4636,40 @@ function saveProduct() {
         product.id = Date.now();
         products.push(product);
         alert('Product added!');
+        
+        // ✅ UPDATE ROL AVAILABLE COUNTERS when new product is added
+        if (product.styleCode && rolData[product.styleCode]) {
+            const styleROLData = rolData[product.styleCode];
+            // Find matching ROL item by SKU and size
+            const rolItem = styleROLData.items.find(ri => 
+                (ri.sku && product.sku && ri.sku.toLowerCase() === product.sku.toLowerCase()) &&
+                (ri.size && product.size && ri.size.toLowerCase() === product.size.toLowerCase())
+            );
+            
+            if (rolItem) {
+                // Determine if single piece (retail) or multiple pieces (wholesale)
+                const isSinglePiece = (product.pcs || 1) === 1;
+                
+                if (isSinglePiece) {
+                    // Retail: Add pieces
+                    rolItem.availableRetail = (parseFloat(rolItem.availableRetail || 0) + 1);
+                } else {
+                    // Wholesale: Add weight in grams
+                    const weightToAdd = parseFloat(product.avgWt || 0);
+                    rolItem.availableWholesale = (parseFloat(rolItem.availableWholesale || 0) + weightToAdd);
+                }
+                
+                // Save updated ROL data
+                setCachedItem('rolData', rolData);
+                // Refresh ROL display if visible
+                if (!document.getElementById('rolTab').classList.contains('hidden') && currentSelectedROLStyleCode === product.styleCode) {
+                    loadROLForStyleCode();
+                }
+            }
+        }
     }
     
-    localStorage.setItem('products', JSON.stringify(products));
+    setCachedItem('products', products);
     updateProductsTable();
     closeModals();
 }
@@ -5976,7 +6076,7 @@ function updateMCTypeLabel() {
         generateQuotePDFWithPayment();
     }
 
-                // ========== ROL MANAGEMENT FUNCTIONS ==========
+                // ========== ROL MANAGEMENT FUNCTIONS (Style-Code Based) ==========
 
                     function initializeROL() {
                             // Populate style code datalist
@@ -5990,118 +6090,113 @@ function updateMCTypeLabel() {
                                     styleCodeList.appendChild(option);
                                 });
                             }
-
-                            // Populate product name datalist
-                            const productNameList = document.getElementById('rolProductNameList');
-                            if (productNameList) {
-                                productNameList.innerHTML = '';
-                                const uniqueProductNames = [...new Set(products.map(p => p.shortName).filter(n => n && n.trim() !== ''))];
-                                uniqueProductNames.sort().forEach(productName => {
-                                    const option = document.createElement('option');
-                                    option.value = productName;
-                                    productNameList.appendChild(option);
-                                });
-                            }
-
-                            // Initialize display
-                            updateROLDisplay();
                         }
 
-                    function updateROLDisplay() {
-                        const styleCodeFilterEl = document.getElementById('rolStyleCodeFilter');
-                        const productNameFilterEl = document.getElementById('rolProductNameFilter');
-                        const viewFilter = document.getElementById('rolViewFilter').value;
-
-                        const styleCodeFilter = styleCodeFilterEl ? styleCodeFilterEl.value.trim() : '';
-                        const productNameFilter = productNameFilterEl ? productNameFilterEl.value.trim() : '';
-
-                        // Get filtered products
-                        let filteredProducts = products;
-                        if (styleCodeFilter && styleCodeFilter !== 'all') {
-                            filteredProducts = filteredProducts.filter(p => p.styleCode && p.styleCode.toLowerCase().includes(styleCodeFilter.toLowerCase()));
-                        }
-                        if (productNameFilter) {
-                            filteredProducts = filteredProducts.filter(p => p.shortName && p.shortName.toLowerCase().includes(productNameFilter.toLowerCase()));
-                        }
-
-                        // Merge with ROL data
-                        const rolItems = filteredProducts.map(product => {
-                            const rolItem = rolData.find(r => r.barcode === product.barcode);
-                            const rolSet = rolItem ? rolItem.rol : 0;
-                            const available = rolItem ? (rolItem.available || 0) : 0;
-                            const required = Math.max(0, rolSet - available);
-
-                            return {
-                                barcode: product.barcode,
-                                styleCode: product.styleCode || '-',
-                                productName: product.shortName,
-                                rolSet: rolSet,
-                                available: available,
-                                required: required,
-                                needsReorder: required > 0
-                            };
-                        });
-
-                        // Apply view filter
-                        let displayItems = rolItems;
-                        if (viewFilter === 'reorder') {
-                            displayItems = rolItems.filter(item => item.needsReorder);
-                        }
-
-                        // Update statistics
-                        const totalItems = rolItems.length;
-                        const reorderCount = rolItems.filter(item => item.needsReorder).length;
-                        const stockOK = totalItems - reorderCount;
-                        const totalRequired = rolItems.reduce((sum, item) => sum + item.required, 0);
-
-                        document.getElementById('rolTotalItems').textContent = totalItems;
-                        document.getElementById('rolReorderCount').textContent = reorderCount;
-                        document.getElementById('rolStockOK').textContent = stockOK;
-                        document.getElementById('rolTotalRequired').textContent = totalRequired;
-
-                        // Update table
-                        const tbody = document.getElementById('rolTableBody');
-                        tbody.innerHTML = '';
-
-                        if (displayItems.length === 0) {
-                            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-gray-500">No items found.</td></tr>';
+                    function loadROLForStyleCode() {
+                        const styleCodeInput = getCachedElement('rolSelectedStyleCode');
+                        if (!styleCodeInput) return;
+                        
+                        const selectedStyleCode = styleCodeInput.value.trim();
+                        if (!selectedStyleCode) {
+                            clearROLSelection();
                             return;
                         }
 
-                        displayItems.forEach(item => {
-                            const row = document.createElement('tr');
-                            row.className = item.needsReorder ? 'border-b hover:bg-red-50 bg-red-50' : 'border-b hover:bg-green-50 bg-green-50';
+                        currentSelectedROLStyleCode = selectedStyleCode;
+                        const rolStyleData = rolData[selectedStyleCode] || { items: [] };
 
-                            const statusBadge = item.needsReorder
+                        // Calculate totals for wholesale (weight in gms) and retail (pieces)
+                        let totalWholesaleROL = 0;
+                        let totalWholesaleAvailable = 0;
+                        let totalRetailROL = 0;
+                        let totalRetailAvailable = 0;
+
+                        rolStyleData.items.forEach(item => {
+                            totalWholesaleROL += parseFloat(item.rolWholesale || 0);
+                            totalWholesaleAvailable += parseFloat(item.availableWholesale || 0);
+                            totalRetailROL += parseFloat(item.rolRetail || 0);
+                            totalRetailAvailable += parseFloat(item.availableRetail || 0);
+                        });
+
+                        const wholesaleRequired = Math.max(0, totalWholesaleROL - totalWholesaleAvailable);
+                        const retailRequired = Math.max(0, totalRetailROL - totalRetailAvailable);
+
+                        // Update counters display
+                        getCachedElement('rolWholesaleSet').textContent = totalWholesaleROL.toFixed(2);
+                        getCachedElement('rolWholesaleAvailable').textContent = totalWholesaleAvailable.toFixed(2);
+                        getCachedElement('rolWholesaleRequired').textContent = wholesaleRequired.toFixed(2);
+                        getCachedElement('rolWholesaleStatus').textContent = wholesaleRequired > 0 ? 'REORDER' : 'OK';
+                        getCachedElement('rolWholesaleStatus').className = wholesaleRequired > 0 ? 'text-2xl font-bold text-yellow-300' : 'text-2xl font-bold';
+
+                        getCachedElement('rolRetailSet').textContent = totalRetailROL;
+                        getCachedElement('rolRetailAvailable').textContent = totalRetailAvailable;
+                        getCachedElement('rolRetailRequired').textContent = retailRequired;
+                        getCachedElement('rolRetailStatus').textContent = retailRequired > 0 ? 'REORDER' : 'OK';
+                        getCachedElement('rolRetailStatus').className = retailRequired > 0 ? 'text-2xl font-bold text-yellow-300' : 'text-2xl font-bold';
+
+                        // Show counters and items section, hide empty state
+                        getCachedElement('rolCountersSection').classList.remove('hidden');
+                        getCachedElement('rolItemsSection').classList.remove('hidden');
+                        getCachedElement('rolEmptyState').classList.add('hidden');
+
+                        // Update items table
+                        const tbody = getCachedElement('rolItemsTableBody');
+                        tbody.innerHTML = '';
+
+                        if (rolStyleData.items.length === 0) {
+                            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-gray-500">No ROL items found for this style code. Upload ROL data to get started.</td></tr>';
+                            return;
+                        }
+
+                        rolStyleData.items.forEach(item => {
+                            const wholesaleRequired = Math.max(0, (parseFloat(item.rolWholesale || 0) - parseFloat(item.availableWholesale || 0)));
+                            const retailRequired = Math.max(0, (parseFloat(item.rolRetail || 0) - parseFloat(item.availableRetail || 0)));
+                            const needsReorder = wholesaleRequired > 0 || retailRequired > 0;
+
+                            const row = document.createElement('tr');
+                            row.className = needsReorder ? 'border-b hover:bg-red-50 bg-red-50' : 'border-b hover:bg-green-50';
+                            
+                            const statusBadge = needsReorder
                                 ? '<span class="px-2 py-1 bg-red-600 text-white text-xs rounded-full font-bold">REORDER</span>'
                                 : '<span class="px-2 py-1 bg-green-600 text-white text-xs rounded-full font-bold">OK</span>';
 
                             row.innerHTML = `
-            <td class="px-4 py-3 font-mono text-sm">${item.barcode}</td>
-            <td class="px-4 py-3 text-sm font-semibold text-blue-600">${item.styleCode}</td>
-            <td class="px-4 py-3 font-medium">${item.productName}</td>
-            <td class="px-4 py-3 text-center font-bold">${item.rolSet}</td>
-            <td class="px-4 py-3 text-center">${item.available}</td>
-            <td class="px-4 py-3 text-center font-bold ${item.needsReorder ? 'text-red-600' : 'text-green-600'}">${item.required}</td>
-            <td class="px-4 py-3 text-center">${statusBadge}</td>
-        `;
+                                <td class="px-4 py-3 border font-medium">${item.design || '-'}</td>
+                                <td class="px-4 py-3 border">${item.sku || '-'}</td>
+                                <td class="px-4 py-3 border text-center">${item.size || '-'}</td>
+                                <td class="px-4 py-3 border text-center bg-orange-50 font-bold">${parseFloat(item.rolWholesale || 0).toFixed(2)}</td>
+                                <td class="px-4 py-3 border text-center bg-orange-50 ${wholesaleRequired > 0 ? 'text-red-600' : 'text-green-600'}">${parseFloat(item.availableWholesale || 0).toFixed(2)}</td>
+                                <td class="px-4 py-3 border text-center bg-green-50 font-bold">${parseFloat(item.rolRetail || 0)}</td>
+                                <td class="px-4 py-3 border text-center bg-green-50 ${retailRequired > 0 ? 'text-red-600' : 'text-green-600'}">${parseFloat(item.availableRetail || 0)}</td>
+                                <td class="px-4 py-3 border text-center">${statusBadge}</td>
+                            `;
                             tbody.appendChild(row);
                         });
                     }
 
+                    function clearROLSelection() {
+                        currentSelectedROLStyleCode = null;
+                        getCachedElement('rolSelectedStyleCode').value = '';
+                        getCachedElement('rolCountersSection').classList.add('hidden');
+                        getCachedElement('rolItemsSection').classList.add('hidden');
+                        getCachedElement('rolEmptyState').classList.remove('hidden');
+                    }
+
+                    // Old updateROLDisplay removed - now using loadROLForStyleCode() for style-code based display
+
                     function downloadROLSample() {
                         const sampleData = [
-                            { Barcode: '1001', StyleCode: 'EMERALD IDOL', ProductName: 'Silver Ganesh Idol', ROL: 20 },
-                            { Barcode: '1002', StyleCode: 'EMERALD IDOL', ProductName: 'Silver Lakshmi Idol', ROL: 15 },
-                            { Barcode: '1003', StyleCode: 'SOLID IDOL 2D', ProductName: 'Gold Krishna Idol 2D', ROL: 10 },
-                            { Barcode: '1004', StyleCode: 'SOLID IDOL 3D', ProductName: 'Silver Saraswati 3D', ROL: 25 }
+                            { StyleCode: 'EMERALD IDOL', Design: 'Silver Ganesh Idol', SKU: 'GAN001', Size: 'Small', 'ROL Wholesale (gms)': 500, 'ROL Retail (pcs)': 20 },
+                            { StyleCode: 'EMERALD IDOL', Design: 'Silver Lakshmi Idol', SKU: 'LAK001', Size: 'Medium', 'ROL Wholesale (gms)': 750, 'ROL Retail (pcs)': 15 },
+                            { StyleCode: 'SOLID IDOL 2D', Design: 'Gold Krishna Idol 2D', SKU: 'KRI001', Size: 'Large', 'ROL Wholesale (gms)': 1000, 'ROL Retail (pcs)': 10 },
+                            { StyleCode: 'SOLID IDOL 3D', Design: 'Silver Saraswati 3D', SKU: 'SAR001', Size: 'Small', 'ROL Wholesale (gms)': 600, 'ROL Retail (pcs)': 25 }
                         ];
 
                         const ws = XLSX.utils.json_to_sheet(sampleData);
                         const wb = XLSX.utils.book_new();
                         XLSX.utils.book_append_sheet(wb, ws, 'ROL Sample');
                         XLSX.writeFile(wb, 'ROL_Sample_Format.xlsx');
-                        alert('ROL Sample downloaded!');
+                        showDialog('Sample Downloaded', 'ROL sample file downloaded successfully!', 'success');
                     }
 
                     function showROLUploadModal() {
@@ -6126,107 +6221,119 @@ function updateMCTypeLabel() {
                                     const jsonData = XLSX.utils.sheet_to_json(firstSheet);
 
                                     if (jsonData.length === 0) {
-                                        alert('Excel file is empty!');
+                                        showDialog('Error', 'Excel file is empty!', 'error');
                                         return;
                                     }
 
-                                    bulkUploadROLData = jsonData.map(row => ({
-                                        barcode: String(row.Barcode || row.barcode || '').trim(),
-                                        styleCode: String(row.StyleCode || row.styleCode || '').trim(),
-                                        productName: String(row.ProductName || row.productName || '').trim(),
-                                        rol: parseInt(row.ROL || row.rol || 0),
-                                        available: 0 // Initialize available as 0
-                                    }));
+                                    // Group by style code
+                                    const groupedByStyleCode = {};
+                                    jsonData.forEach(row => {
+                                        const styleCode = String(row.StyleCode || row.styleCode || '').trim().toUpperCase();
+                                        if (!styleCode) {
+                                            showDialog('Error', 'Some rows are missing Style Code. Please check your file.', 'error');
+                                            return;
+                                        }
 
-                                    // Preview
-                                    const tbody = document.getElementById('rolPreviewTableBody');
+                                        if (!groupedByStyleCode[styleCode]) {
+                                            groupedByStyleCode[styleCode] = { items: [] };
+                                        }
+
+                                        groupedByStyleCode[styleCode].items.push({
+                                            design: String(row.Design || row.design || row.ProductName || row.productName || '').trim(),
+                                            sku: String(row.SKU || row.sku || '').trim(),
+                                            size: String(row.Size || row.size || '').trim(),
+                                            rolWholesale: parseFloat(row['ROL Wholesale (gms)'] || row['ROL Wholesale'] || row.rolWholesale || 0),
+                                            rolRetail: parseFloat(row['ROL Retail (pcs)'] || row['ROL Retail'] || row.rolRetail || 0),
+                                            availableWholesale: 0, // Initialize as 0
+                                            availableRetail: 0 // Initialize as 0
+                                        });
+                                    });
+
+                                    bulkUploadROLData = groupedByStyleCode;
+
+                                    // Preview - show first style code's items
+                                    const firstStyleCode = Object.keys(groupedByStyleCode)[0];
+                                    const previewItems = groupedByStyleCode[firstStyleCode]?.items || [];
+                                    const tbody = getCachedElement('rolPreviewTableBody');
                                     tbody.innerHTML = '';
-                                    bulkUploadROLData.slice(0, 5).forEach(item => {
+                                    previewItems.slice(0, 5).forEach(item => {
                                         const row = document.createElement('tr');
                                         row.className = 'border-b';
                                         row.innerHTML = `
-                    <td class="px-2 py-2">${item.barcode}</td>
-                    <td class="px-2 py-2">${item.styleCode}</td>
-                    <td class="px-2 py-2">${item.productName}</td>
-                    <td class="px-2 py-2 text-center font-bold">${item.rol}</td>
-                `;
+                                            <td class="px-2 py-2">${firstStyleCode}</td>
+                                            <td class="px-2 py-2">${item.design}</td>
+                                            <td class="px-2 py-2">${item.sku}</td>
+                                            <td class="px-2 py-2 text-center">${item.size}</td>
+                                            <td class="px-2 py-2 text-center font-bold">${item.rolWholesale.toFixed(2)} gms</td>
+                                            <td class="px-2 py-2 text-center font-bold">${item.rolRetail} pcs</td>
+                                        `;
                                         tbody.appendChild(row);
                                     });
 
-                                    document.getElementById('rolUploadCount').textContent = bulkUploadROLData.length;
-                                    document.getElementById('rolUploadPreview').classList.remove('hidden');
+                                    const totalStyleCodes = Object.keys(groupedByStyleCode).length;
+                                    const totalItems = jsonData.length;
+                                    getCachedElement('rolUploadCount').textContent = `${totalItems} items across ${totalStyleCodes} style code(s)`;
+                                    getCachedElement('rolUploadPreview').classList.remove('hidden');
                                 } catch (error) {
-                                    alert('Error reading Excel: ' + error.message);
+                                    showDialog('Error', 'Error reading Excel: ' + error.message, 'error');
                                 }
                             };
                             reader.readAsArrayBuffer(file);
                         }
 
                         function confirmROLUpload() {
-                            if (bulkUploadROLData.length === 0) return;
-
-                            // Validate that barcodes exist in products
-                            const invalidItems = bulkUploadROLData.filter(item => {
-                                return !products.find(p => p.barcode === item.barcode);
-                            });
-
-                            if (invalidItems.length > 0) {
-                                alert(`Error: ${invalidItems.length} items have barcodes not found in products database.\nPlease add these products first.`);
+                            if (!bulkUploadROLData || Object.keys(bulkUploadROLData).length === 0) {
+                                showDialog('Error', 'No data to upload!', 'error');
                                 return;
                             }
 
-                            // Merge with existing ROL data
-                            bulkUploadROLData.forEach(newItem => {
-                                const existingIndex = rolData.findIndex(r => r.barcode === newItem.barcode);
-                                if (existingIndex >= 0) {
-                                    rolData[existingIndex] = newItem;
-                                } else {
-                                    rolData.push(newItem);
+                            // Merge with existing ROL data (preserve available counters)
+                            Object.keys(bulkUploadROLData).forEach(styleCode => {
+                                const newStyleData = bulkUploadROLData[styleCode];
+                                
+                                if (!rolData[styleCode]) {
+                                    rolData[styleCode] = { items: [] };
                                 }
+
+                                // Merge items - update ROL values but preserve available counters
+                                newStyleData.items.forEach(newItem => {
+                                    const existingItem = rolData[styleCode].items.find(
+                                        item => item.sku === newItem.sku && item.size === newItem.size
+                                    );
+                                    
+                                    if (existingItem) {
+                                        // Update ROL values but keep available counters
+                                        existingItem.design = newItem.design;
+                                        existingItem.rolWholesale = newItem.rolWholesale;
+                                        existingItem.rolRetail = newItem.rolRetail;
+                                    } else {
+                                        // Add new item
+                                        rolData[styleCode].items.push(newItem);
+                                    }
+                                });
                             });
 
                             setCachedItem('rolData', rolData);
-                            updateROLDisplay();
+                            
+                            // Reload if current style code is in uploaded data
+                            if (currentSelectedROLStyleCode && bulkUploadROLData[currentSelectedROLStyleCode]) {
+                                loadROLForStyleCode();
+                            }
+                            
                             closeModals();
-                            alert(`Successfully uploaded ${bulkUploadROLData.length} ROL items!`);
+                            const totalItems = Object.values(bulkUploadROLData).reduce((sum, style) => sum + style.items.length, 0);
+                            showDialog('Success', `Successfully uploaded ${totalItems} ROL items across ${Object.keys(bulkUploadROLData).length} style code(s)!`, 'success');
                         }
 
-                        function downloadROLReport() {
-                            const styleCodeFilterEl = document.getElementById('rolStyleCodeFilter');
-                            const productNameFilterEl = document.getElementById('rolProductNameFilter');
-                            
-                            const styleCodeFilter = styleCodeFilterEl ? styleCodeFilterEl.value.trim() : '';
-                            const productNameFilter = productNameFilterEl ? productNameFilterEl.value.trim() : '';
-
-                            // Get filtered products
-                            let filteredProducts = products;
-                            if (styleCodeFilter && styleCodeFilter !== 'all') {
-                                filteredProducts = filteredProducts.filter(p => p.styleCode && p.styleCode.toLowerCase().includes(styleCodeFilter.toLowerCase()));
-                            }
-                            if (productNameFilter) {
-                                filteredProducts = filteredProducts.filter(p => p.shortName && p.shortName.toLowerCase().includes(productNameFilter.toLowerCase()));
+                        function downloadROLReportForStyleCode() {
+                            if (!currentSelectedROLStyleCode) {
+                                showDialog('Error', 'Please select a style code first!', 'error');
+                                return;
                             }
 
-                            // Merge with ROL data and filter only items needing reorder
-                            const rolItems = filteredProducts.map(product => {
-                                const rolItem = rolData.find(r => r.barcode === product.barcode);
-                                const rolSet = rolItem ? rolItem.rol : 0;
-                                const available = rolItem ? (rolItem.available || 0) : 0;
-                                const required = Math.max(0, rolSet - available);
-
-                                return {
-                                    barcode: product.barcode,
-                                    styleCode: product.styleCode || '-',
-                                    productName: product.shortName,
-                                    rolSet: rolSet,
-                                    available: available,
-                                    required: required,
-                                    needsReorder: required > 0
-                                };
-                            }).filter(item => item.needsReorder); // Only items that need reorder
-
-                            if (rolItems.length === 0) {
-                                alert('No items need reordering!');
+                            const styleData = rolData[currentSelectedROLStyleCode];
+                            if (!styleData || !styleData.items || styleData.items.length === 0) {
+                                showDialog('Error', 'No ROL data found for selected style code!', 'error');
                                 return;
                             }
 
@@ -6234,34 +6341,39 @@ function updateMCTypeLabel() {
                             const wb = XLSX.utils.book_new();
 
                             // Create data
-                            const headerData = [
-                                ['REORDER LEVEL (ROL) REPORT'],
-                                ['Generated:', date],
-                                ['Style Code Filter:', styleCodeFilter || 'All Style Codes'],
-                                ['Product Name Filter:', productNameFilter || 'All Products'],
-                                ['Items Requiring Reorder:', rolItems.length],
-                                ['']
-                            ];
-
-                            const tableData = rolItems.map((item, idx) => ({
+                            const tableData = styleData.items.map((item, idx) => ({
                                 '#': idx + 1,
-                                'Barcode': item.barcode,
-                                'Style Code': item.styleCode,
-                                'Product Name': item.productName,
-                                'ROL Set': item.rolSet,
-                                'Available Stock': item.available,
-                                'Required Qty': item.required,
-                                'Status': 'REORDER NEEDED'
+                                'Style Code': currentSelectedROLStyleCode,
+                                'Design (Product Name)': item.design || '-',
+                                'SKU': item.sku || '-',
+                                'Size': item.size || '-',
+                                'ROL Wholesale (gms)': parseFloat(item.rolWholesale || 0).toFixed(2),
+                                'Available Wholesale (gms)': parseFloat(item.availableWholesale || 0).toFixed(2),
+                                'Required Wholesale (gms)': Math.max(0, parseFloat(item.rolWholesale || 0) - parseFloat(item.availableWholesale || 0)).toFixed(2),
+                                'ROL Retail (pcs)': parseFloat(item.rolRetail || 0),
+                                'Available Retail (pcs)': parseFloat(item.availableRetail || 0),
+                                'Required Retail (pcs)': Math.max(0, parseFloat(item.rolRetail || 0) - parseFloat(item.availableRetail || 0)),
+                                'Status': (Math.max(0, parseFloat(item.rolWholesale || 0) - parseFloat(item.availableWholesale || 0)) > 0 || 
+                                          Math.max(0, parseFloat(item.rolRetail || 0) - parseFloat(item.availableRetail || 0)) > 0) ? 'REORDER NEEDED' : 'OK'
                             }));
 
                             const tableHeaders = Object.keys(tableData[0]);
                             const tableRows = tableData.map(obj => tableHeaders.map(key => obj[key]));
 
-                            const summaryData = [
-                                [''],
-                                ['SUMMARY'],
-                                ['Total Items Needing Reorder:', rolItems.length],
-                                ['Total Quantity Required:', rolItems.reduce((sum, item) => sum + item.required, 0)]
+                            // Calculate summary
+                            const totalWholesaleRequired = tableData.reduce((sum, item) => sum + parseFloat(item['Required Wholesale (gms)'] || 0), 0);
+                            const totalRetailRequired = tableData.reduce((sum, item) => sum + parseFloat(item['Required Retail (pcs)'] || 0), 0);
+                            const itemsNeedingReorder = tableData.filter(item => item.Status === 'REORDER NEEDED').length;
+
+                            const headerData = [
+                                ['REORDER LEVEL (ROL) REPORT'],
+                                ['Generated:', date],
+                                ['Style Code:', currentSelectedROLStyleCode],
+                                ['Total Items:', tableData.length],
+                                ['Items Needing Reorder:', itemsNeedingReorder],
+                                ['Total Required Wholesale (gms):', totalWholesaleRequired.toFixed(2)],
+                                ['Total Required Retail (pcs):', totalRetailRequired],
+                                ['']
                             ];
 
                             // Combine all data
@@ -6275,13 +6387,13 @@ function updateMCTypeLabel() {
                             const ws = XLSX.utils.aoa_to_sheet(allData);
 
                             ws['!cols'] = [
-                                { wch: 5 }, { wch: 15 }, { wch: 15 }, { wch: 35 },
-                                { wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 18 }
+                                { wch: 5 }, { wch: 20 }, { wch: 30 }, { wch: 15 }, { wch: 10 },
+                                { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }
                             ];
 
                             XLSX.utils.book_append_sheet(wb, ws, 'ROL Report');
-                            XLSX.writeFile(wb, `ROL_Report_${date.replace(/\//g, '-')}.xlsx`);
-                            alert('ROL Report downloaded successfully!');
+                            XLSX.writeFile(wb, `ROL_Report_${currentSelectedROLStyleCode}_${date.replace(/\//g, '-')}.xlsx`);
+                            showDialog('Success', 'ROL Report downloaded successfully!', 'success');
                         }
 
                         // ========== QUOTATION HISTORY FUNCTIONS ==========
@@ -9647,7 +9759,42 @@ function closePaymentModal() {
         
         // ✅ Add products to inventory
         products.push(...bulkUploadPVData);
-        localStorage.setItem('products', JSON.stringify(products));
+        setCachedItem('products', products);
+        
+        // ✅ UPDATE ROL AVAILABLE COUNTERS when products are added
+        bulkUploadPVData.forEach(product => {
+            if (product.styleCode && rolData[product.styleCode]) {
+                const styleROLData = rolData[product.styleCode];
+                // Find matching ROL item by SKU and size
+                const rolItem = styleROLData.items.find(ri => 
+                    (ri.sku && product.sku && ri.sku.toLowerCase() === product.sku.toLowerCase()) &&
+                    (ri.size && product.size && ri.size.toLowerCase() === product.size.toLowerCase())
+                );
+                
+                if (rolItem) {
+                    // Determine if single piece (retail) or multiple pieces (wholesale)
+                    const isSinglePiece = (product.pcs || 1) === 1;
+                    
+                    if (isSinglePiece) {
+                        // Retail: Add pieces
+                        rolItem.availableRetail = (parseFloat(rolItem.availableRetail || 0) + 1);
+                    } else {
+                        // Wholesale: Add weight in grams
+                        const weightToAdd = parseFloat(product.avgWt || 0);
+                        rolItem.availableWholesale = (parseFloat(rolItem.availableWholesale || 0) + weightToAdd);
+                    }
+                }
+            }
+        });
+        
+        // Save updated ROL data if any products matched
+        if (bulkUploadPVData.some(p => p.styleCode && rolData[p.styleCode])) {
+            setCachedItem('rolData', rolData);
+            // Refresh ROL display if visible
+            if (!document.getElementById('rolTab').classList.contains('hidden') && currentSelectedROLStyleCode) {
+                loadROLForStyleCode();
+            }
+        }
 
         // ✅ Create PV record
         const pvRecord = {
