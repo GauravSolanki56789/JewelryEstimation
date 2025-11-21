@@ -1,4 +1,5 @@
 // Database Configuration for Multi-Tenant Architecture
+require('dotenv').config(); // Load .env file
 const { Pool } = require('pg');
 
 // Store tenant database connections
@@ -54,33 +55,50 @@ function getTenantPool(tenantCode) {
 
 // Create tenant database and schema
 async function createTenantDatabase(tenantCode, tenantName, adminUsername, adminPassword) {
-    const client = await masterPool.connect();
+    // Need to connect to 'postgres' database to create new database
+    const postgresPool = new Pool({
+        host: process.env.DB_HOST || 'localhost',
+        port: parseInt(process.env.DB_PORT) || 5432,
+        database: 'postgres', // Connect to postgres database to create new DB
+        user: process.env.DB_USER || 'postgres',
+        password: process.env.DB_PASSWORD || 'postgres',
+    });
+    
+    const postgresClient = await postgresPool.connect();
+    const masterClient = await masterPool.connect();
+    
     try {
-        await client.query('BEGIN');
+        // CREATE DATABASE cannot run inside a transaction, so do it first
+        await postgresClient.query(`CREATE DATABASE jewelry_${tenantCode}`);
+        console.log(`✅ Database created: jewelry_${tenantCode}`);
         
-        // Create database
-        await client.query(`CREATE DATABASE jewelry_${tenantCode}`);
-        
-        // Create tenant record
-        await client.query(
+        // Now create tenant record in master database
+        await masterClient.query('BEGIN');
+        await masterClient.query(
             `INSERT INTO tenants (tenant_code, tenant_name, database_name, admin_username, admin_password)
              VALUES ($1, $2, $3, $4, $5)`,
             [tenantCode, tenantName, `jewelry_${tenantCode}`, adminUsername, adminPassword]
         );
+        await masterClient.query('COMMIT');
         
-        // Initialize tenant database schema
+        // Initialize tenant database schema (connect to new database)
         const tenantPool = getTenantPool(tenantCode);
         await initTenantSchema(tenantPool);
         
-        await client.query('COMMIT');
-        console.log(`✅ Tenant database created: jewelry_${tenantCode}`);
+        console.log(`✅ Tenant database initialized: jewelry_${tenantCode}`);
         return true;
     } catch (error) {
-        await client.query('ROLLBACK');
+        try {
+            await masterClient.query('ROLLBACK');
+        } catch (rollbackError) {
+            // Ignore rollback errors
+        }
         console.error(`❌ Error creating tenant database:`, error);
         throw error;
     } finally {
-        client.release();
+        postgresClient.release();
+        masterClient.release();
+        await postgresPool.end();
     }
 }
 

@@ -44,6 +44,14 @@
             <form onsubmit="event.preventDefault(); handleLogin();">
                 <div class="space-y-5">
                     <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Client / Tenant</label>
+                        <select id="authTenant" required
+                            class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition"
+                            onchange="loadTenants()">
+                            <option value="">Loading clients...</option>
+                        </select>
+                    </div>
+                    <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Username</label>
                         <input type="text" id="authUsername" required
                             class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition" 
@@ -80,7 +88,7 @@
                         <div class="flex items-center gap-2 text-sm" id="userInfoSection">
                             <span class="text-amber-100" id="currentUserName">User: Guest</span>
                             <span id="userManagementBtn" class="hidden">
-                                <button onclick="showUserManagement()" class="px-3 py-1 bg-white text-amber-600 rounded text-xs hover:bg-amber-50">👥 Manage Users</button>
+                                <button onclick="showUserManagement()" id="btnManageUsers" class="px-3 py-1 bg-white text-amber-600 rounded text-xs hover:bg-amber-50 hidden">👥 Manage Users</button>
                             </span>
                             <button onclick="logout()" class="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700">Logout</button>
                         </div>
@@ -2223,8 +2231,212 @@
 </div>
 
     <script>
+        // ========== API SERVICE LAYER ==========
+        const API_BASE = 'http://localhost:3000/api';
+        let currentTenant = null; // Store current tenant code
+        
+        // API Helper Functions
+        const api = {
+            // Get current tenant code
+            getTenant() {
+                return currentTenant || localStorage.getItem('currentTenant') || 'jpjewellery';
+            },
+            
+            // Set current tenant
+            setTenant(tenantCode) {
+                currentTenant = tenantCode;
+                localStorage.setItem('currentTenant', tenantCode);
+            },
+            
+            // Generic API request
+            async request(endpoint, options = {}) {
+                const tenant = this.getTenant();
+                const url = `${API_BASE}/${tenant}${endpoint}`;
+                
+                const defaultOptions = {
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                };
+                
+                try {
+                    const response = await fetch(url, { ...defaultOptions, ...options });
+                    const data = await response.json();
+                    
+                    if (!response.ok) {
+                        throw new Error(data.error || `HTTP error! status: ${response.status}`);
+                    }
+                    
+                    return data;
+                } catch (error) {
+                    console.error('API Error:', error);
+                    throw error;
+                }
+            },
+            
+            // Products API
+            async getProducts(search = '') {
+                const params = search ? `?search=${encodeURIComponent(search)}` : '';
+                return this.request(`/products${params}`);
+            },
+            
+            async getProductByBarcode(barcode) {
+                return this.request(`/products?barcode=${encodeURIComponent(barcode)}`);
+            },
+            
+            async createProduct(product) {
+                return this.request('/products', {
+                    method: 'POST',
+                    body: JSON.stringify(product),
+                });
+            },
+            
+            async updateProduct(id, product) {
+                return this.request(`/products/${id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(product),
+                });
+            },
+            
+            async deleteProduct(id) {
+                return this.request(`/products/${id}`, {
+                    method: 'DELETE',
+                });
+            },
+            
+            // Customers API
+            async getCustomers() {
+                return this.request('/customers');
+            },
+            
+            async createCustomer(customer) {
+                return this.request('/customers', {
+                    method: 'POST',
+                    body: JSON.stringify(customer),
+                });
+            },
+            
+            async updateCustomer(id, customer) {
+                return this.request(`/customers/${id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(customer),
+                });
+            },
+            
+            async deleteCustomer(id) {
+                return this.request(`/customers/${id}`, {
+                    method: 'DELETE',
+                });
+            },
+            
+            // Quotations API
+            async getQuotations() {
+                return this.request('/quotations');
+            },
+            
+            async createQuotation(quotation) {
+                return this.request('/quotations', {
+                    method: 'POST',
+                    body: JSON.stringify(quotation),
+                });
+            },
+            
+            async updateQuotation(id, quotation) {
+                return this.request(`/quotations/${id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(quotation),
+                });
+            },
+            
+            async deleteQuotation(id) {
+                return this.request(`/quotations/${id}`, {
+                    method: 'DELETE',
+                });
+            },
+            
+            // Bills API
+            async getBills() {
+                return this.request('/bills');
+            },
+            
+            async createBill(bill) {
+                return this.request('/bills', {
+                    method: 'POST',
+                    body: JSON.stringify(bill),
+                });
+            },
+            
+            // Rates API
+            async getRates() {
+                return this.request('/rates');
+            },
+            
+            async updateRates(rates) {
+                return this.request('/rates', {
+                    method: 'PUT',
+                    body: JSON.stringify(rates),
+                });
+            },
+            
+            // Tenants API (for login)
+            async getTenants() {
+                try {
+                    const response = await fetch(`${API_BASE.replace('/api', '')}/api/tenants`);
+                    const data = await response.json();
+                    return data;
+                } catch (error) {
+                    console.error('Error fetching tenants:', error);
+                    return [];
+                }
+            },
+            
+            async login(tenantCode, username, password) {
+                try {
+                    const response = await fetch(`${API_BASE.replace('/api', '')}/api/auth/login`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ tenantCode, username, password }),
+                    });
+                    const data = await response.json();
+                    return data;
+                } catch (error) {
+                    console.error('Login error:', error);
+                    throw error;
+                }
+            },
+        };
+        
+        // Load tenants on page load
+        async function loadTenants() {
+            const select = document.getElementById('authTenant');
+            if (!select) return;
+            
+            try {
+                const tenants = await api.getTenants();
+                select.innerHTML = '<option value="">Select Client...</option>';
+                
+                tenants.forEach(tenant => {
+                    const option = document.createElement('option');
+                    option.value = tenant.tenant_code;
+                    option.textContent = tenant.tenant_name || tenant.tenant_code;
+                    select.appendChild(option);
+                });
+                
+                // Set default to JP Jewellery if available
+                const jpOption = Array.from(select.options).find(opt => opt.value === 'jpjewellery');
+                if (jpOption) {
+                    select.value = 'jpjewellery';
+                }
+            } catch (error) {
+                console.error('Error loading tenants:', error);
+                select.innerHTML = '<option value="jpjewellery">JP Jewellery</option>';
+            }
+        }
+        
         // ✅ COMPLETE DATA INTEGRITY CHECKS
             document.addEventListener('DOMContentLoaded', function () {
+                // Load tenants on page load
+                loadTenants();
                 // Verify all critical data structures exist
                 if (!localStorage.getItem('products')) {
                     localStorage.setItem('products', JSON.stringify([]));
@@ -2621,12 +2833,13 @@ function updateTabVisibility() {
     
     // Update user info display
     const userNameEl = document.getElementById('currentUserName');
-    const userMgmtBtn = document.getElementById('userManagementBtn');
+    const userMgmtBtn = document.getElementById('btnManageUsers');
     if (userNameEl) {
         userNameEl.textContent = `User: ${currentUser.username}`;
     }
+    // Only admin and Gaurav can access user management
     if (userMgmtBtn) {
-        if (currentUser.role === 'admin') {
+        if (currentUser.username === 'admin' || currentUser.username === 'Gaurav') {
             userMgmtBtn.classList.remove('hidden');
         } else {
             userMgmtBtn.classList.add('hidden');
@@ -2680,7 +2893,7 @@ function renderUserManagement() {
                         <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">${user.role || 'user'}</span>
                     </div>
                     <div class="text-sm text-gray-600 mb-2">
-                        <div><strong>Role Type:</strong> ${user.role === 'admin' ? 'Admin' : 'User'}</div>
+                        <div><strong>Role Type:</strong> ${user.role === 'admin' ? 'Admin' : (user.role || 'Employee')}</div>
                         <div><strong>Allowed Tabs:</strong> ${user.allowedTabs && user.allowedTabs.includes('all') ? 'All Tabs' : (user.allowedTabs || []).join(', ') || 'None'}</div>
                     </div>
                 </div>
@@ -2791,7 +3004,7 @@ async function addNewUser() {
         const password = await showInputDialog('Add New User', 'Enter password:', '', 'Enter password');
         if (!password) return;
         
-        const roleName = await showInputDialog('Add New User', 'Enter role name (e.g., Accounts, Sales, ROL):', 'User', 'Enter role name');
+        const roleName = await showInputDialog('Add New User', 'Enter role name (e.g., Employee, Accounts, Sales, ROL):', 'Employee', 'Enter role name');
         if (!roleName) return;
         
         showConfirmDialog(
@@ -2836,22 +3049,61 @@ async function addNewUser() {
 }
 
 // Make handleLogin globally accessible
-window.handleLogin = function() {
-    // Reload AUTH_USERS from cache to get latest users
+window.handleLogin = async function() {
+    const tenantCode = document.getElementById('authTenant').value.trim();
+    const username = document.getElementById('authUsername').value.trim();
+    const password = document.getElementById('authPassword').value;
+
+    if (!tenantCode) {
+        showDialog('Login Failed', 'Please select a client/tenant!', 'error');
+        return;
+    }
+
+    if (!username || !password) {
+        showDialog('Login Failed', 'Please enter username and password!', 'error');
+        return;
+    }
+
+    try {
+        // Try API login first
+        const loginResult = await api.login(tenantCode, username, password);
+        
+        if (loginResult.success) {
+            // API login successful
+            currentUser = {
+                username: loginResult.username,
+                role: loginResult.role || 'user',
+                allowedTabs: loginResult.allowedTabs || ['all'],
+                tenantCode: loginResult.tenantCode
+            };
+            api.setTenant(tenantCode);
+            setCachedItem('currentUser', currentUser);
+            document.getElementById('authModal').classList.add('hidden');
+            document.getElementById('app').classList.remove('hidden');
+            updateTabVisibility();
+            // Load data from API
+            await loadDataFromAPI();
+            return;
+        }
+    } catch (apiError) {
+        // API login failed, try local authentication as fallback
+        console.log('API login failed, trying local auth:', apiError);
+    }
+
+    // Fallback to local authentication (for backward compatibility)
     AUTH_USERS = getCachedItem('authUsers', {
         'admin': { password: '123456', role: 'admin', allowedTabs: ['all'] },
         'Gaurav': { password: '@GauravSolanki56789__', role: 'admin', allowedTabs: ['all'] }
     });
-    
-    const username = document.getElementById('authUsername').value.trim();
-    const password = document.getElementById('authPassword').value;
 
     if (AUTH_USERS[username] && AUTH_USERS[username].password === password) {
         currentUser = { 
             username, 
             role: AUTH_USERS[username].role,
-            allowedTabs: AUTH_USERS[username].allowedTabs || ['all']
+            allowedTabs: AUTH_USERS[username].allowedTabs || ['all'],
+            tenantCode: tenantCode
         };
+        api.setTenant(tenantCode);
         setCachedItem('currentUser', currentUser);
         document.getElementById('authModal').classList.add('hidden');
         document.getElementById('app').classList.remove('hidden');
@@ -2861,6 +3113,73 @@ window.handleLogin = function() {
         document.getElementById('authPassword').value = '';
     }
 };
+
+// Load data from API after login
+async function loadDataFromAPI() {
+    try {
+        // Load products
+        const productsData = await api.getProducts();
+        if (Array.isArray(productsData)) {
+            products = productsData.map(p => ({
+                id: p.id,
+                barcode: p.barcode,
+                sku: p.sku,
+                styleCode: p.style_code,
+                shortName: p.short_name,
+                itemName: p.item_name,
+                metalType: p.metal_type,
+                size: p.size,
+                weight: parseFloat(p.weight) || 0,
+                avgWt: parseFloat(p.avg_wt) || parseFloat(p.weight) || 0,
+                purity: parseFloat(p.purity) || 100,
+                rate: parseFloat(p.rate) || 0,
+                mcRate: parseFloat(p.mc_rate) || 0,
+                mcType: p.mc_type || 'MC/GM',
+                pcs: parseInt(p.pcs) || 1,
+                boxCharges: parseFloat(p.box_charges) || 0,
+                stoneCharges: parseFloat(p.stone_charges) || 0,
+                floor: p.floor,
+                isSold: p.is_sold || false
+            }));
+            setCachedItem('products', products);
+        }
+        
+        // Load customers
+        const customersData = await api.getCustomers();
+        if (Array.isArray(customersData)) {
+            customers = customersData.map(c => ({
+                name: c.name,
+                mobile: c.mobile,
+                address1: c.address1,
+                address2: c.address2,
+                city: c.city
+            }));
+            setCachedItem('customers', customers);
+            updateCustomerDropdown();
+        }
+        
+        // Load rates
+        try {
+            const ratesData = await api.getRates();
+            if (ratesData) {
+                rates = {
+                    gold: parseFloat(ratesData.gold) || 7500,
+                    silver: parseFloat(ratesData.silver) || 156,
+                    platinum: parseFloat(ratesData.platinum) || 3500
+                };
+                setCachedItem('rates', rates);
+                updateRatesDisplay();
+            }
+        } catch (e) {
+            console.log('Rates not available from API, using defaults');
+        }
+        
+        console.log('✅ Data loaded from API');
+    } catch (error) {
+        console.error('Error loading data from API:', error);
+        showDialog('Warning', 'Could not load data from database. Using local storage.', 'warning');
+    }
+}
 
 // Check authentication on load
 document.addEventListener('DOMContentLoaded', function() {
@@ -4193,27 +4512,31 @@ function generateSalesBillPDF() {
                 return;
             }
 
+            // Only show products when search term is provided
+            if (!searchTerm || searchTerm.length < 2) {
+                tbody.innerHTML = '<tr><td colspan="13" class="text-center py-16 text-gray-500"><div class="text-6xl mb-4">🔍</div><p class="text-lg font-semibold">Search for Products</p><p class="text-sm mt-2">Enter barcode, SKU, style code, or product name to search</p></td></tr>';
+                tableUpdatePending = false;
+                return;
+            }
+
             let displayProducts = products.filter(p => p.isSold !== true);
 
-            // Apply search filter if search term exists
-            if (searchTerm) {
-                displayProducts = displayProducts.filter(product => {
-                    return (
-                        (product.barcode && product.barcode.toLowerCase().includes(searchTerm)) ||
-                        (product.sku && product.sku.toLowerCase().includes(searchTerm)) ||
-                        (product.styleCode && product.styleCode.toLowerCase().includes(searchTerm)) ||
-                        (product.shortName && product.shortName.toLowerCase().includes(searchTerm)) ||
-                        (product.metalType && product.metalType.toLowerCase().includes(searchTerm))
-                    );
-                });
-            }
+            // Apply search filter - search by barcode, SKU, style code, or product name
+            displayProducts = displayProducts.filter(product => {
+                return (
+                    (product.barcode && product.barcode.toLowerCase().includes(searchTerm)) ||
+                    (product.sku && product.sku.toLowerCase().includes(searchTerm)) ||
+                    (product.styleCode && product.styleCode.toLowerCase().includes(searchTerm)) ||
+                    (product.shortName && product.shortName.toLowerCase().includes(searchTerm))
+                );
+            });
 
             // Use DocumentFragment for faster DOM updates
             const fragment = document.createDocumentFragment();
             
             if (displayProducts.length === 0) {
                 const row = document.createElement('tr');
-                row.innerHTML = '<td colspan="10" class="text-center py-8 text-gray-500">No products found.</td>';
+                row.innerHTML = '<td colspan="13" class="text-center py-8 text-gray-500">No products found matching your search.</td>';
                 fragment.appendChild(row);
             } else {
                 displayProducts.forEach((product) => {
@@ -4271,9 +4594,120 @@ function generateSalesBillPDF() {
 
     // Debounced search function
     const debouncedUpdateProductsTable = debounce(updateProductsTable, 300);
+    const debouncedSearchAPI = debounce(async function(searchTerm) {
+        if (searchTerm.length < 2) {
+            const tbody = getCachedElement('productsTableBody');
+            if (tbody) {
+                tbody.innerHTML = '<tr><td colspan="13" class="text-center py-16 text-gray-500"><div class="text-6xl mb-4">🔍</div><p class="text-lg font-semibold">Search for Products</p><p class="text-sm mt-2">Enter barcode, SKU, style code, or product name to search</p></td></tr>';
+            }
+            return;
+        }
+        
+        try {
+            const results = await api.getProducts(searchTerm);
+            const tbody = getCachedElement('productsTableBody');
+            if (!tbody) return;
+            
+            // Map API results to frontend format
+            const displayProducts = results.map(p => ({
+                id: p.id,
+                barcode: p.barcode,
+                sku: p.sku,
+                styleCode: p.style_code,
+                shortName: p.short_name,
+                size: p.size,
+                avgWt: parseFloat(p.avg_wt) || 0,
+                metalType: p.metal_type,
+                purity: parseFloat(p.purity) || 100,
+                mcRate: parseFloat(p.mc_rate) || 0,
+                mcType: p.mc_type || 'MC/GM',
+                pcs: parseInt(p.pcs) || 1,
+                boxCharges: parseFloat(p.box_charges) || 0,
+                stoneCharges: parseFloat(p.stone_charges) || 0,
+                isSold: p.is_sold || false
+            }));
+            
+            // Render results
+            const fragment = document.createDocumentFragment();
+            if (displayProducts.length === 0) {
+                const row = document.createElement('tr');
+                row.innerHTML = '<td colspan="13" class="text-center py-8 text-gray-500">No products found matching your search.</td>';
+                fragment.appendChild(row);
+            } else {
+                displayProducts.forEach((product) => {
+                    const row = document.createElement('tr');
+                    row.className = 'border-b hover:bg-gray-50';
+                    const barcode = product.barcode || '-';
+                    const sku = product.sku || '-';
+                    const styleCode = product.styleCode || '-';
+                    const shortName = product.shortName || 'Unnamed Product';
+                    const size = product.size || '-';
+                    const avgWt = product.avgWt || 0;
+                    const metalType = product.metalType || 'gold';
+                    const purity = product.purity || 100;
+                    const mcRate = product.mcRate || 0;
+                    const mcType = product.mcType || 'MC/GM';
+                    const pcs = product.pcs || 1;
+                    const boxCharges = product.boxCharges || 0;
+                    const stoneCharges = product.stoneCharges || 0;
+                    
+                    // Find index in local products array for edit/delete
+                    const localIdx = products.findIndex(p => p.id === product.id);
+                    
+                    row.innerHTML = `
+                        <td class="px-4 py-3 font-mono text-sm">${barcode}</td>
+                        <td class="px-4 py-3 text-sm">${sku}</td>
+                        <td class="px-4 py-3 text-sm font-semibold text-blue-600">${styleCode}</td>
+                        <td class="px-4 py-3 font-medium">${shortName}</td>
+                        <td class="px-4 py-3 text-sm">${size}</td>
+                        <td class="px-4 py-3 text-sm">${avgWt.toFixed(2)}g</td>
+                        <td class="px-4 py-3 capitalize text-sm">${metalType}</td>
+                        <td class="px-4 py-3 text-sm">${purity}%</td>
+                        <td class="px-4 py-3 text-sm">
+                            ${mcType === 'PieceCost'
+                                    ? `₹${mcRate.toFixed(2)} (Piece)`
+                                    : `₹${mcRate} /gm`}
+                        </td>
+                        <td class="px-4 py-3 text-center">
+                            <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-bold">
+                                ${pcs} pcs
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-right text-sm">₹${boxCharges.toFixed(2)}</td>
+                        <td class="px-4 py-3 text-right text-sm">₹${stoneCharges.toFixed(2)}</td>
+                        <td class="px-4 py-3 text-center">
+                            ${localIdx >= 0 ? `
+                                <button onclick="editProduct(${localIdx})" class="text-blue-600 hover:text-blue-800 font-medium mr-2" title="Edit">✏️</button>
+                                <button onclick="deleteProduct(${localIdx})" class="text-red-600 hover:text-red-800 font-medium" title="Delete">🗑️</button>
+                            ` : `
+                                <button onclick="editProductFromAPI(${product.id})" class="text-blue-600 hover:text-blue-800 font-medium mr-2" title="Edit">✏️</button>
+                                <button onclick="deleteProductFromAPI(${product.id})" class="text-red-600 hover:text-red-800 font-medium" title="Delete">🗑️</button>
+                            `}
+                        </td>
+                    `;
+                    fragment.appendChild(row);
+                });
+            }
+            
+            tbody.innerHTML = '';
+            tbody.appendChild(fragment);
+        } catch (error) {
+            console.error('Search error:', error);
+            // Fallback to local search
+            debouncedUpdateProductsTable();
+        }
+    }, 300);
     
     function filterProducts() {
-        debouncedUpdateProductsTable();
+        const searchEl = getCachedElement('productSearch');
+        const searchTerm = searchEl ? searchEl.value.trim() : '';
+        
+        // Try API search first, fallback to local
+        if (currentTenant && searchTerm.length >= 2) {
+            debouncedSearchAPI(searchTerm);
+        } else {
+            debouncedUpdateProductsTable();
+        }
     }
 
     function downloadStockReport() {
@@ -4602,79 +5036,154 @@ function editProduct(idx) {
     document.getElementById('addProductModal').classList.remove('hidden');
 }
 
-function saveProduct() {
+async function saveProduct() {
     const product = {
         barcode: document.getElementById('newBarcode').value.trim(),
         sku: document.getElementById('newSku').value.trim(),
         styleCode: document.getElementById('newStyleCode').value.trim(),
         shortName: document.getElementById('newShortName').value.trim(),
+        itemName: document.getElementById('newShortName').value.trim(), // Same as shortName for now
         size: document.getElementById('newSize').value.trim(),
+        weight: parseFloat(document.getElementById('newAvgWt').value) || 0,
         avgWt: parseFloat(document.getElementById('newAvgWt').value) || 0,
         purity: parseFloat(document.getElementById('newPurity').value) || 100,
+        rate: parseFloat(rates[document.getElementById('newMetalType').value] || 0),
         mcRate: parseFloat(document.getElementById('newMcRate').value) || 0,
-        mcType: document.getElementById('newMcType').value, // NEW
-        pcs: parseInt(document.getElementById('newPcs').value) || 1, // NEW
-        boxCharges: parseFloat(document.getElementById('newBoxCharges').value) || 0, // NEW
-        stoneCharges: parseFloat(document.getElementById('newStoneCharges').value) || 0, // NEW
+        mcType: document.getElementById('newMcType').value,
+        pcs: parseInt(document.getElementById('newPcs').value) || 1,
+        boxCharges: parseFloat(document.getElementById('newBoxCharges').value) || 0,
+        stoneCharges: parseFloat(document.getElementById('newStoneCharges').value) || 0,
         metalType: document.getElementById('newMetalType').value,
-        isSold: false // NEW
+        floor: 'Main Floor', // Default floor
+        isSold: false
     };
     
     if (!product.barcode || !product.shortName) {
-        alert('Please fill Barcode and Product Name');
+        showDialog('Error', 'Please fill Barcode and Product Name', 'error');
         return;
     }
     
     const editIndex = document.getElementById('editProductIndex').value;
     const isNewProduct = editIndex === '';
     
-    if (editIndex !== '') {
-        product.id = products[editIndex].id;
-        products[editIndex] = product;
-        alert('Product updated!');
-    } else {
-        product.id = Date.now();
-        products.push(product);
-        alert('Product added!');
+    try {
+        let savedProduct;
         
-        // ✅ UPDATE ROL AVAILABLE COUNTERS when new product is added
-        if (product.styleCode && rolData[product.styleCode]) {
-            const styleROLData = rolData[product.styleCode];
-            // Find matching ROL item by SKU and size
-            const rolItem = styleROLData.items.find(ri => 
-                (ri.sku && product.sku && ri.sku.toLowerCase() === product.sku.toLowerCase()) &&
-                (ri.size && product.size && ri.size.toLowerCase() === product.size.toLowerCase())
-            );
+        if (editIndex !== '') {
+            // Update existing product
+            const existingProduct = products[editIndex];
+            savedProduct = await api.updateProduct(existingProduct.id, product);
+            product.id = existingProduct.id;
+            products[editIndex] = { ...product, id: existingProduct.id };
+            showDialog('Success', 'Product updated in database!', 'success');
+        } else {
+            // Create new product
+            savedProduct = await api.createProduct(product);
+            product.id = savedProduct.id;
+            products.push(product);
+            showDialog('Success', 'Product saved to database!', 'success');
             
-            if (rolItem) {
-                // Determine if single piece (retail) or multiple pieces (wholesale)
-                const isSinglePiece = (product.pcs || 1) === 1;
+            // ✅ UPDATE ROL AVAILABLE COUNTERS when new product is added
+            if (product.styleCode && rolData[product.styleCode]) {
+                const styleROLData = rolData[product.styleCode];
+                const rolItem = styleROLData.items.find(ri => 
+                    (ri.sku && product.sku && ri.sku.toLowerCase() === product.sku.toLowerCase()) &&
+                    (ri.size && product.size && ri.size.toLowerCase() === product.size.toLowerCase())
+                );
                 
-                if (isSinglePiece) {
-                    // Retail: Add pieces
-                    rolItem.availableRetail = (parseFloat(rolItem.availableRetail || 0) + 1);
-                } else {
-                    // Wholesale: Add weight in grams
-                    const weightToAdd = parseFloat(product.avgWt || 0);
-                    rolItem.availableWholesale = (parseFloat(rolItem.availableWholesale || 0) + weightToAdd);
-                }
-                
-                // Save updated ROL data
-                setCachedItem('rolData', rolData);
-                // Refresh ROL display if visible
-                if (!document.getElementById('rolTab').classList.contains('hidden') && currentSelectedROLStyleCode === product.styleCode) {
-                    loadROLForStyleCode();
+                if (rolItem) {
+                    const isSinglePiece = (product.pcs || 1) === 1;
+                    
+                    if (isSinglePiece) {
+                        rolItem.availableRetail = (parseFloat(rolItem.availableRetail || 0) + 1);
+                    } else {
+                        const weightToAdd = parseFloat(product.avgWt || 0);
+                        rolItem.availableWholesale = (parseFloat(rolItem.availableWholesale || 0) + weightToAdd);
+                    }
+                    
+                    setCachedItem('rolData', rolData);
+                    if (!document.getElementById('rolTab').classList.contains('hidden') && currentSelectedROLStyleCode === product.styleCode) {
+                        loadROLForStyleCode();
+                    }
                 }
             }
         }
+        
+        // Update local cache
+        setCachedItem('products', products);
+        updateProductsTable();
+        closeModals();
+    } catch (error) {
+        console.error('Error saving product:', error);
+        showDialog('Error', 'Failed to save product: ' + error.message, 'error');
+        // Fallback to localStorage if API fails
+        if (editIndex !== '') {
+            product.id = products[editIndex].id;
+            products[editIndex] = product;
+        } else {
+            product.id = Date.now();
+            products.push(product);
+        }
+        setCachedItem('products', products);
+        updateProductsTable();
+        closeModals();
     }
-    
-    setCachedItem('products', products);
-    updateProductsTable();
-    closeModals();
 }
 
-        function deleteProduct(idx) {
+        // Helper functions for API-based product operations
+async function editProductFromAPI(productId) {
+    try {
+        const results = await api.getProducts('');
+        const product = results.find(p => p.id === productId);
+        if (product) {
+            const localIdx = products.findIndex(p => p.id === productId);
+            if (localIdx >= 0) {
+                editProduct(localIdx);
+            } else {
+                // Add to local array temporarily for editing
+                const mappedProduct = {
+                    id: product.id,
+                    barcode: product.barcode,
+                    sku: product.sku,
+                    styleCode: product.style_code,
+                    shortName: product.short_name,
+                    size: product.size,
+                    avgWt: parseFloat(product.avg_wt) || 0,
+                    purity: parseFloat(product.purity) || 100,
+                    mcRate: parseFloat(product.mc_rate) || 0,
+                    mcType: product.mc_type || 'MC/GM',
+                    pcs: parseInt(product.pcs) || 1,
+                    boxCharges: parseFloat(product.box_charges) || 0,
+                    stoneCharges: parseFloat(product.stone_charges) || 0,
+                    metalType: product.metal_type,
+                    isSold: product.is_sold || false
+                };
+                products.push(mappedProduct);
+                editProduct(products.length - 1);
+            }
+        }
+    } catch (error) {
+        console.error('Error loading product:', error);
+        showDialog('Error', 'Failed to load product for editing', 'error');
+    }
+}
+
+async function deleteProductFromAPI(productId) {
+    showConfirmDialog('Delete Product', 'Are you sure you want to delete this product?', async () => {
+        try {
+            await api.deleteProduct(productId);
+            products = products.filter(p => p.id !== productId);
+            setCachedItem('products', products);
+            updateProductsTable();
+            showDialog('Success', 'Product deleted from database!', 'success');
+        } catch (error) {
+            console.error('Error deleting product:', error);
+            showDialog('Error', 'Failed to delete product: ' + error.message, 'error');
+        }
+    });
+}
+
+function deleteProduct(idx) {
             if (!confirm('Delete this product?')) return;
             products.splice(idx, 1);
             localStorage.setItem('products', JSON.stringify(products));

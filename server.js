@@ -1,3 +1,4 @@
+require('dotenv').config(); // Load .env file first
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
@@ -32,7 +33,12 @@ app.post('/api/tenants', async (req, res) => {
         }
         
         await createTenantDatabase(tenantCode, tenantName, adminUsername, adminPassword);
-        res.json({ success: true, message: `Tenant ${tenantCode} created successfully` });
+        res.json({ 
+            success: true, 
+            message: `Tenant ${tenantCode} created successfully`,
+            tenantCode: tenantCode,
+            databaseName: `jewelry_${tenantCode}`
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

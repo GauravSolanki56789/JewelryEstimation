@@ -1,5 +1,6 @@
 // Database Setup Script
 // Run this once to initialize the master database
+require('dotenv').config(); // Load .env file first
 const { masterPool, initMasterDatabase } = require('../config/database');
 
 async function setup() {
