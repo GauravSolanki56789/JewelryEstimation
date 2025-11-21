@@ -2718,6 +2718,12 @@ async function addNewUser() {
 
 // Make handleLogin globally accessible
 window.handleLogin = function() {
+    // Reload AUTH_USERS from localStorage to get latest users
+    AUTH_USERS = JSON.parse(localStorage.getItem('authUsers') || JSON.stringify({
+        'admin': { password: '123456', role: 'admin', allowedTabs: ['all'] },
+        'Gaurav': { password: '@GauravSolanki56789__', role: 'admin', allowedTabs: ['all'] }
+    }));
+    
     const username = document.getElementById('authUsername').value.trim();
     const password = document.getElementById('authPassword').value;
 
@@ -2739,6 +2745,12 @@ window.handleLogin = function() {
 
 // Check authentication on load
 document.addEventListener('DOMContentLoaded', function() {
+    // Reload AUTH_USERS from localStorage to get latest users
+    AUTH_USERS = JSON.parse(localStorage.getItem('authUsers') || JSON.stringify({
+        'admin': { password: '123456', role: 'admin', allowedTabs: ['all'] },
+        'Gaurav': { password: '@GauravSolanki56789__', role: 'admin', allowedTabs: ['all'] }
+    }));
+    
     // Update quotation number on page load
     if (typeof getNextQuotationNumber === 'function') {
         const nextQuotNum = getNextQuotationNumber();
@@ -2752,6 +2764,11 @@ document.addEventListener('DOMContentLoaded', function() {
     if (savedUser) {
         try {
             currentUser = JSON.parse(savedUser);
+            // Reload AUTH_USERS again to ensure we have latest data
+            AUTH_USERS = JSON.parse(localStorage.getItem('authUsers') || JSON.stringify({
+                'admin': { password: '123456', role: 'admin', allowedTabs: ['all'] },
+                'Gaurav': { password: '@GauravSolanki56789__', role: 'admin', allowedTabs: ['all'] }
+            }));
             if (AUTH_USERS[currentUser.username] && AUTH_USERS[currentUser.username].password) {
                 currentUser.allowedTabs = AUTH_USERS[currentUser.username].allowedTabs || ['all'];
                 document.getElementById('authModal').classList.add('hidden');
@@ -10326,8 +10343,27 @@ function downloadAllCustomerLedgers() {
     }
 
     function generateTagSplitBarcode(originalBarcode, index) {
-        const sequenceNumber = tagSplitSequenceStart + index + 1;
-        return `${originalBarcode}-S${sequenceNumber}`;
+        // Get the highest numeric barcode from all products
+        let highestBarcode = 0;
+        products.forEach(p => {
+            if (p.barcode) {
+                // Try to extract numeric part from barcode
+                const numericMatch = String(p.barcode).match(/^(\d+)$/);
+                if (numericMatch) {
+                    const num = parseInt(numericMatch[1], 10);
+                    if (num > highestBarcode) {
+                        highestBarcode = num;
+                    }
+                }
+            }
+        });
+        
+        // Start from 1 if no numeric barcodes found, otherwise use next number
+        const startNumber = highestBarcode > 0 ? highestBarcode + 1 : 1;
+        const sequenceNumber = startNumber + index;
+        
+        // Format as 8-digit number: 00000001, 00000002, etc.
+        return String(sequenceNumber).padStart(8, '0');
     }
 
     function addTagSplitEntry() {
