@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Admin - JP Jewellery Estimations</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-7xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6">🔧 Database Admin Panel</h1>
+        
+        <!-- Tenant Selection -->
+        <div class="bg-white p-6 rounded-lg shadow mb-6">
+            <h2 class="text-xl font-bold mb-4">Select Tenant</h2>
+            <div class="flex gap-4">
+                <input type="text" id="tenantCode" placeholder="Enter tenant code (e.g., client1)" 
+                    class="px-4 py-2 border rounded-lg flex-1">
+                <button onclick="loadTenantInfo()" class="px-6 py-2 bg-blue-600 text-white rounded-lg">
+                    Load Tenant
+                </button>
+            </div>
+        </div>
+
+        <!-- Tables List -->
+        <div class="bg-white p-6 rounded-lg shadow mb-6">
+            <h2 class="text-xl font-bold mb-4">Database Tables</h2>
+            <div id="tablesList" class="grid grid-cols-4 gap-2"></div>
+        </div>
+
+        <!-- Query Interface -->
+        <div class="bg-white p-6 rounded-lg shadow mb-6">
+            <h2 class="text-xl font-bold mb-4">SQL Query Interface</h2>
+            <p class="text-sm text-gray-600 mb-2">Note: Only SELECT queries are allowed for security</p>
+            <textarea id="sqlQuery" rows="5" 
+                class="w-full px-4 py-2 border rounded-lg font-mono text-sm"
+                placeholder="SELECT * FROM products LIMIT 10;"></textarea>
+            <button onclick="executeQuery()" class="mt-4 px-6 py-2 bg-green-600 text-white rounded-lg">
+                Execute Query
+            </button>
+        </div>
+
+        <!-- Results -->
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h2 class="text-xl font-bold mb-4">Query Results</h2>
+            <div id="queryResults" class="overflow-x-auto">
+                <p class="text-gray-500">No query executed yet</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentTenant = null;
+
+        async function loadTenantInfo() {
+            const tenantCode = document.getElementById('tenantCode').value;
+            if (!tenantCode) {
+                alert('Please enter tenant code');
+                return;
+            }
+            currentTenant = tenantCode;
+
+            try {
+                // Load tables
+                const tablesRes = await fetch(`/api/${tenantCode}/tables`);
+                const tables = await tablesRes.json();
+                
+                const tablesList = document.getElementById('tablesList');
+                tablesList.innerHTML = tables.map(table => `
+                    <button onclick="loadTable('${table}')" 
+                        class="px-4 py-2 bg-blue-100 hover:bg-blue-200 rounded-lg text-sm">
+                        ${table}
+                    </button>
+                `).join('');
+
+                alert(`Tenant ${tenantCode} loaded! Found ${tables.length} tables.`);
+            } catch (error) {
+                alert('Error loading tenant: ' + error.message);
+            }
+        }
+
+        async function loadTable(tableName) {
+            if (!currentTenant) {
+                alert('Please select a tenant first');
+                return;
+            }
+
+            const query = `SELECT * FROM ${tableName} LIMIT 100`;
+            document.getElementById('sqlQuery').value = query;
+            await executeQuery();
+        }
+
+        async function executeQuery() {
+            if (!currentTenant) {
+                alert('Please select a tenant first');
+                return;
+            }
+
+            const query = document.getElementById('sqlQuery').value;
+            if (!query.trim()) {
+                alert('Please enter a query');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/${currentTenant}/query`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query, params: [] })
+                });
+
+                const data = await response.json();
+                
+                if (data.error) {
+                    document.getElementById('queryResults').innerHTML = 
+                        `<p class="text-red-600">Error: ${data.error}</p>`;
+                    return;
+                }
+
+                if (data.length === 0) {
+                    document.getElementById('queryResults').innerHTML = 
+                        `<p class="text-gray-500">No results found</p>`;
+                    return;
+                }
+
+                // Create table
+                const keys = Object.keys(data[0]);
+                let html = `<div class="overflow-x-auto">
+                    <table class="min-w-full border-collapse border border-gray-300">
+                        <thead class="bg-gray-200">
+                            <tr>${keys.map(k => `<th class="border px-4 py-2 text-left">${k}</th>`).join('')}</tr>
+                        </thead>
+                        <tbody>`;
+                
+                data.forEach(row => {
+                    html += `<tr>${keys.map(k => 
+                        `<td class="border px-4 py-2">${JSON.stringify(row[k])}</td>`
+                    ).join('')}</tr>`;
+                });
+                
+                html += `</tbody></table>
+                    <p class="mt-4 text-sm text-gray-600">Showing ${data.length} row(s)</p>
+                </div>`;
+                
+                document.getElementById('queryResults').innerHTML = html;
+            } catch (error) {
+                document.getElementById('queryResults').innerHTML = 
+                    `<p class="text-red-600">Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>
+
