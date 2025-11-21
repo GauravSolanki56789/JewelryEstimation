@@ -264,7 +264,7 @@
                 </div>
                 
                 <!-- Table Container - Scrollable -->
-                <div class="overflow-auto" style="max-height: calc(100vh - 450px); min-height: 400px;">
+                <div class="overflow-auto" style="max-height: calc(100vh - 380px); min-height: 600px;">
                     <!-- Empty State -->
                     <div id="emptyProductsState" class="text-center py-16">
                         <div class="text-6xl mb-4">🔍</div>
@@ -2347,6 +2347,67 @@ function showDialog(title, message, type = 'info', callback = null) {
     }
 }
 
+function showInputDialog(title, message, defaultValue = '', placeholder = '', onConfirm, onCancel = null) {
+    return new Promise((resolve, reject) => {
+        const dialog = document.createElement('div');
+        dialog.className = 'fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50';
+        dialog.id = 'customInputDialog';
+        
+        dialog.innerHTML = `
+            <div class="bg-white p-6 rounded-lg shadow-2xl max-w-md w-full mx-4 border-2 border-blue-500">
+                <div class="flex items-center gap-3 mb-4">
+                    <span class="text-3xl">📝</span>
+                    <h3 class="text-xl font-bold text-gray-800">${title}</h3>
+                </div>
+                <p class="text-gray-700 mb-4">${message}</p>
+                <input type="text" id="customInputField" 
+                    value="${defaultValue}" 
+                    placeholder="${placeholder}"
+                    class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-4"
+                    autofocus>
+                <div class="flex justify-end gap-2">
+                    <button onclick="closeInputDialog(null)" class="px-6 py-2 bg-gray-500 text-white rounded-lg font-medium hover:bg-gray-600">
+                        Cancel
+                    </button>
+                    <button onclick="closeInputDialog(document.getElementById('customInputField').value)" class="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">
+                        OK
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(dialog);
+        
+        const inputField = dialog.querySelector('#customInputField');
+        if (inputField) {
+            inputField.focus();
+            inputField.select();
+            inputField.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    closeInputDialog(inputField.value);
+                } else if (e.key === 'Escape') {
+                    closeInputDialog(null);
+                }
+            });
+        }
+        
+        window.closeInputDialog = function(value) {
+            const dialogEl = document.getElementById('customInputDialog');
+            if (dialogEl) {
+                dialogEl.remove();
+            }
+            delete window.closeInputDialog;
+            if (value !== null && value !== undefined) {
+                if (onConfirm) onConfirm(value);
+                resolve(value);
+            } else {
+                if (onCancel) onCancel();
+                reject(null);
+            }
+        };
+    });
+}
+
 function showConfirmDialog(title, message, onConfirm, onCancel = null) {
     const dialog = document.createElement('div');
     dialog.className = 'fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50';
@@ -2514,47 +2575,74 @@ function renderUserManagement() {
     });
 }
 
-function editUser(username) {
+async function editUser(username) {
     const user = AUTH_USERS[username];
     if (!user) return;
     
-    const newPassword = prompt(`Enter new password for ${username} (leave empty to keep current):`);
-    if (newPassword === null) return;
-    
-    if (newPassword) {
-        user.password = newPassword;
+    try {
+        const newPassword = await showInputDialog(
+            'Edit User Password',
+            `Enter new password for ${username} (leave empty to keep current):`,
+            '',
+            'Enter password or leave empty'
+        );
+        
+        if (newPassword) {
+            user.password = newPassword;
+        }
+        
+        const newRole = await showInputDialog(
+            'Edit User Role',
+            `Enter role name for ${username}:`,
+            user.role || 'user',
+            'Enter role name'
+        );
+        user.role = newRole;
+        
+        showConfirmDialog(
+            'Set Admin Status',
+            `Is ${username} an admin?`,
+            () => {
+                user.role = 'admin';
+                proceedWithTabsSelection();
+            },
+            () => {
+                user.role = newRole;
+                proceedWithTabsSelection();
+            }
+        );
+        
+        function proceedWithTabsSelection() {
+            const allTabs = ['billing', 'products', 'customers', 'rol', 'quotations', 'salesbill', 'billhistory', 'ledger', 'pv', 'tagsplit', 'tagsearch', 'floor'];
+            const currentTabs = user.allowedTabs || [];
+            const hasAllTabs = currentTabs.includes('all');
+            
+            let tabsMessage = `Select tabs for ${username}:\n\nCurrent: ${hasAllTabs ? 'All Tabs' : currentTabs.join(', ') || 'None'}\n\nEnter "all" for all tabs, or comma-separated list:\n${allTabs.join(', ')}`;
+            
+            showInputDialog(
+                'Select Tabs',
+                tabsMessage,
+                hasAllTabs ? 'all' : currentTabs.join(', '),
+                'all or comma-separated list'
+            ).then(tabsInput => {
+                if (tabsInput.trim().toLowerCase() === 'all') {
+                    user.allowedTabs = ['all'];
+                } else {
+                    const selectedTabs = tabsInput.split(',').map(t => t.trim()).filter(t => allTabs.includes(t));
+                    user.allowedTabs = selectedTabs;
+                }
+                
+                AUTH_USERS[username] = user;
+                saveAuthUsers();
+                renderUserManagement();
+                showDialog('Success', `User ${username} updated successfully!`, 'success');
+            }).catch(() => {
+                // User cancelled
+            });
+        }
+    } catch (e) {
+        // User cancelled
     }
-    
-    const newRole = prompt(`Enter role name for ${username} (current: ${user.role || 'user'}):`, user.role || 'user');
-    if (newRole === null) return;
-    user.role = newRole;
-    
-    const isAdmin = confirm(`Is ${username} an admin? (OK for Admin, Cancel for User)`);
-    user.role = isAdmin ? 'admin' : newRole;
-    
-    const allTabs = ['billing', 'products', 'customers', 'rol', 'quotations', 'salesbill', 'billhistory', 'ledger', 'pv', 'tagsplit', 'tagsearch', 'floor'];
-    const currentTabs = user.allowedTabs || [];
-    const hasAllTabs = currentTabs.includes('all');
-    
-    let tabsMessage = `Select tabs for ${username}:\n\n`;
-    tabsMessage += `Current: ${hasAllTabs ? 'All Tabs' : currentTabs.join(', ') || 'None'}\n\n`;
-    tabsMessage += 'Enter "all" for all tabs, or comma-separated list:\n';
-    tabsMessage += allTabs.join(', ');
-    
-    const tabsInput = prompt(tabsMessage, hasAllTabs ? 'all' : currentTabs.join(', '));
-    if (tabsInput === null) return;
-    
-    if (tabsInput.trim().toLowerCase() === 'all') {
-        user.allowedTabs = ['all'];
-    } else {
-        const selectedTabs = tabsInput.split(',').map(t => t.trim()).filter(t => allTabs.includes(t));
-        user.allowedTabs = selectedTabs;
-    }
-    
-    AUTH_USERS[username] = user;
-    saveAuthUsers();
-    renderUserManagement();
-    showDialog('Success', `User ${username} updated successfully!`, 'success');
 }
 
 function deleteUser(username) {
@@ -2571,50 +2659,65 @@ function deleteUser(username) {
     });
 }
 
-function addNewUser() {
-    const username = prompt('Enter username:');
-    if (!username || !username.trim()) return;
-    
-    if (AUTH_USERS[username]) {
-        showDialog('Error', 'Username already exists!', 'error');
-        return;
+async function addNewUser() {
+    try {
+        const username = await showInputDialog('Add New User', 'Enter username:', '', 'Enter username');
+        if (!username || !username.trim()) return;
+        
+        if (AUTH_USERS[username]) {
+            showDialog('Error', 'Username already exists!', 'error');
+            return;
+        }
+        
+        const password = await showInputDialog('Add New User', 'Enter password:', '', 'Enter password');
+        if (!password) return;
+        
+        const roleName = await showInputDialog('Add New User', 'Enter role name (e.g., Accounts, Sales, ROL):', 'User', 'Enter role name');
+        if (!roleName) return;
+        
+        showConfirmDialog(
+            'Set Admin Status',
+            'Is this user an admin?',
+            () => {
+                proceedWithTabsSelection('admin');
+            },
+            () => {
+                proceedWithTabsSelection(roleName);
+            }
+        );
+        
+        function proceedWithTabsSelection(role) {
+            const allTabs = ['billing', 'products', 'customers', 'rol', 'quotations', 'salesbill', 'billhistory', 'ledger', 'pv', 'tagsplit', 'tagsearch', 'floor'];
+            let tabsMessage = `Select tabs for ${username}:\n\nEnter "all" for all tabs, or comma-separated list:\n${allTabs.join(', ')}`;
+            
+            showInputDialog('Select Tabs', tabsMessage, 'all', 'all or comma-separated list').then(tabsInput => {
+                let allowedTabs = [];
+                if (tabsInput.trim().toLowerCase() === 'all') {
+                    allowedTabs = ['all'];
+                } else {
+                    allowedTabs = tabsInput.split(',').map(t => t.trim()).filter(t => allTabs.includes(t));
+                }
+                
+                AUTH_USERS[username] = {
+                    password: password,
+                    role: role,
+                    allowedTabs: allowedTabs
+                };
+                
+                saveAuthUsers();
+                renderUserManagement();
+                showDialog('Success', `User ${username} created successfully!`, 'success');
+            }).catch(() => {
+                // User cancelled
+            });
+        }
+    } catch (e) {
+        // User cancelled
     }
-    
-    const password = prompt('Enter password:');
-    if (!password) return;
-    
-    const roleName = prompt('Enter role name (e.g., Accounts, Sales, ROL):', 'User');
-    if (roleName === null) return;
-    
-    const isAdmin = confirm('Is this user an admin? (OK for Admin, Cancel for User)');
-    
-    const allTabs = ['billing', 'products', 'customers', 'rol', 'quotations', 'salesbill', 'billhistory', 'ledger', 'pv', 'tagsplit', 'tagsearch', 'floor'];
-    let tabsMessage = `Select tabs for ${username}:\n\n`;
-    tabsMessage += 'Enter "all" for all tabs, or comma-separated list:\n';
-    tabsMessage += allTabs.join(', ');
-    
-    const tabsInput = prompt(tabsMessage, 'all');
-    if (tabsInput === null) return;
-    
-    let allowedTabs = [];
-    if (tabsInput.trim().toLowerCase() === 'all') {
-        allowedTabs = ['all'];
-    } else {
-        allowedTabs = tabsInput.split(',').map(t => t.trim()).filter(t => allTabs.includes(t));
-    }
-    
-    AUTH_USERS[username] = {
-        password: password,
-        role: isAdmin ? 'admin' : roleName,
-        allowedTabs: allowedTabs
-    };
-    
-    saveAuthUsers();
-    renderUserManagement();
-    showDialog('Success', `User ${username} created successfully!`, 'success');
 }
 
-function handleLogin() {
+// Make handleLogin globally accessible
+window.handleLogin = function() {
     const username = document.getElementById('authUsername').value.trim();
     const password = document.getElementById('authPassword').value;
 
@@ -2632,7 +2735,7 @@ function handleLogin() {
         showDialog('Login Failed', 'Invalid username or password!', 'error');
         document.getElementById('authPassword').value = '';
     }
-}
+};
 
 // Check authentication on load
 document.addEventListener('DOMContentLoaded', function() {
@@ -6432,20 +6535,21 @@ function updateMCTypeLabel() {
                             }
 
                             function clearOldQuotations() {
-                                const months = prompt('Delete quotations older than how many months? (Enter number)');
-                                if (!months || isNaN(months)) return;
+                                showInputDialog('Delete Old Quotations', 'Delete quotations older than how many months? (Enter number)', '', 'Enter number of months').then(months => {
+                                    if (!months || isNaN(months)) return;
+                                    
+                                    const cutoffDate = new Date();
+                                    cutoffDate.setMonth(cutoffDate.getMonth() - parseInt(months));
 
-                                const cutoffDate = new Date();
-                                cutoffDate.setMonth(cutoffDate.getMonth() - parseInt(months));
+                                    const before = savedQuotations.length;
+                                    savedQuotations = savedQuotations.filter(q => new Date(q.date) >= cutoffDate);
+                                    const after = savedQuotations.length;
 
-                                const before = savedQuotations.length;
-                                savedQuotations = savedQuotations.filter(q => new Date(q.date) >= cutoffDate);
-                                const after = savedQuotations.length;
+                                    localStorage.setItem('savedQuotations', JSON.stringify(savedQuotations));
+                                    loadQuotationsHistory();
 
-                                localStorage.setItem('savedQuotations', JSON.stringify(savedQuotations));
-                                loadQuotationsHistory();
-
-                                alert(`Deleted ${before - after} old quotations`);
+                                    showDialog('Success', `Deleted ${before - after} old quotation(s)!`, 'success');
+                                }).catch(() => {});
                             }
 
                             function reprintQuotationPDF() {
@@ -6995,20 +7099,21 @@ function updateMCTypeLabel() {
    }
 
    function clearOldBills() {
-       const months = prompt('Delete bills older than how many months? (Enter number)');
-       if (!months || isNaN(months)) return;
+       showInputDialog('Delete Old Bills', 'Delete bills older than how many months? (Enter number)', '', 'Enter number of months').then(months => {
+           if (!months || isNaN(months)) return;
 
-       const cutoffDate = new Date();
-       cutoffDate.setMonth(cutoffDate.getMonth() - parseInt(months));
+           const cutoffDate = new Date();
+           cutoffDate.setMonth(cutoffDate.getMonth() - parseInt(months));
 
-       const before = savedBills.length;
-       savedBills = savedBills.filter(b => new Date(b.date) >= cutoffDate);
-       const after = savedBills.length;
+           const before = savedBills.length;
+           savedBills = savedBills.filter(b => new Date(b.date) >= cutoffDate);
+           const after = savedBills.length;
 
-       localStorage.setItem('savedBills', JSON.stringify(savedBills));
-       loadBillHistory();
+           localStorage.setItem('savedBills', JSON.stringify(savedBills));
+           loadBillHistory();
 
-       alert(`Deleted ${before - after} old bills`);
+           showDialog('Success', `Deleted ${before - after} old bill(s)!`, 'success');
+       }).catch(() => {});
    }
 
     // ========== LEDGER DISPLAY FUNCTIONS ==========
@@ -9741,16 +9846,17 @@ function uploadStockForPendingPV(pvNo) {
 }
 
                     function showPVSearchView() {
-                        const pvNo = prompt('Enter PV Number (e.g., PV000001):');
-                        if (!pvNo) return;
+                        showInputDialog('Search PV', 'Enter PV Number (e.g., PV000001):', '', 'PV000001').then(pvNo => {
+                            if (!pvNo) return;
 
-                        const pv = purchaseVouchers.find(p => p.pvNo.toLowerCase() === pvNo.toLowerCase().trim());
+                            const pv = purchaseVouchers.find(p => p.pvNo.toLowerCase() === pvNo.toLowerCase().trim());
 
-                        if (pv) {
-                            viewPVDetails(pv.pvNo);
-                        } else {
-                            alert(`PV not found: ${pvNo}\n\nPlease check the PV number and try again.`);
-                        }
+                            if (pv) {
+                                viewPVDetails(pv.pvNo);
+                            } else {
+                                showDialog('PV Not Found', `PV not found: ${pvNo}\n\nPlease check the PV number and try again.`, 'error');
+                            }
+                        }).catch(() => {});
                     }
 
                     function downloadPVSample() {
