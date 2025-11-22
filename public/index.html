@@ -7088,7 +7088,7 @@ function updateMCTypeLabel() {
                             reader.readAsArrayBuffer(file);
                         }
 
-                        function confirmROLUpload() {
+                        async function confirmROLUpload() {
                             if (!bulkUploadROLData || Object.keys(bulkUploadROLData).length === 0) {
                                 showDialog('Error', 'No data to upload!', 'error');
                                 return;
@@ -7120,6 +7120,29 @@ function updateMCTypeLabel() {
                                 });
                             });
 
+                            // Save ROL data to API
+                            for (const [styleCode, styleData] of Object.entries(bulkUploadROLData)) {
+                                for (const item of styleData.items) {
+                                    // Find product with this SKU and size to get barcode
+                                    const matchingProduct = products.find(p => 
+                                        p.styleCode === styleCode && 
+                                        p.sku === item.sku && 
+                                        p.size === item.size
+                                    );
+                                    if (matchingProduct && matchingProduct.barcode) {
+                                        try {
+                                            await api.createROLData({
+                                                barcode: matchingProduct.barcode,
+                                                rol: item.rolWholesale || item.rolRetail || 0,
+                                                available: item.availableWholesale || item.availableRetail || 0
+                                            });
+                                        } catch (error) {
+                                            console.error('Failed to save ROL to API:', error);
+                                        }
+                                    }
+                                }
+                            }
+                            
                             setCachedItem('rolData', rolData);
                             
                             // Reload if current style code is in uploaded data
@@ -10486,7 +10509,7 @@ function closePaymentModal() {
                         reader.readAsArrayBuffer(file);
                     }
 
-    function confirmPVUpload() {
+    async function confirmPVUpload() {
         if (bulkUploadPVData.length === 0) return;
 
         // Validate that barcodes don't exist
@@ -10605,6 +10628,26 @@ function closePaymentModal() {
         
         // Save updated ROL data if any products matched
         if (bulkUploadPVData.some(p => p.styleCode && rolData[p.styleCode])) {
+            // Save ROL updates to API
+            for (const product of bulkUploadPVData) {
+                if (product.styleCode && rolData[product.styleCode]) {
+                    const styleROLData = rolData[product.styleCode];
+                    const rolItem = styleROLData.items.find(ri => 
+                        (ri.sku && product.sku && ri.sku.toLowerCase() === product.sku.toLowerCase()) &&
+                        (ri.size && product.size && ri.size.toLowerCase() === product.size.toLowerCase())
+                    );
+                    if (rolItem && product.barcode) {
+                        try {
+                            await api.updateROLData(product.barcode, {
+                                rol: rolItem.rolWholesale || rolItem.rolRetail || 0,
+                                available: rolItem.availableWholesale || rolItem.availableRetail || 0
+                            });
+                        } catch (error) {
+                            console.error('Failed to save ROL to API:', error);
+                        }
+                    }
+                }
+            }
             setCachedItem('rolData', rolData);
             // Refresh ROL display if visible
             if (!document.getElementById('rolTab').classList.contains('hidden') && currentSelectedROLStyleCode) {
@@ -10629,7 +10672,22 @@ function closePaymentModal() {
         };
 
         purchaseVouchers.unshift(pvRecord);
-        setCachedItem('purchaseVouchers', purchaseVouchers); 
+        setCachedItem('purchaseVouchers', purchaseVouchers);
+        
+        // Save PV to API
+        try {
+            const savedPV = await api.createPurchaseVoucher({
+                pvNo: pvNo,
+                supplierName: supplierName,
+                items: bulkUploadPVData,
+                total: totalValue
+            });
+            if (savedPV && savedPV.id) {
+                pvRecord.dbId = savedPV.id;
+            }
+        } catch (error) {
+            console.error('Failed to save PV to API:', error);
+        }
 
         // ✅ Update metal stocks
         bulkUploadPVData.forEach(item => {
@@ -10645,7 +10703,7 @@ function closePaymentModal() {
         setCachedItem('accountBalances', accountBalances);
 
         // ✅ Record in ledger
-        recordLedgerTransaction(transactionTypes.PURCHASE, {
+        await recordLedgerTransaction(transactionTypes.PURCHASE, {
             amount: totalValue,
             description: `PV ${pvNo} - ${supplierName} (${bulkUploadPVData.length} products, ${totalWeight.toFixed(2)}g)`,
             category: 'Metal Purchase',

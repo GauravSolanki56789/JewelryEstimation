@@ -30,16 +30,25 @@
 
 ---
 
-## 🎯 Priority 3: Usage & Setup
+## 🎯 Priority 3: Testing
 
-### 4. [COMPLETE_SETUP_GUIDE.md](COMPLETE_SETUP_GUIDE.md)
+### 4. [TESTING_GUIDE.md](TESTING_GUIDE.md) ⭐ FOR TESTING
+- **Complete testing procedures**
+- **How to test on your system**
+- **How to choose which client gets updates**
+- Step-by-step testing checklist
+- Database verification
+
+## 🎯 Priority 4: Usage & Setup
+
+### 5. [COMPLETE_SETUP_GUIDE.md](COMPLETE_SETUP_GUIDE.md)
 - Complete API usage guide
 - How to work with the API
 - Database management
 - Monitoring and API keys
 - Security recommendations
 
-### 5. [MIGRATION_COMPLETE.md](MIGRATION_COMPLETE.md)
+### 6. [MIGRATION_COMPLETE.md](MIGRATION_COMPLETE.md)
 - Migration status
 - What was migrated
 - Testing checklist
