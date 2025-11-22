@@ -245,6 +245,38 @@ app.post('/api/:tenant/customers', async (req, res) => {
     }
 });
 
+app.put('/api/:tenant/customers/:id', async (req, res) => {
+    try {
+        const { tenant, id } = req.params;
+        const customer = req.body;
+        
+        const query = `UPDATE customers SET
+            name = $1, mobile = $2, address1 = $3, address2 = $4, city = $5,
+            state = $6, pincode = $7, gstin = $8, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $9 RETURNING *`;
+        
+        const params = [
+            customer.name, customer.mobile, customer.address1, customer.address2,
+            customer.city, customer.state, customer.pincode, customer.gstin, id
+        ];
+        
+        const result = await queryTenant(tenant, query, params);
+        res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.delete('/api/:tenant/customers/:id', async (req, res) => {
+    try {
+        const { tenant, id } = req.params;
+        await queryTenant(tenant, 'DELETE FROM customers WHERE id = $1', [id]);
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // ========== QUOTATIONS API ==========
 
 app.get('/api/:tenant/quotations', async (req, res) => {
@@ -281,6 +313,126 @@ app.post('/api/:tenant/quotations', async (req, res) => {
     }
 });
 
+app.put('/api/:tenant/quotations/:id', async (req, res) => {
+    try {
+        const { tenant, id } = req.params;
+        const quotation = req.body;
+        
+        const query = `UPDATE quotations SET
+            customer_id = $1, customer_name = $2, customer_mobile = $3, items = $4,
+            total = $5, gst = $6, net_total = $7, discount = $8, advance = $9,
+            final_amount = $10, payment_status = $11, remarks = $12
+        WHERE id = $13 RETURNING *`;
+        
+        const params = [
+            quotation.customerId, quotation.customerName, quotation.customerMobile,
+            JSON.stringify(quotation.items), quotation.total, quotation.gst,
+            quotation.netTotal, quotation.discount || 0, quotation.advance || 0,
+            quotation.finalAmount, quotation.paymentStatus, quotation.remarks, id
+        ];
+        
+        const result = await queryTenant(tenant, query, params);
+        res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.delete('/api/:tenant/quotations/:id', async (req, res) => {
+    try {
+        const { tenant, id } = req.params;
+        await queryTenant(tenant, 'DELETE FROM quotations WHERE id = $1', [id]);
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ========== BILLS API ==========
+
+app.get('/api/:tenant/bills', async (req, res) => {
+    try {
+        const { tenant } = req.params;
+        const { billNo, date } = req.query;
+        
+        let query = 'SELECT * FROM bills WHERE 1=1';
+        const params = [];
+        let paramCount = 1;
+        
+        if (billNo) {
+            query += ` AND bill_no = $${paramCount++}`;
+            params.push(billNo);
+        }
+        if (date) {
+            query += ` AND DATE(date) = $${paramCount++}`;
+            params.push(date);
+        }
+        
+        query += ' ORDER BY date DESC';
+        
+        const result = await queryTenant(tenant, query, params);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/:tenant/bills', async (req, res) => {
+    try {
+        const { tenant } = req.params;
+        const bill = req.body;
+        
+        const query = `INSERT INTO bills (
+            bill_no, quotation_id, customer_id, customer_name, customer_mobile, items,
+            total, gst, cgst, sgst, net_total, payment_method
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`;
+        
+        const params = [
+            bill.billNo, bill.quotationId || null, bill.customerId, bill.customerName,
+            bill.customerMobile, JSON.stringify(bill.items), bill.total,
+            bill.gst || 0, bill.cgst || 0, bill.sgst || 0, bill.netTotal, bill.paymentMethod || 'cash'
+        ];
+        
+        const result = await queryTenant(tenant, query, params);
+        res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.put('/api/:tenant/bills/:id', async (req, res) => {
+    try {
+        const { tenant, id } = req.params;
+        const bill = req.body;
+        
+        const query = `UPDATE bills SET
+            customer_id = $1, customer_name = $2, customer_mobile = $3, items = $4,
+            total = $5, gst = $6, cgst = $7, sgst = $8, net_total = $9, payment_method = $10
+        WHERE id = $11 RETURNING *`;
+        
+        const params = [
+            bill.customerId, bill.customerName, bill.customerMobile, JSON.stringify(bill.items),
+            bill.total, bill.gst || 0, bill.cgst || 0, bill.sgst || 0,
+            bill.netTotal, bill.paymentMethod || 'cash', id
+        ];
+        
+        const result = await queryTenant(tenant, query, params);
+        res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.delete('/api/:tenant/bills/:id', async (req, res) => {
+    try {
+        const { tenant, id } = req.params;
+        await queryTenant(tenant, 'DELETE FROM bills WHERE id = $1', [id]);
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // ========== RATES API ==========
 
 app.get('/api/:tenant/rates', async (req, res) => {
@@ -304,6 +456,287 @@ app.put('/api/:tenant/rates', async (req, res) => {
         
         const result = await queryTenant(tenant, query, [gold, silver, platinum]);
         res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ========== LEDGER TRANSACTIONS API ==========
+
+app.get('/api/:tenant/ledger/transactions', async (req, res) => {
+    try {
+        const { tenant } = req.params;
+        const { customerId, type, startDate, endDate } = req.query;
+        
+        let query = 'SELECT * FROM ledger_transactions WHERE 1=1';
+        const params = [];
+        let paramCount = 1;
+        
+        if (customerId) {
+            query += ` AND customer_id = $${paramCount++}`;
+            params.push(customerId);
+        }
+        if (type) {
+            query += ` AND transaction_type = $${paramCount++}`;
+            params.push(type);
+        }
+        if (startDate) {
+            query += ` AND DATE(date) >= $${paramCount++}`;
+            params.push(startDate);
+        }
+        if (endDate) {
+            query += ` AND DATE(date) <= $${paramCount++}`;
+            params.push(endDate);
+        }
+        
+        query += ' ORDER BY date DESC';
+        
+        const result = await queryTenant(tenant, query, params);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/:tenant/ledger/transactions', async (req, res) => {
+    try {
+        const { tenant } = req.params;
+        const transaction = req.body;
+        
+        const query = `INSERT INTO ledger_transactions (
+            customer_id, transaction_type, amount, description, date
+        ) VALUES ($1, $2, $3, $4, $5) RETURNING *`;
+        
+        const params = [
+            transaction.customerId || null, transaction.transactionType,
+            transaction.amount, transaction.description, transaction.date || new Date()
+        ];
+        
+        const result = await queryTenant(tenant, query, params);
+        res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ========== PURCHASE VOUCHERS API ==========
+
+app.get('/api/:tenant/purchase-vouchers', async (req, res) => {
+    try {
+        const { tenant } = req.params;
+        const { pvNo } = req.query;
+        
+        let query = 'SELECT * FROM purchase_vouchers WHERE 1=1';
+        const params = [];
+        
+        if (pvNo) {
+            query += ' AND pv_no = $1';
+            params.push(pvNo);
+        }
+        
+        query += ' ORDER BY date DESC';
+        
+        const result = await queryTenant(tenant, query, params);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/:tenant/purchase-vouchers', async (req, res) => {
+    try {
+        const { tenant } = req.params;
+        const pv = req.body;
+        
+        const query = `INSERT INTO purchase_vouchers (
+            pv_no, supplier_name, items, total
+        ) VALUES ($1, $2, $3, $4) RETURNING *`;
+        
+        const params = [
+            pv.pvNo, pv.supplierName || '', JSON.stringify(pv.items), pv.total || 0
+        ];
+        
+        const result = await queryTenant(tenant, query, params);
+        res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ========== ROL DATA API ==========
+
+app.get('/api/:tenant/rol', async (req, res) => {
+    try {
+        const { tenant } = req.params;
+        const { barcode, styleCode } = req.query;
+        
+        let query = 'SELECT * FROM rol_data WHERE 1=1';
+        const params = [];
+        let paramCount = 1;
+        
+        if (barcode) {
+            query += ` AND barcode = $${paramCount++}`;
+            params.push(barcode);
+        }
+        if (styleCode) {
+            query += ` AND barcode IN (SELECT barcode FROM products WHERE style_code = $${paramCount++})`;
+            params.push(styleCode);
+        }
+        
+        const result = await queryTenant(tenant, query, params);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/:tenant/rol', async (req, res) => {
+    try {
+        const { tenant } = req.params;
+        const rolData = req.body;
+        
+        // Upsert ROL data
+        const query = `INSERT INTO rol_data (barcode, rol, available)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (barcode) DO UPDATE SET
+            rol = EXCLUDED.rol,
+            available = EXCLUDED.available,
+            updated_at = CURRENT_TIMESTAMP
+        RETURNING *`;
+        
+        const params = [rolData.barcode, rolData.rol || 0, rolData.available || 0];
+        
+        const result = await queryTenant(tenant, query, params);
+        res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.put('/api/:tenant/rol/:barcode', async (req, res) => {
+    try {
+        const { tenant, barcode } = req.params;
+        const { rol, available } = req.body;
+        
+        const query = `UPDATE rol_data SET
+            rol = $1, available = $2, updated_at = CURRENT_TIMESTAMP
+        WHERE barcode = $3 RETURNING *`;
+        
+        const result = await queryTenant(tenant, query, [rol, available, barcode]);
+        res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ========== USERS MANAGEMENT API ==========
+
+app.get('/api/:tenant/users', async (req, res) => {
+    try {
+        const { tenant } = req.params;
+        const result = await queryTenant(tenant, 'SELECT id, username, role, allowed_tabs, created_at FROM users ORDER BY username');
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/:tenant/users', async (req, res) => {
+    try {
+        const { tenant } = req.params;
+        const { username, password, role, allowedTabs } = req.body;
+        
+        const query = `INSERT INTO users (username, password, role, allowed_tabs)
+        VALUES ($1, $2, $3, $4) RETURNING id, username, role, allowed_tabs, created_at`;
+        
+        const params = [username, password, role || 'user', allowedTabs || ['all']];
+        
+        const result = await queryTenant(tenant, query, params);
+        res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.put('/api/:tenant/users/:id', async (req, res) => {
+    try {
+        const { tenant, id } = req.params;
+        const { username, password, role, allowedTabs } = req.body;
+        
+        let query = 'UPDATE users SET username = $1, role = $2, allowed_tabs = $3';
+        const params = [username, role || 'user', allowedTabs || ['all']];
+        
+        if (password) {
+            query += ', password = $4 WHERE id = $5 RETURNING id, username, role, allowed_tabs';
+            params.push(password, id);
+        } else {
+            query += ' WHERE id = $4 RETURNING id, username, role, allowed_tabs';
+            params.push(id);
+        }
+        
+        const result = await queryTenant(tenant, query, params);
+        res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.delete('/api/:tenant/users/:id', async (req, res) => {
+    try {
+        const { tenant, id } = req.params;
+        await queryTenant(tenant, 'DELETE FROM users WHERE id = $1', [id]);
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ========== API KEY MANAGEMENT (for monitoring) ==========
+
+app.get('/api/admin/api-keys', async (req, res) => {
+    try {
+        // Check for master API key in headers
+        const masterKey = req.headers['x-master-api-key'];
+        if (masterKey !== process.env.MASTER_API_KEY) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        
+        const result = await masterPool.query('SELECT * FROM api_keys ORDER BY created_at DESC');
+        res.json(result.rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/admin/api-keys', async (req, res) => {
+    try {
+        const masterKey = req.headers['x-master-api-key'];
+        if (masterKey !== process.env.MASTER_API_KEY) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        
+        const { tenantCode, description } = req.body;
+        const apiKey = require('crypto').randomBytes(32).toString('hex');
+        
+        // Create api_keys table if not exists
+        await masterPool.query(`
+            CREATE TABLE IF NOT EXISTS api_keys (
+                id SERIAL PRIMARY KEY,
+                tenant_code VARCHAR(50) REFERENCES tenants(tenant_code),
+                api_key VARCHAR(255) UNIQUE NOT NULL,
+                description TEXT,
+                is_active BOOLEAN DEFAULT true,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_used TIMESTAMP
+            )
+        `);
+        
+        const result = await masterPool.query(
+            'INSERT INTO api_keys (tenant_code, api_key, description) VALUES ($1, $2, $3) RETURNING *',
+            [tenantCode, apiKey, description || '']
+        );
+        
+        res.json(result.rows[0]);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

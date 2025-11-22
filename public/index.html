@@ -2366,6 +2366,98 @@
                 });
             },
             
+            async updateBill(id, bill) {
+                return this.request(`/bills/${id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(bill),
+                });
+            },
+            
+            async deleteBill(id) {
+                return this.request(`/bills/${id}`, {
+                    method: 'DELETE',
+                });
+            },
+            
+            // Ledger API
+            async getLedgerTransactions(filters = {}) {
+                const params = new URLSearchParams();
+                if (filters.customerId) params.append('customerId', filters.customerId);
+                if (filters.type) params.append('type', filters.type);
+                if (filters.startDate) params.append('startDate', filters.startDate);
+                if (filters.endDate) params.append('endDate', filters.endDate);
+                const query = params.toString() ? `?${params.toString()}` : '';
+                return this.request(`/ledger/transactions${query}`);
+            },
+            
+            async createLedgerTransaction(transaction) {
+                return this.request('/ledger/transactions', {
+                    method: 'POST',
+                    body: JSON.stringify(transaction),
+                });
+            },
+            
+            // Purchase Vouchers API
+            async getPurchaseVouchers(pvNo = null) {
+                const query = pvNo ? `?pvNo=${encodeURIComponent(pvNo)}` : '';
+                return this.request(`/purchase-vouchers${query}`);
+            },
+            
+            async createPurchaseVoucher(pv) {
+                return this.request('/purchase-vouchers', {
+                    method: 'POST',
+                    body: JSON.stringify(pv),
+                });
+            },
+            
+            // ROL API
+            async getROLData(barcode = null, styleCode = null) {
+                const params = new URLSearchParams();
+                if (barcode) params.append('barcode', barcode);
+                if (styleCode) params.append('styleCode', styleCode);
+                const query = params.toString() ? `?${params.toString()}` : '';
+                return this.request(`/rol${query}`);
+            },
+            
+            async createROLData(rolData) {
+                return this.request('/rol', {
+                    method: 'POST',
+                    body: JSON.stringify(rolData),
+                });
+            },
+            
+            async updateROLData(barcode, rolData) {
+                return this.request(`/rol/${encodeURIComponent(barcode)}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(rolData),
+                });
+            },
+            
+            // Users API
+            async getUsers() {
+                return this.request('/users');
+            },
+            
+            async createUser(user) {
+                return this.request('/users', {
+                    method: 'POST',
+                    body: JSON.stringify(user),
+                });
+            },
+            
+            async updateUser(id, user) {
+                return this.request(`/users/${id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(user),
+                });
+            },
+            
+            async deleteUser(id) {
+                return this.request(`/users/${id}`, {
+                    method: 'DELETE',
+                });
+            },
+            
             // Rates API
             async getRates() {
                 return this.request('/rates');
@@ -3148,14 +3240,77 @@ async function loadDataFromAPI() {
         const customersData = await api.getCustomers();
         if (Array.isArray(customersData)) {
             customers = customersData.map(c => ({
+                id: c.id,
                 name: c.name,
                 mobile: c.mobile,
                 address1: c.address1,
                 address2: c.address2,
-                city: c.city
+                city: c.city,
+                state: c.state || '',
+                pincode: c.pincode || '',
+                gstin: c.gstin || ''
             }));
             setCachedItem('customers', customers);
             updateCustomerDropdown();
+        }
+        
+        // Load quotations
+        try {
+            const quotationsData = await api.getQuotations();
+            if (Array.isArray(quotationsData)) {
+                const loadedQuotations = quotationsData.map(q => ({
+                    id: Date.now() + Math.random(), // Frontend ID
+                    dbId: q.id, // Database ID
+                    quotationNo: q.quotation_no,
+                    date: q.date,
+                    customer: {
+                        id: q.customer_id,
+                        name: q.customer_name,
+                        mobile: q.customer_mobile
+                    },
+                    items: typeof q.items === 'string' ? JSON.parse(q.items) : q.items,
+                    total: parseFloat(q.total) || 0,
+                    gst: parseFloat(q.gst) || 0,
+                    netTotal: parseFloat(q.net_total) || 0,
+                    discount: parseFloat(q.discount) || 0,
+                    advance: parseFloat(q.advance) || 0,
+                    finalAmount: parseFloat(q.final_amount) || 0,
+                    paymentStatus: q.payment_status || 'pending',
+                    isBilled: false
+                }));
+                savedQuotations = loadedQuotations;
+                setCachedItem('savedQuotations', savedQuotations);
+            }
+        } catch (e) {
+            console.log('Quotations not available from API');
+        }
+        
+        // Load bills
+        try {
+            const billsData = await api.getBills();
+            if (Array.isArray(billsData)) {
+                const loadedBills = billsData.map(b => ({
+                    id: Date.now() + Math.random(),
+                    dbId: b.id,
+                    billNo: b.bill_no,
+                    quotationNo: b.quotation_id ? 'Q' + b.quotation_id : '',
+                    date: b.date,
+                    customer: {
+                        id: b.customer_id,
+                        name: b.customer_name,
+                        mobile: b.customer_mobile
+                    },
+                    items: typeof b.items === 'string' ? JSON.parse(b.items) : b.items,
+                    total: parseFloat(b.total) || 0,
+                    gst: parseFloat(b.gst) || 0,
+                    netTotal: parseFloat(b.net_total) || 0,
+                    paymentMethod: b.payment_method || 'cash'
+                }));
+                savedBills = loadedBills;
+                setCachedItem('savedBills', savedBills);
+            }
+        } catch (e) {
+            console.log('Bills not available from API');
         }
         
         // Load rates
@@ -3289,7 +3444,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             // Function to record ledger transaction
-            function recordLedgerTransaction(type, data) {
+            async function recordLedgerTransaction(type, data) {
     const transaction = {
         id: generateTransactionId(),
         type: type,
@@ -3306,6 +3461,28 @@ document.addEventListener('DOMContentLoaded', function() {
         metalType: data.metalType || '',
         weight: data.weight || 0
     };
+
+    // Find customer ID if customer name/mobile provided
+    let customerId = null;
+    if (data.customerMobile) {
+        const customer = customers.find(c => c.mobile === data.customerMobile);
+        if (customer && customer.id) {
+            customerId = customer.id;
+        }
+    }
+
+    // Save to API
+    try {
+        await api.createLedgerTransaction({
+            customerId: customerId,
+            transactionType: type,
+            amount: transaction.amount,
+            description: transaction.description,
+            date: transaction.date
+        });
+    } catch (error) {
+        console.error('Failed to save ledger transaction to API:', error);
+    }
 
     ledgerTransactions.unshift(transaction);
     setCachedItem('ledgerTransactions', ledgerTransactions);
@@ -3601,7 +3778,7 @@ billItems = selectedQuotationForBill.items.map(item => {
                         }
                     }
 
-function generateSalesBillPDF() {
+async function generateSalesBillPDF() {
     if (billItems.length === 0) {
         alert('⚠️ No items to bill');
         return;
@@ -3638,8 +3815,40 @@ function generateSalesBillPDF() {
     savedBills.unshift(billRecord);
     setCachedItem('savedBills', savedBills);
 
+    // Save bill to API
+    try {
+        const customerId = selectedQuotationForBill.customer && selectedQuotationForBill.customer.id 
+            ? selectedQuotationForBill.customer.id 
+            : null;
+        const quotationId = selectedQuotationForBill.dbId || selectedQuotationForBill.id || null;
+        
+        const savedBill = await api.createBill({
+            billNo: billNo,
+            quotationId: quotationId,
+            customerId: customerId,
+            customerName: selectedQuotationForBill.customer.name,
+            customerMobile: selectedQuotationForBill.customer.mobile,
+            items: billItems.map(item => ({
+                ...item,
+                barcode: item.barcode || null
+            })),
+            total: total,
+            gst: gst,
+            cgst: cgst,
+            sgst: sgst,
+            netTotal: netTotal,
+            paymentMethod: selectedQuotationForBill.paymentReceived ? 'cash' : 'credit'
+        });
+        // Store database ID in bill record
+        if (savedBill && savedBill.id) {
+            billRecord.dbId = savedBill.id;
+        }
+    } catch (error) {
+        console.error('Failed to save bill to API:', error);
+    }
+
     // ✅ AUTOMATIC LEDGER ENTRY FOR SALE
-    const ledgerEntry = recordLedgerTransaction(transactionTypes.SALE, {
+    const ledgerEntry = await recordLedgerTransaction(transactionTypes.SALE, {
         billNo: billNo,
         customerName: selectedQuotationForBill.customer.name,
         customerMobile: selectedQuotationForBill.customer.mobile,
@@ -4243,7 +4452,7 @@ function generateSalesBillPDF() {
                 }
             });
 
-        function saveRates() {
+        async function saveRates() {
                 const goldInput = parseFloat(document.getElementById('rateGold').value) || 0;
                 const silverInput = parseFloat(document.getElementById('rateSilver').value) || 0;
                 const platinumInput = parseFloat(document.getElementById('ratePlatinum').value) || 0;
@@ -4252,6 +4461,17 @@ function generateSalesBillPDF() {
                 rates.gold = parseFloat(goldInput);
                 rates.silver = parseFloat(silverInput * 0.97); // 3% discount
                 rates.platinum = parseFloat(platinumInput);
+
+                // Save to API
+                try {
+                    await api.updateRates({
+                        gold: rates.gold,
+                        silver: rates.silver,
+                        platinum: rates.platinum
+                    });
+                } catch (error) {
+                    console.error('Failed to save rates to API:', error);
+                }
 
                 setCachedItem('rates', rates);
                 updateRatesDisplay();
@@ -4435,39 +4655,88 @@ function generateSalesBillPDF() {
             document.getElementById('addCustomerModal').classList.remove('hidden');
         }
 
-        function saveCustomer() {
+        async function saveCustomer() {
             const customer = {
                 name: document.getElementById('newCustName').value.trim(),
                 address1: document.getElementById('newCustAddress1').value.trim(),
                 address2: document.getElementById('newCustAddress2').value.trim(),
                 city: document.getElementById('newCustCity').value.trim(),
-                mobile: document.getElementById('newCustMobile').value.trim()
+                mobile: document.getElementById('newCustMobile').value.trim(),
+                state: document.getElementById('newCustState')?.value?.trim() || '',
+                pincode: document.getElementById('newCustPincode')?.value?.trim() || '',
+                gstin: document.getElementById('newCustGstin')?.value?.trim() || ''
             };
             if (!customer.name || !customer.mobile) {
-                alert('Please fill Name and Mobile Number');
+                showDialog('Error', 'Please fill Name and Mobile Number', 'error');
                 return;
             }
+            
             const editIndex = document.getElementById('editCustomerIndex').value;
-            if (editIndex !== '') {
-                customers[editIndex] = customer;
-                alert('Customer updated!');
-            } else {
-                customers.push(customer);
-                alert('Customer added!');
+            const existingCustomer = editIndex !== '' ? customers[editIndex] : null;
+            
+            try {
+                if (editIndex !== '' && existingCustomer && existingCustomer.id) {
+                    // Update existing customer via API
+                    const updated = await api.updateCustomer(existingCustomer.id, customer);
+                    customers[editIndex] = { ...customer, id: updated.id };
+                    showDialog('Success', 'Customer updated in database!', 'success');
+                } else {
+                    // Create new customer via API
+                    const saved = await api.createCustomer(customer);
+                    customer.id = saved.id;
+                    customers.push(customer);
+                    showDialog('Success', 'Customer saved to database!', 'success');
+                }
+                setCachedItem('customers', customers);
+                updateCustomerDropdown();
+                loadCustomersDisplay();
+                closeModals();
+            } catch (error) {
+                console.error('API Error:', error);
+                // Fallback to localStorage
+                if (editIndex !== '') {
+                    customers[editIndex] = customer;
+                    showDialog('Warning', 'Customer updated locally. API unavailable.', 'warning');
+                } else {
+                    customers.push(customer);
+                    showDialog('Warning', 'Customer saved locally. API unavailable.', 'warning');
+                }
+                setCachedItem('customers', customers);
+                updateCustomerDropdown();
+                loadCustomersDisplay();
+                closeModals();
             }
-            setCachedItem('customers', customers);
-            updateCustomerDropdown();
-            loadCustomersDisplay();
-            closeModals();
         }
 
-        function deleteCustomer(idx) {
+        async function deleteCustomer(idx) {
             if (!confirm('Delete this customer?')) return;
-            customers.splice(idx, 1);
-            setCachedItem('customers', customers);
-            updateCustomerDropdown();
-            loadCustomersDisplay();
-            alert('Customer deleted!');
+            
+            const customer = customers[idx];
+            if (customer && customer.id) {
+                try {
+                    await api.deleteCustomer(customer.id);
+                    customers.splice(idx, 1);
+                    setCachedItem('customers', customers);
+                    updateCustomerDropdown();
+                    loadCustomersDisplay();
+                    showDialog('Success', 'Customer deleted from database!', 'success');
+                } catch (error) {
+                    console.error('API Error:', error);
+                    // Fallback to localStorage
+                    customers.splice(idx, 1);
+                    setCachedItem('customers', customers);
+                    updateCustomerDropdown();
+                    loadCustomersDisplay();
+                    showDialog('Warning', 'Customer deleted locally. API unavailable.', 'warning');
+                }
+            } else {
+                // No ID, just delete from local
+                customers.splice(idx, 1);
+                setCachedItem('customers', customers);
+                updateCustomerDropdown();
+                loadCustomersDisplay();
+                showDialog('Success', 'Customer deleted!', 'success');
+            }
         }
 
         function loadCustomersDisplay() {
@@ -6047,7 +6316,7 @@ function updateMCTypeLabel() {
     document.getElementById('quotationFormatModal').classList.remove('hidden');
 }
 
-    function generateQuotePDFWithPayment() {
+    async function generateQuotePDFWithPayment() {
         // Verify modal elements exist
         if (!document.getElementById('paymentCash') && !document.getElementById('paymentCredit')) {
             alert('⚠️ Payment option modal not properly loaded. Please try again.');
@@ -6105,9 +6374,38 @@ function updateMCTypeLabel() {
     savedQuotations.unshift(quotationRecord);
     setCachedItem('savedQuotations', savedQuotations);
 
+    // Save quotation to API
+    try {
+        const customerId = currentCustomer && currentCustomer.id ? currentCustomer.id : null;
+        const savedQuotation = await api.createQuotation({
+            quotationNo: quotationNo,
+            customerId: customerId,
+            customerName: currentCustomer.name,
+            customerMobile: currentCustomer.mobile,
+            items: items.map(item => ({
+                ...item,
+                barcode: item.barcode || null
+            })),
+            total: total,
+            gst: gst,
+            netTotal: netTotal,
+            discount: discount,
+            advance: advance,
+            finalAmount: finalAmount,
+            paymentStatus: isCashReceived ? 'paid' : 'pending',
+            remarks: ''
+        });
+        // Store database ID in quotation record
+        if (savedQuotation && savedQuotation.id) {
+            quotationRecord.dbId = savedQuotation.id;
+        }
+    } catch (error) {
+        console.error('Failed to save quotation to API:', error);
+    }
+
     // ⭐ IF CASH RECEIVED - RECORD IN LEDGER IMMEDIATELY
     if (isCashReceived) {
-        recordLedgerTransaction(transactionTypes.CASH_IN, {
+        await recordLedgerTransaction(transactionTypes.CASH_IN, {
             quotationNo: quotationNo,
             customerName: currentCustomer.name,
             customerMobile: currentCustomer.mobile,
@@ -7161,11 +7459,20 @@ function updateMCTypeLabel() {
                                 alert(`Quotation ${quotation.quotationNo} loaded for editing. Make your changes and save as a new quotation or update existing.`);
                             }
 
-                            function deleteQuotation(id) {
+                            async function deleteQuotation(id) {
                                 if (!confirm('Are you sure you want to delete this quotation?')) return;
 
                                 const quotation = savedQuotations.find(q => q.id === id);
                                 if (!quotation) return;
+
+                                // Delete from API if has database ID
+                                if (quotation.dbId) {
+                                    try {
+                                        await api.deleteQuotation(quotation.dbId);
+                                    } catch (error) {
+                                        console.error('Failed to delete quotation from API:', error);
+                                    }
+                                }
 
                                 // Return items to their original floors
                                 quotation.items.forEach(item => {
@@ -7189,7 +7496,7 @@ function updateMCTypeLabel() {
                                 setCachedItem('savedQuotations', savedQuotations);
 
                                 loadQuotationsHistory();
-                                alert('Quotation deleted successfully! Items returned to original floors.');
+                                showDialog('Success', 'Quotation deleted successfully! Items returned to original floors.', 'success');
                             }
 
                             function downloadAllQuotations() {

@@ -230,7 +230,7 @@ async function initTenantSchema(pool) {
         // ROL data
         `CREATE TABLE IF NOT EXISTS rol_data (
             id SERIAL PRIMARY KEY,
-            barcode VARCHAR(100) REFERENCES products(barcode),
+            barcode VARCHAR(100) UNIQUE REFERENCES products(barcode),
             rol INTEGER DEFAULT 0,
             available INTEGER DEFAULT 0,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
