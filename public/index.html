@@ -44,12 +44,17 @@
             <form onsubmit="event.preventDefault(); handleLogin();">
                 <div class="space-y-5">
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">Client / Tenant</label>
-                        <select id="authTenant" required
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Client / Tenant Code</label>
+                        <input type="text" id="authTenant" required
                             class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition"
-                            onchange="loadTenants()">
-                            <option value="">Loading clients...</option>
-                        </select>
+                            placeholder="Enter your client code (e.g., jpjewellery, testclient1)"
+                            autocomplete="off"
+                            list="tenantSuggestions">
+                        <datalist id="tenantSuggestions">
+                            <!-- Will be populated if master admin -->
+                        </datalist>
+                        <p class="text-xs text-gray-500 mt-1">💡 Master Admin: Enter "Gaurav" as username to access all clients</p>
+                        <p class="text-xs text-gray-500">💡 Regular Users: Enter your client's tenant code</p>
                     </div>
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Username</label>
@@ -2471,9 +2476,13 @@
             },
             
             // Tenants API (for login)
-            async getTenants() {
+            async getTenants(username = null, password = null) {
                 try {
-                    const response = await fetch(`${API_BASE.replace('/api', '')}/api/tenants`);
+                    let url = `${API_BASE.replace('/api', '')}/api/tenants`;
+                    if (username && password) {
+                        url += `?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
+                    }
+                    const response = await fetch(url);
                     const data = await response.json();
                     return data;
                 } catch (error) {
@@ -2490,6 +2499,14 @@
                         body: JSON.stringify({ tenantCode, username, password }),
                     });
                     const data = await response.json();
+                    
+                    // If master admin and needs tenant selection, handle it
+                    if (data.success && data.isMasterAdmin && data.needsTenantSelection) {
+                        // Load all tenants for selection
+                        const tenants = await this.getTenants(username, password);
+                        return { ...data, availableTenants: tenants };
+                    }
+                    
                     return data;
                 } catch (error) {
                     console.error('Login error:', error);
@@ -2498,13 +2515,38 @@
             },
         };
         
-        // Load tenants on page load
+        // Load tenants on page load (only for master admin preview)
         async function loadTenants() {
+            const datalist = document.getElementById('tenantSuggestions');
+            if (!datalist) return;
+            
+            // Only load if user might be master admin (for autocomplete suggestions)
+            // Regular users will enter their tenant code manually
+            try {
+                // Try to get tenants (will return empty for non-admin)
+                const tenants = await api.getTenants();
+                datalist.innerHTML = '';
+                
+                tenants.forEach(tenant => {
+                    const option = document.createElement('option');
+                    option.value = tenant.tenant_code;
+                    option.textContent = `${tenant.tenant_name || tenant.tenant_code} (${tenant.tenant_code})`;
+                    datalist.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading tenant suggestions:', error);
+            }
+        }
+        
+        // Load tenants after login (for master admin)
+        async function loadTenantsForUser(username, tenantCode) {
             const select = document.getElementById('authTenant');
             if (!select) return;
             
             try {
-                const tenants = await api.getTenants();
+                const tenants = await fetch(`/api/tenants/for-user?username=${encodeURIComponent(username)}&tenantCode=${encodeURIComponent(tenantCode || '')}`)
+                    .then(r => r.json());
+                
                 select.innerHTML = '<option value="">Select Client...</option>';
                 
                 tenants.forEach(tenant => {
@@ -2514,14 +2556,13 @@
                     select.appendChild(option);
                 });
                 
-                // Set default to JP Jewellery if available
-                const jpOption = Array.from(select.options).find(opt => opt.value === 'jpjewellery');
-                if (jpOption) {
-                    select.value = 'jpjewellery';
+                // If only one tenant, auto-select it
+                if (tenants.length === 1 && !currentUser?.isMasterAdmin) {
+                    select.value = tenants[0].tenant_code;
+                    select.disabled = true; // Lock it for regular users
                 }
             } catch (error) {
-                console.error('Error loading tenants:', error);
-                select.innerHTML = '<option value="jpjewellery">JP Jewellery</option>';
+                console.error('Error loading tenants for user:', error);
             }
         }
         
@@ -2926,14 +2967,25 @@ function updateTabVisibility() {
     // Update user info display
     const userNameEl = document.getElementById('currentUserName');
     const userMgmtBtn = document.getElementById('btnManageUsers');
+    const userMgmtBtnContainer = document.getElementById('userManagementBtn');
+    
     if (userNameEl) {
         userNameEl.textContent = `User: ${currentUser.username}`;
     }
+    
     // Only admin and Gaurav can access user management
-    if (userMgmtBtn) {
-        if (currentUser.username === 'admin' || currentUser.username === 'Gaurav') {
+    // Check: username is 'admin' or 'Gaurav', OR role is 'admin', OR isMasterAdmin
+    const canManageUsers = currentUser.username === 'admin' || 
+                           currentUser.username === 'Gaurav' || 
+                           currentUser.role === 'admin' || 
+                           currentUser.isMasterAdmin === true;
+    
+    if (userMgmtBtn && userMgmtBtnContainer) {
+        if (canManageUsers) {
+            userMgmtBtnContainer.classList.remove('hidden');
             userMgmtBtn.classList.remove('hidden');
         } else {
+            userMgmtBtnContainer.classList.add('hidden');
             userMgmtBtn.classList.add('hidden');
         }
     }
@@ -2954,56 +3006,178 @@ function updateTabVisibility() {
     });
 }
 
-function showUserManagement() {
+async function showUserManagement() {
+    // Check if user can manage users
+    const canManageUsers = currentUser.username === 'admin' || 
+                           currentUser.username === 'Gaurav' || 
+                           currentUser.role === 'admin' || 
+                           currentUser.isMasterAdmin === true;
+    
+    if (!canManageUsers) {
+        showDialog('Access Denied', 'Only administrators can manage users.', 'error');
+        return;
+    }
+    
     const modal = document.getElementById('userManagementModal');
     if (!modal) {
         showDialog('Error', 'User management modal not found. Please refresh the page.', 'error');
         return;
     }
     modal.classList.remove('hidden');
-    renderUserManagement();
+    await renderUserManagement();
 }
 
-function renderUserManagement() {
+async function renderUserManagement() {
     const userListDiv = document.getElementById('userManagementList');
     if (!userListDiv) return;
     
-    userListDiv.innerHTML = '';
+    userListDiv.innerHTML = '<p class="text-gray-500">Loading users...</p>';
     
-    Object.keys(AUTH_USERS).forEach(username => {
-        const user = AUTH_USERS[username];
-        const isProtected = username === 'admin' || username === 'Gaurav';
+    try {
+        // Load users from API
+        const apiUsers = await api.getUsers();
         
-        const userCard = document.createElement('div');
-        userCard.className = 'bg-white p-4 rounded-lg border-2 border-gray-200 mb-3';
-        userCard.innerHTML = `
-            <div class="flex justify-between items-start">
-                <div class="flex-1">
-                    <div class="flex items-center gap-2 mb-2">
-                        <span class="font-bold text-lg">${username}</span>
-                        ${isProtected ? '<span class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">Protected</span>' : ''}
-                        <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">${user.role || 'user'}</span>
+        // Also get tenant admin from master database
+        const tenantAdmin = currentUser.username === 'admin' || currentUser.isMasterAdmin ? {
+            username: 'admin',
+            role: 'admin',
+            allowedTabs: ['all'],
+            isProtected: true
+        } : null;
+        
+        // Combine API users with tenant admin
+        const allUsers = [];
+        if (tenantAdmin) {
+            allUsers.push(tenantAdmin);
+        }
+        if (currentUser.isMasterAdmin) {
+            allUsers.push({
+                username: 'Gaurav',
+                role: 'super_admin',
+                allowedTabs: ['all'],
+                isProtected: true
+            });
+        }
+        
+        // Add API users
+        if (Array.isArray(apiUsers)) {
+            apiUsers.forEach(user => {
+                allUsers.push({
+                    username: user.username,
+                    role: user.role || 'user',
+                    allowedTabs: user.allowed_tabs || [],
+                    isProtected: false
+                });
+            });
+        }
+        
+        // Also include localStorage users for backward compatibility
+        Object.keys(AUTH_USERS).forEach(username => {
+            if (!allUsers.find(u => u.username === username)) {
+                const user = AUTH_USERS[username];
+                allUsers.push({
+                    username: username,
+                    role: user.role || 'user',
+                    allowedTabs: user.allowedTabs || [],
+                    isProtected: username === 'admin' || username === 'Gaurav'
+                });
+            }
+        });
+        
+        if (allUsers.length === 0) {
+            userListDiv.innerHTML = '<p class="text-gray-500">No users found. Click "Add New User" to create one.</p>';
+            return;
+        }
+        
+        userListDiv.innerHTML = '';
+        
+        allUsers.forEach(user => {
+            const isProtected = user.isProtected || user.username === 'admin' || user.username === 'Gaurav';
+            
+            const userCard = document.createElement('div');
+            userCard.className = 'bg-white p-4 rounded-lg border-2 border-gray-200 mb-3';
+            userCard.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="font-bold text-lg">${user.username}</span>
+                            ${isProtected ? '<span class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">Protected</span>' : ''}
+                            <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">${user.role || 'user'}</span>
+                        </div>
+                        <div class="text-sm text-gray-600 mb-2">
+                            <div><strong>Role Type:</strong> ${user.role === 'admin' || user.role === 'super_admin' ? 'Admin' : (user.role || 'Employee')}</div>
+                            <div><strong>Allowed Tabs:</strong> ${user.allowedTabs && user.allowedTabs.includes('all') ? 'All Tabs' : (user.allowedTabs || []).join(', ') || 'None'}</div>
+                        </div>
                     </div>
-                    <div class="text-sm text-gray-600 mb-2">
-                        <div><strong>Role Type:</strong> ${user.role === 'admin' ? 'Admin' : (user.role || 'Employee')}</div>
-                        <div><strong>Allowed Tabs:</strong> ${user.allowedTabs && user.allowedTabs.includes('all') ? 'All Tabs' : (user.allowedTabs || []).join(', ') || 'None'}</div>
+                    <div class="flex gap-2">
+                        <button onclick="editUser('${user.username}')" class="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">✏️ Edit</button>
+                        ${!isProtected ? `<button onclick="deleteUser('${user.username}')" class="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700">🗑️ Delete</button>` : ''}
                     </div>
                 </div>
-                <div class="flex gap-2">
-                    <button onclick="editUser('${username}')" class="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">✏️ Edit</button>
-                    ${!isProtected ? `<button onclick="deleteUser('${username}')" class="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700">🗑️ Delete</button>` : ''}
+            `;
+            userListDiv.appendChild(userCard);
+        });
+    } catch (error) {
+        console.error('Error loading users:', error);
+        // Fallback to localStorage users
+        userListDiv.innerHTML = '';
+        Object.keys(AUTH_USERS).forEach(username => {
+            const user = AUTH_USERS[username];
+            const isProtected = username === 'admin' || username === 'Gaurav';
+            
+            const userCard = document.createElement('div');
+            userCard.className = 'bg-white p-4 rounded-lg border-2 border-gray-200 mb-3';
+            userCard.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="font-bold text-lg">${username}</span>
+                            ${isProtected ? '<span class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">Protected</span>' : ''}
+                            <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">${user.role || 'user'}</span>
+                        </div>
+                        <div class="text-sm text-gray-600 mb-2">
+                            <div><strong>Role Type:</strong> ${user.role === 'admin' ? 'Admin' : (user.role || 'Employee')}</div>
+                            <div><strong>Allowed Tabs:</strong> ${user.allowedTabs && user.allowedTabs.includes('all') ? 'All Tabs' : (user.allowedTabs || []).join(', ') || 'None'}</div>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="editUser('${username}')" class="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">✏️ Edit</button>
+                        ${!isProtected ? `<button onclick="deleteUser('${username}')" class="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700">🗑️ Delete</button>` : ''}
+                    </div>
                 </div>
-            </div>
-        `;
-        userListDiv.appendChild(userCard);
-    });
+            `;
+            userListDiv.appendChild(userCard);
+        });
+    }
 }
 
 async function editUser(username) {
-    const user = AUTH_USERS[username];
-    if (!user) return;
+    // Protected users cannot be edited (except password)
+    if (username === 'admin' || username === 'Gaurav') {
+        showDialog('Info', 'Protected users cannot be edited. Only their password can be changed.', 'info');
+        return;
+    }
     
     try {
+        // Try to get user from API first
+        let user = null;
+        try {
+            const apiUsers = await api.getUsers();
+            user = apiUsers.find(u => u.username === username);
+        } catch (e) {
+            // Fallback to localStorage
+            user = AUTH_USERS[username];
+        }
+        
+        if (!user) {
+            user = AUTH_USERS[username];
+        }
+        
+        if (!user) {
+            showDialog('Error', 'User not found!', 'error');
+            return;
+        }
+        
         const newPassword = await showInputDialog(
             'Edit User Password',
             `Enter new password for ${username} (leave empty to keep current):`,
@@ -3011,75 +3185,98 @@ async function editUser(username) {
             'Enter password or leave empty'
         );
         
-        if (newPassword) {
-            user.password = newPassword;
-        }
-        
         const newRole = await showInputDialog(
             'Edit User Role',
             `Enter role name for ${username}:`,
             user.role || 'user',
             'Enter role name'
         );
-        user.role = newRole;
+        if (!newRole) return;
         
         showConfirmDialog(
             'Set Admin Status',
             `Is ${username} an admin?`,
-            () => {
-                user.role = 'admin';
-                proceedWithTabsSelection();
+            async () => {
+                await proceedWithTabsSelection('admin', newPassword);
             },
-            () => {
-                user.role = newRole;
-                proceedWithTabsSelection();
+            async () => {
+                await proceedWithTabsSelection(newRole, newPassword);
             }
         );
         
-        function proceedWithTabsSelection() {
+        async function proceedWithTabsSelection(role, password) {
             const allTabs = ['billing', 'products', 'customers', 'rol', 'quotations', 'salesbill', 'billhistory', 'ledger', 'pv', 'tagsplit', 'tagsearch', 'floor'];
-            const currentTabs = user.allowedTabs || [];
+            const currentTabs = user.allowed_tabs || user.allowedTabs || [];
             const hasAllTabs = currentTabs.includes('all');
             
             let tabsMessage = `Select tabs for ${username}:\n\nCurrent: ${hasAllTabs ? 'All Tabs' : currentTabs.join(', ') || 'None'}\n\nEnter "all" for all tabs, or comma-separated list:\n${allTabs.join(', ')}`;
             
-            showInputDialog(
-                'Select Tabs',
-                tabsMessage,
-                hasAllTabs ? 'all' : currentTabs.join(', '),
-                'all or comma-separated list'
-            ).then(tabsInput => {
-                if (tabsInput.trim().toLowerCase() === 'all') {
-                    user.allowedTabs = ['all'];
-                } else {
-                    const selectedTabs = tabsInput.split(',').map(t => t.trim()).filter(t => allTabs.includes(t));
-                    user.allowedTabs = selectedTabs;
+            try {
+                const tabsInput = await showInputDialog(
+                    'Select Tabs',
+                    tabsMessage,
+                    hasAllTabs ? 'all' : currentTabs.join(', '),
+                    'all or comma-separated list'
+                );
+                
+                let allowedTabs = [];
+                if (tabsInput && tabsInput.trim().toLowerCase() === 'all') {
+                    allowedTabs = ['all'];
+                } else if (tabsInput) {
+                    allowedTabs = tabsInput.split(',').map(t => t.trim()).filter(t => allTabs.includes(t));
                 }
                 
-                AUTH_USERS[username] = user;
-                saveAuthUsers();
-                renderUserManagement();
-                showDialog('Success', `User ${username} updated successfully!`, 'success');
-            }).catch(() => {
+                // Update via API
+                try {
+                    const updateData = {
+                        role: role,
+                        allowed_tabs: allowedTabs
+                    };
+                    if (password) {
+                        updateData.password = password;
+                    }
+                    await api.updateUser(username, updateData);
+                    showDialog('Success', `User ${username} updated successfully!`, 'success');
+                } catch (apiError) {
+                    // Fallback to localStorage
+                    user.role = role;
+                    user.allowedTabs = allowedTabs;
+                    if (password) {
+                        user.password = password;
+                    }
+                    AUTH_USERS[username] = user;
+                    saveAuthUsers();
+                    showDialog('Success', `User ${username} updated (saved locally)!`, 'success');
+                }
+                
+                await renderUserManagement();
+            } catch (e) {
                 // User cancelled
-            });
+            }
         }
     } catch (e) {
         // User cancelled
     }
 }
 
-function deleteUser(username) {
+async function deleteUser(username) {
     if (username === 'admin' || username === 'Gaurav') {
         showDialog('Error', 'Cannot delete protected users!', 'error');
         return;
     }
     
-    showConfirmDialog('Delete User', `Are you sure you want to delete user "${username}"?`, () => {
-        delete AUTH_USERS[username];
-        saveAuthUsers();
-        renderUserManagement();
-        showDialog('Success', `User ${username} deleted successfully!`, 'success');
+    showConfirmDialog('Delete User', `Are you sure you want to delete user "${username}"?`, async () => {
+        try {
+            // Try to delete via API
+            await api.deleteUser(username);
+            showDialog('Success', `User ${username} deleted successfully!`, 'success');
+        } catch (apiError) {
+            // Fallback to localStorage
+            delete AUTH_USERS[username];
+            saveAuthUsers();
+            showDialog('Success', `User ${username} deleted (from local storage)!`, 'success');
+        }
+        await renderUserManagement();
     });
 }
 
@@ -3088,9 +3285,19 @@ async function addNewUser() {
         const username = await showInputDialog('Add New User', 'Enter username:', '', 'Enter username');
         if (!username || !username.trim()) return;
         
-        if (AUTH_USERS[username]) {
-            showDialog('Error', 'Username already exists!', 'error');
-            return;
+        // Check if username exists in API
+        try {
+            const apiUsers = await api.getUsers();
+            if (apiUsers.find(u => u.username === username)) {
+                showDialog('Error', 'Username already exists!', 'error');
+                return;
+            }
+        } catch (e) {
+            // Check localStorage as fallback
+            if (AUTH_USERS[username]) {
+                showDialog('Error', 'Username already exists!', 'error');
+                return;
+            }
         }
         
         const password = await showInputDialog('Add New User', 'Enter password:', '', 'Enter password');
@@ -3102,38 +3309,52 @@ async function addNewUser() {
         showConfirmDialog(
             'Set Admin Status',
             'Is this user an admin?',
-            () => {
-                proceedWithTabsSelection('admin');
+            async () => {
+                await proceedWithTabsSelection('admin', password);
             },
-            () => {
-                proceedWithTabsSelection(roleName);
+            async () => {
+                await proceedWithTabsSelection(roleName, password);
             }
         );
         
-        function proceedWithTabsSelection(role) {
+        async function proceedWithTabsSelection(role, password) {
             const allTabs = ['billing', 'products', 'customers', 'rol', 'quotations', 'salesbill', 'billhistory', 'ledger', 'pv', 'tagsplit', 'tagsearch', 'floor'];
             let tabsMessage = `Select tabs for ${username}:\n\nEnter "all" for all tabs, or comma-separated list:\n${allTabs.join(', ')}`;
             
-            showInputDialog('Select Tabs', tabsMessage, 'all', 'all or comma-separated list').then(tabsInput => {
+            try {
+                const tabsInput = await showInputDialog('Select Tabs', tabsMessage, 'all', 'all or comma-separated list');
+                
                 let allowedTabs = [];
-                if (tabsInput.trim().toLowerCase() === 'all') {
+                if (tabsInput && tabsInput.trim().toLowerCase() === 'all') {
                     allowedTabs = ['all'];
-                } else {
+                } else if (tabsInput) {
                     allowedTabs = tabsInput.split(',').map(t => t.trim()).filter(t => allTabs.includes(t));
                 }
                 
-                AUTH_USERS[username] = {
-                    password: password,
-                    role: role,
-                    allowedTabs: allowedTabs
-                };
+                // Create via API
+                try {
+                    await api.createUser({
+                        username: username,
+                        password: password,
+                        role: role,
+                        allowed_tabs: allowedTabs
+                    });
+                    showDialog('Success', `User ${username} created successfully!`, 'success');
+                } catch (apiError) {
+                    // Fallback to localStorage
+                    AUTH_USERS[username] = {
+                        password: password,
+                        role: role,
+                        allowedTabs: allowedTabs
+                    };
+                    saveAuthUsers();
+                    showDialog('Success', `User ${username} created (saved locally)!`, 'success');
+                }
                 
-                saveAuthUsers();
-                renderUserManagement();
-                showDialog('Success', `User ${username} created successfully!`, 'success');
-            }).catch(() => {
+                await renderUserManagement();
+            } catch (e) {
                 // User cancelled
-            });
+            }
         }
     } catch (e) {
         // User cancelled
@@ -3146,8 +3367,9 @@ window.handleLogin = async function() {
     const username = document.getElementById('authUsername').value.trim();
     const password = document.getElementById('authPassword').value;
 
-    if (!tenantCode) {
-        showDialog('Login Failed', 'Please select a client/tenant!', 'error');
+    // Allow empty tenant code only for master admin
+    if (!tenantCode && username !== 'Gaurav') {
+        showDialog('Login Failed', 'Please enter your client/tenant code!', 'error');
         return;
     }
 
@@ -3166,9 +3388,43 @@ window.handleLogin = async function() {
                 username: loginResult.username,
                 role: loginResult.role || 'user',
                 allowedTabs: loginResult.allowedTabs || ['all'],
-                tenantCode: loginResult.tenantCode
+                tenantCode: loginResult.tenantCode || tenantCode,
+                isMasterAdmin: loginResult.isMasterAdmin || false
             };
-            api.setTenant(tenantCode);
+            
+            // If master admin and no tenant code provided, show message
+            if (loginResult.isMasterAdmin && !tenantCode) {
+                showDialog('Info', 'Master Admin: Please enter a client/tenant code to access that client.', 'info');
+                document.getElementById('authTenant').focus();
+                return;
+            }
+            
+            // If master admin, verify tenant exists
+            if (loginResult.isMasterAdmin && tenantCode) {
+                // Verify tenant exists
+                const tenants = await api.getTenants(username, password);
+                const tenantExists = tenants.some(t => t.tenant_code === tenantCode);
+                if (!tenantExists) {
+                    showDialog('Error', `Tenant code "${tenantCode}" not found. Please enter a valid tenant code.`, 'error');
+                    document.getElementById('authTenant').focus();
+                    return;
+                }
+                currentUser.tenantCode = tenantCode;
+            }
+            
+            // Regular user - verify they can only access their tenant
+            if (!loginResult.isMasterAdmin) {
+                // Ensure tenant code matches
+                if (tenantCode !== loginResult.tenantCode) {
+                    showDialog('Access Denied', `You can only access your own client account (${loginResult.tenantCode}).`, 'error');
+                    document.getElementById('authTenant').value = loginResult.tenantCode;
+                    return;
+                }
+                // Lock tenant code for regular users
+                document.getElementById('authTenant').disabled = true;
+            }
+            
+            api.setTenant(currentUser.tenantCode);
             setCachedItem('currentUser', currentUser);
             document.getElementById('authModal').classList.add('hidden');
             document.getElementById('app').classList.remove('hidden');
@@ -3178,32 +3434,15 @@ window.handleLogin = async function() {
             return;
         }
     } catch (apiError) {
-        // API login failed, try local authentication as fallback
-        console.log('API login failed, trying local auth:', apiError);
+        // API login failed
+        console.log('API login failed:', apiError);
+        showDialog('Login Failed', 'Invalid credentials. Please check your username, password, and client code.', 'error');
+        return;
     }
 
-    // Fallback to local authentication (for backward compatibility)
-    AUTH_USERS = getCachedItem('authUsers', {
-        'admin': { password: '123456', role: 'admin', allowedTabs: ['all'] },
-        'Gaurav': { password: '@GauravSolanki56789__', role: 'admin', allowedTabs: ['all'] }
-    });
-
-    if (AUTH_USERS[username] && AUTH_USERS[username].password === password) {
-        currentUser = { 
-            username, 
-            role: AUTH_USERS[username].role,
-            allowedTabs: AUTH_USERS[username].allowedTabs || ['all'],
-            tenantCode: tenantCode
-        };
-        api.setTenant(tenantCode);
-        setCachedItem('currentUser', currentUser);
-        document.getElementById('authModal').classList.add('hidden');
-        document.getElementById('app').classList.remove('hidden');
-        updateTabVisibility();
-    } else {
-        showDialog('Login Failed', 'Invalid username or password!', 'error');
-        document.getElementById('authPassword').value = '';
-    }
+    // No fallback - all authentication must go through API for security
+    showDialog('Login Failed', 'Invalid credentials. Please check your username, password, and client code.', 'error');
+    document.getElementById('authPassword').value = '';
 };
 
 // Load data from API after login

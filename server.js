@@ -2,6 +2,7 @@ require('dotenv').config(); // Load .env file first
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
+const bcrypt = require('bcrypt');
 const { 
     masterPool, 
     getTenantPool, 
@@ -23,16 +24,37 @@ initMasterDatabase();
 
 // ========== TENANT MANAGEMENT ==========
 
-// Create new tenant/client
+// Create new tenant/client (only master admin can do this)
 app.post('/api/tenants', async (req, res) => {
     try {
-        const { tenantCode, tenantName, adminUsername, adminPassword } = req.body;
+        const { tenantCode, tenantName, adminUsername, adminPassword, masterUsername, masterPassword } = req.body;
+        
+        // Verify master admin
+        if (!masterUsername || !masterPassword) {
+            return res.status(403).json({ error: 'Master admin credentials required' });
+        }
+        
+        const masterAdmin = await masterPool.query(
+            'SELECT * FROM master_admins WHERE username = $1',
+            [masterUsername]
+        );
+        
+        if (masterAdmin.rows.length === 0) {
+            return res.status(403).json({ error: 'Unauthorized' });
+        }
+        
+        const isValid = await bcrypt.compare(masterPassword, masterAdmin.rows[0].password_hash);
+        if (!isValid || !masterAdmin.rows[0].is_super_admin) {
+            return res.status(403).json({ error: 'Unauthorized' });
+        }
         
         if (!tenantCode || !tenantName || !adminUsername || !adminPassword) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
         
-        await createTenantDatabase(tenantCode, tenantName, adminUsername, adminPassword);
+        // Hash tenant admin password
+        const hashedPassword = await bcrypt.hash(adminPassword, 10);
+        await createTenantDatabase(tenantCode, tenantName, adminUsername, hashedPassword);
         res.json({ 
             success: true, 
             message: `Tenant ${tenantCode} created successfully`,
@@ -44,10 +66,62 @@ app.post('/api/tenants', async (req, res) => {
     }
 });
 
-// List all tenants
+// List all tenants (with access control)
 app.get('/api/tenants', async (req, res) => {
     try {
-        const result = await masterPool.query('SELECT tenant_code, tenant_name, created_at, is_active FROM tenants');
+        const { username, password } = req.query;
+        
+        // If master admin credentials provided, return all tenants
+        if (username && password) {
+            const masterAdmin = await masterPool.query(
+                'SELECT * FROM master_admins WHERE username = $1',
+                [username]
+            );
+            
+            if (masterAdmin.rows.length > 0) {
+                const isValid = await bcrypt.compare(password, masterAdmin.rows[0].password_hash);
+                if (isValid && masterAdmin.rows[0].is_super_admin) {
+                    // Super admin can see all tenants
+                    const result = await masterPool.query('SELECT tenant_code, tenant_name, created_at, is_active FROM tenants');
+                    return res.json(result.rows);
+                }
+            }
+        }
+        
+        // For regular users, they should only see their own tenant (handled in frontend)
+        // Return empty or error - frontend will handle based on login
+        res.json([]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get tenants for a specific user (after login)
+app.get('/api/tenants/for-user', async (req, res) => {
+    try {
+        const { username, tenantCode } = req.query;
+        
+        if (!username || !tenantCode) {
+            return res.json([]);
+        }
+        
+        // Check if master admin
+        const masterAdmin = await masterPool.query(
+            'SELECT * FROM master_admins WHERE username = $1',
+            [username]
+        );
+        
+        if (masterAdmin.rows.length > 0 && masterAdmin.rows[0].is_super_admin) {
+            // Super admin can see all tenants
+            const result = await masterPool.query('SELECT tenant_code, tenant_name, created_at, is_active FROM tenants');
+            return res.json(result.rows);
+        }
+        
+        // Regular user can only see their own tenant
+        const result = await masterPool.query(
+            'SELECT tenant_code, tenant_name, created_at, is_active FROM tenants WHERE tenant_code = $1',
+            [tenantCode]
+        );
         res.json(result.rows);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -61,39 +135,131 @@ app.post('/api/auth/login', async (req, res) => {
     try {
         const { username, password, tenantCode } = req.body;
         
-        // First check master tenant table
-        const tenantResult = await masterPool.query(
-            'SELECT * FROM tenants WHERE tenant_code = $1 AND admin_username = $2 AND admin_password = $3',
-            [tenantCode, username, password]
+        // First check if master admin (Gaurav)
+        const masterAdmin = await masterPool.query(
+            'SELECT * FROM master_admins WHERE username = $1',
+            [username]
         );
         
-        if (tenantResult.rows.length > 0) {
-            const tenant = tenantResult.rows[0];
-            return res.json({
-                success: true,
-                tenantCode: tenant.tenant_code,
-                username: tenant.admin_username,
-                role: 'admin',
-                allowedTabs: ['all']
-            });
+        if (masterAdmin.rows.length > 0) {
+            const isValid = await bcrypt.compare(password, masterAdmin.rows[0].password_hash);
+            if (isValid && masterAdmin.rows[0].is_super_admin) {
+                // Master admin can access any tenant
+                if (tenantCode) {
+                    // Verify tenant exists
+                    const tenantCheck = await masterPool.query(
+                        'SELECT * FROM tenants WHERE tenant_code = $1',
+                        [tenantCode]
+                    );
+                    if (tenantCheck.rows.length > 0) {
+                        return res.json({
+                            success: true,
+                            tenantCode: tenantCode,
+                            username: username,
+                            role: 'super_admin',
+                            allowedTabs: ['all'],
+                            isMasterAdmin: true
+                        });
+                    }
+                }
+                // If no tenant specified, return success but user needs to select tenant
+                return res.json({
+                    success: true,
+                    username: username,
+                    role: 'super_admin',
+                    allowedTabs: ['all'],
+                    isMasterAdmin: true,
+                    needsTenantSelection: true
+                });
+            }
+        }
+        
+        // Check master tenant table (tenant admin) - only if tenantCode provided
+        if (tenantCode) {
+            const tenantResult = await masterPool.query(
+                'SELECT * FROM tenants WHERE tenant_code = $1 AND admin_username = $2',
+                [tenantCode, username]
+            );
+        
+            if (tenantResult.rows.length > 0) {
+                const tenant = tenantResult.rows[0];
+                // Verify password (stored as hash in future, plain text for now for migration)
+                // For existing tenants, check plain text first, then hash
+                let passwordValid = false;
+                if (tenant.admin_password === password) {
+                    passwordValid = true;
+                    // Migrate to hash
+                    const hashedPassword = await bcrypt.hash(password, 10);
+                    await masterPool.query(
+                        'UPDATE tenants SET admin_password = $1 WHERE id = $2',
+                        [hashedPassword, tenant.id]
+                    );
+                } else {
+                    // Try bcrypt compare for already hashed passwords
+                    try {
+                        passwordValid = await bcrypt.compare(password, tenant.admin_password);
+                    } catch (e) {
+                        passwordValid = false;
+                    }
+                }
+                
+                if (passwordValid) {
+                    return res.json({
+                        success: true,
+                        tenantCode: tenant.tenant_code,
+                        username: tenant.admin_username,
+                        role: 'admin',
+                        allowedTabs: ['all'],
+                        isMasterAdmin: false
+                    });
+                }
+            }
         }
         
         // Check tenant users table
-        const pool = getTenantPool(tenantCode);
-        const userResult = await pool.query(
-            'SELECT * FROM users WHERE username = $1 AND password = $2',
-            [username, password]
-        );
-        
-        if (userResult.rows.length > 0) {
-            const user = userResult.rows[0];
-            return res.json({
-                success: true,
-                tenantCode: tenantCode,
-                username: user.username,
-                role: user.role,
-                allowedTabs: user.allowed_tabs || ['all']
-            });
+        if (tenantCode) {
+            try {
+                const pool = getTenantPool(tenantCode);
+                const userResult = await pool.query(
+                    'SELECT * FROM users WHERE username = $1',
+                    [username]
+                );
+                
+                if (userResult.rows.length > 0) {
+                    const user = userResult.rows[0];
+                    // Verify password
+                    let passwordValid = false;
+                    if (user.password === password) {
+                        passwordValid = true;
+                        // Migrate to hash
+                        const hashedPassword = await bcrypt.hash(password, 10);
+                        await pool.query(
+                            'UPDATE users SET password = $1 WHERE id = $2',
+                            [hashedPassword, user.id]
+                        );
+                    } else {
+                        try {
+                            passwordValid = await bcrypt.compare(password, user.password);
+                        } catch (e) {
+                            passwordValid = false;
+                        }
+                    }
+                    
+                    if (passwordValid) {
+                        return res.json({
+                            success: true,
+                            tenantCode: tenantCode,
+                            username: user.username,
+                            role: user.role,
+                            allowedTabs: user.allowed_tabs || ['all'],
+                            isMasterAdmin: false
+                        });
+                    }
+                }
+            } catch (error) {
+                // Tenant database might not exist
+                console.error('Error checking tenant users:', error);
+            }
         }
         
         res.status(401).json({ error: 'Invalid credentials' });
@@ -104,7 +270,14 @@ app.post('/api/auth/login', async (req, res) => {
 
 // ========== PRODUCTS API ==========
 
-app.get('/api/:tenant/products', async (req, res) => {
+// Middleware to verify tenant access (add to routes that need it)
+async function verifyTenantAccess(req, res, next) {
+    // For now, allow access - in production, add JWT token verification
+    // The tenant code in URL ensures data isolation
+    next();
+}
+
+app.get('/api/:tenant/products', verifyTenantAccess, async (req, res) => {
     try {
         const { tenant } = req.params;
         const { barcode, styleCode, search } = req.query;

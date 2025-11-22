@@ -32,6 +32,30 @@ async function initMasterDatabase() {
                 admin_password VARCHAR(255) NOT NULL
             )
         `);
+        
+        // Create master admin users table
+        await masterPool.query(`
+            CREATE TABLE IF NOT EXISTS master_admins (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(100) UNIQUE NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                is_super_admin BOOLEAN DEFAULT false,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        
+        // Create master admin if not exists (Gaurav)
+        const bcrypt = require('bcrypt');
+        const masterAdminCheck = await masterPool.query('SELECT * FROM master_admins WHERE username = $1', ['Gaurav']);
+        if (masterAdminCheck.rows.length === 0) {
+            const hashedPassword = await bcrypt.hash('@GauravSolanki56789__', 10);
+            await masterPool.query(
+                'INSERT INTO master_admins (username, password_hash, is_super_admin) VALUES ($1, $2, $3)',
+                ['Gaurav', hashedPassword, true]
+            );
+            console.log('✅ Master admin user created');
+        }
+        
         console.log('✅ Master database initialized');
     } catch (error) {
         console.error('❌ Error initializing master database:', error);
@@ -54,7 +78,7 @@ function getTenantPool(tenantCode) {
 }
 
 // Create tenant database and schema
-async function createTenantDatabase(tenantCode, tenantName, adminUsername, adminPassword) {
+async function createTenantDatabase(tenantCode, tenantName, adminUsername, adminPasswordHash) {
     // Need to connect to 'postgres' database to create new database
     const postgresPool = new Pool({
         host: process.env.DB_HOST || 'localhost',
@@ -72,12 +96,12 @@ async function createTenantDatabase(tenantCode, tenantName, adminUsername, admin
         await postgresClient.query(`CREATE DATABASE jewelry_${tenantCode}`);
         console.log(`✅ Database created: jewelry_${tenantCode}`);
         
-        // Now create tenant record in master database
+        // Now create tenant record in master database (password is already hashed)
         await masterClient.query('BEGIN');
         await masterClient.query(
             `INSERT INTO tenants (tenant_code, tenant_name, database_name, admin_username, admin_password)
              VALUES ($1, $2, $3, $4, $5)`,
-            [tenantCode, tenantName, `jewelry_${tenantCode}`, adminUsername, adminPassword]
+            [tenantCode, tenantName, `jewelry_${tenantCode}`, adminUsername, adminPasswordHash]
         );
         await masterClient.query('COMMIT');
         
@@ -195,7 +219,7 @@ async function initTenantSchema(pool) {
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
         
-        // Users table
+        // Users table (passwords will be hashed)
         `CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
             username VARCHAR(100) UNIQUE NOT NULL,

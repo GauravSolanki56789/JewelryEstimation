@@ -211,10 +211,11 @@
             if (tabName === 'apikeys') loadApiKeys();
         }
 
-        // Load Clients
+        // Load Clients (requires master admin)
         async function loadClients() {
+            if (!checkMasterAdminAuth()) return;
             try {
-                const response = await fetch('/api/tenants');
+                const response = await fetch('/api/tenants?username=Gaurav&password=@GauravSolanki56789__');
                 const clients = await response.json();
                 
                 const list = document.getElementById('clientsList');
@@ -246,10 +247,11 @@
             }
         }
 
-        // Load Monitoring
+        // Load Monitoring (requires master admin)
         async function loadMonitoring() {
+            if (!checkMasterAdminAuth()) return;
             try {
-                const response = await fetch('/api/tenants');
+                const response = await fetch('/api/tenants?username=Gaurav&password=@GauravSolanki56789__');
                 const clients = await response.json();
                 
                 document.getElementById('statTotalClients').textContent = clients.length;
@@ -323,8 +325,76 @@
             }
         }
 
+        // Master Admin Authentication
+        let masterAdminAuthenticated = false;
+        let masterAdminSession = sessionStorage.getItem('masterAdminAuth') === 'true';
+        
+        function checkMasterAdminAuth() {
+            if (masterAdminSession) {
+                masterAdminAuthenticated = true;
+                return true;
+            }
+            
+            if (!masterAdminAuthenticated) {
+                const modal = document.createElement('div');
+                modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
+                modal.id = 'masterAdminAuthModal';
+                modal.innerHTML = `
+                    <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full mx-4">
+                        <h2 class="text-2xl font-bold mb-4">Master Admin Authentication</h2>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Username</label>
+                                <input type="text" id="masterAdminUsername" class="w-full px-4 py-2 border rounded-lg" autofocus>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Password</label>
+                                <input type="password" id="masterAdminPassword" class="w-full px-4 py-2 border rounded-lg">
+                            </div>
+                            <div class="flex gap-3">
+                                <button onclick="authenticateMasterAdmin()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Login</button>
+                                <button onclick="window.location.href='/'" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+                document.getElementById('masterAdminUsername').focus();
+                return false;
+            }
+            return true;
+        }
+        
+        async function authenticateMasterAdmin() {
+            const username = document.getElementById('masterAdminUsername').value;
+            const password = document.getElementById('masterAdminPassword').value;
+            
+            // Verify with server
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, tenantCode: '' })
+                });
+                
+                const result = await response.json();
+                if (result.success && result.isMasterAdmin) {
+                    masterAdminAuthenticated = true;
+                    masterAdminSession = true;
+                    sessionStorage.setItem('masterAdminAuth', 'true');
+                    document.getElementById('masterAdminAuthModal').remove();
+                    loadClients();
+                } else {
+                    alert('Invalid master admin credentials');
+                }
+            } catch (error) {
+                alert('Authentication failed: ' + error.message);
+            }
+        }
+        
         // Create Client
         function showCreateClientModal() {
+            if (!checkMasterAdminAuth()) return;
             document.getElementById('createClientModal').classList.remove('hidden');
         }
 
@@ -333,10 +403,14 @@
         }
 
         async function createClient() {
+            if (!checkMasterAdminAuth()) return;
+            
             const tenantCode = document.getElementById('newTenantCode').value;
             const tenantName = document.getElementById('newTenantName').value;
             const adminUsername = document.getElementById('newAdminUsername').value;
             const adminPassword = document.getElementById('newAdminPassword').value;
+            const masterUsername = 'Gaurav';
+            const masterPassword = '@GauravSolanki56789__';
             
             if (!tenantCode || !tenantName || !adminUsername || !adminPassword) {
                 alert('Please fill all fields');
@@ -347,7 +421,14 @@
                 const response = await fetch('/api/tenants', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ tenantCode, tenantName, adminUsername, adminPassword })
+                    body: JSON.stringify({ 
+                        tenantCode, 
+                        tenantName, 
+                        adminUsername, 
+                        adminPassword,
+                        masterUsername,
+                        masterPassword
+                    })
                 });
                 
                 const result = await response.json();
@@ -362,6 +443,11 @@
                 alert('Error: ' + error.message);
             }
         }
+        
+        // Require master admin for admin panel access
+        document.addEventListener('DOMContentLoaded', function() {
+            checkMasterAdminAuth();
+        });
 
         // Create API Key
         function showCreateApiKeyModal() {
