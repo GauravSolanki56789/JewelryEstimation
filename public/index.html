@@ -2638,7 +2638,7 @@
         // ========== PERFORMANCE OPTIMIZATION ==========
         // localStorage cache to reduce reads
         const localStorageCache = {};
-        const localStorageWriteQueue = {};
+        let localStorageWriteQueue = {};
         let localStorageWriteTimer = null;
 
         // Optimized localStorage getter with cache
