@@ -1179,11 +1179,21 @@ app.post('/api/sync/pull', async (req, res) => {
     }
 });
 
+const DOMAIN = process.env.DOMAIN || 'localhost';
+const PROTOCOL = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+const BASE_URL = process.env.NODE_ENV === 'production' 
+  ? `${PROTOCOL}://${DOMAIN}` 
+  : `http://localhost:${PORT}`;
+
 server.listen(PORT, () => {
-  console.log(`✅ Server running at http://localhost:${PORT}`);
-    console.log(`📊 Database API available at http://localhost:${PORT}/api`);
-    console.log(`🔐 Multi-tenant architecture enabled`);
-    console.log(`🔄 Update API available at http://localhost:${PORT}/api/update`);
-    console.log(`🔌 Real-time sync enabled (Socket.IO)`);
-    console.log(`🔄 Server sync API available at http://localhost:${PORT}/api/sync`);
+  console.log(`✅ Server running at ${BASE_URL}`);
+  console.log(`📊 Database API available at ${BASE_URL}/api`);
+  console.log(`🔐 Multi-tenant architecture enabled`);
+  console.log(`🔄 Update API available at ${BASE_URL}/api/update`);
+  console.log(`🔌 Real-time sync enabled (Socket.IO)`);
+  console.log(`🔄 Server sync API available at ${BASE_URL}/api/sync`);
+  if (process.env.NODE_ENV === 'production') {
+    console.log(`🌐 Cloud deployment active`);
+    console.log(`🔒 HTTPS enabled via Nginx`);
+  }
 });

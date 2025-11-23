@@ -2216,6 +2216,15 @@
 </div>
 
     <script>
+        // Detect environment and set API base URL (global, set once at page load)
+        const isCloud = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+        window.API_BASE_URL = isCloud 
+            ? `${window.location.protocol}//${window.location.host}/api`
+            : 'http://localhost:3000/api';
+        window.SOCKET_URL = isCloud 
+            ? `${window.location.protocol}//${window.location.host}`
+            : 'http://localhost:3000';
+        
         let socket = null;
         let isSocketConnected = false;
         
@@ -2225,8 +2234,8 @@
                 socket.disconnect();
             }
             
-            // Connect to server
-            socket = io('http://localhost:3000', {
+            // Connect to server using global SOCKET_URL
+            socket = io(window.SOCKET_URL, {
                 transports: ['websocket', 'polling']
             });
             
@@ -2365,7 +2374,8 @@
             }
         }
         
-        const API_BASE = 'http://localhost:3000/api';
+        // Use global API_BASE_URL set above
+        const API_BASE = window.API_BASE_URL || 'http://localhost:3000/api';
         let currentTenant = null; // Store current tenant code
         
         // API Helper Functions
@@ -12971,7 +12981,8 @@ async function checkForUpdates() {
             }
         } else {
             // Fallback to server API (for browser testing)
-            const response = await fetch('http://localhost:3000/api/update/check');
+            const updateUrl = `${window.API_BASE_URL.replace('/api', '')}/api/update/check`;
+            const response = await fetch(updateUrl);
             const updateInfo = await response.json();
             
             if (updateInfo.available && updateInfo.version !== currentAppVersion) {

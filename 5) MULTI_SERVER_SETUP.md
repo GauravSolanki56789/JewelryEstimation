@@ -541,6 +541,32 @@ psql -U postgres -h localhost jewelry_master < backup.sql
 4. **Network:** Office and remote servers need network access to main server for automated sync
 5. **Mobile Server:** Can work completely offline, syncs when connected
 
+Personal Readme:
+Update process:
+Make code changes in your development system
+Update version in package.json (e.g., 2.0.0 → 2.0.1)
+Update version in public/index.html (search for currentAppVersion)
+Build new installer:
+   npm run build:win
+Create GitHub release:
+Push code to GitHub
+Create a new release with tag v2.0.1
+Upload the new installer .exe file
+Client updates:
+Client opens the app
+Clicks "🔄 Update S/w" button
+App checks GitHub for new version
+Downloads and installs automatically
+For jpjewellery specifically:
+If jpjewellery is the only client, they get all updates
+If you have multiple clients and want to update only jpjewellery:
+Option 1: Create a separate GitHub repository/branch for jpjewellery
+Option 2: Use different version numbers per client
+Option 3: Use a client-specific update server
+Recommended approach:
+Use the same codebase for all clients
+All clients get the same updates
+If you need client-specific features, use feature flags or tenant-specific configurations
 ---
 
 **Last Updated:** January 2025  
