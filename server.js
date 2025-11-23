@@ -26,6 +26,99 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Store active master admin sessions (in production, use Redis or database)
+const masterAdminSessions = new Map();
+
+// Protect admin panel - require master admin authentication
+app.use('/admin.html', async (req, res, next) => {
+    // Check for master admin session token in query or header
+    const sessionToken = req.query.session || req.headers['x-admin-session'];
+    const authHeader = req.headers.authorization;
+    const authQuery = req.query.auth; // For login redirect
+    
+    // Check if session is valid
+    if (sessionToken && masterAdminSessions.has(sessionToken)) {
+        const session = masterAdminSessions.get(sessionToken);
+        if (session.expires > Date.now()) {
+            return next();
+        } else {
+            masterAdminSessions.delete(sessionToken);
+        }
+    }
+    
+    // If auth in query (from login redirect), decode and verify
+    if (authQuery) {
+        try {
+            const credentials = Buffer.from(authQuery, 'base64').toString('utf-8');
+            const [username, password] = credentials.split(':');
+            
+            const masterAdmin = await masterPool.query(
+                'SELECT * FROM master_admins WHERE username = $1',
+                [username]
+            );
+            
+            if (masterAdmin.rows.length > 0) {
+                const isValid = await bcrypt.compare(password, masterAdmin.rows[0].password_hash);
+                if (isValid && masterAdmin.rows[0].is_super_admin) {
+                    // Create session token
+                    const sessionId = require('crypto').randomBytes(32).toString('hex');
+                    masterAdminSessions.set(sessionId, {
+                        username,
+                        expires: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
+                    });
+                    // Redirect with session token (remove auth from URL)
+                    return res.redirect(`/admin.html?session=${sessionId}`);
+                }
+            }
+        } catch (error) {
+            console.error('Admin auth error:', error);
+        }
+    }
+    
+    // If authorization header exists, verify it
+    if (authHeader && authHeader.startsWith('Basic ')) {
+        const credentials = Buffer.from(authHeader.split(' ')[1], 'base64').toString('utf-8');
+        const [username, password] = credentials.split(':');
+        
+        try {
+            const masterAdmin = await masterPool.query(
+                'SELECT * FROM master_admins WHERE username = $1',
+                [username]
+            );
+            
+            if (masterAdmin.rows.length > 0) {
+                const isValid = await bcrypt.compare(password, masterAdmin.rows[0].password_hash);
+                if (isValid && masterAdmin.rows[0].is_super_admin) {
+                    // Create session token
+                    const sessionId = require('crypto').randomBytes(32).toString('hex');
+                    masterAdminSessions.set(sessionId, {
+                        username,
+                        expires: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
+                    });
+                    // Redirect with session token
+                    return res.redirect(`/admin.html?session=${sessionId}`);
+                }
+            }
+        } catch (error) {
+            console.error('Admin auth error:', error);
+        }
+    }
+    
+    // Not authenticated - redirect to login
+    return res.redirect('/admin-login.html');
+});
+
+// Clean expired sessions (run every hour)
+setInterval(() => {
+    const now = Date.now();
+    for (const [token, session] of masterAdminSessions.entries()) {
+        if (session.expires < now) {
+            masterAdminSessions.delete(token);
+        }
+    }
+}, 60 * 60 * 1000);
+
 app.use(express.static('public'));
 
 // Initialize master database on startup
@@ -136,7 +229,7 @@ app.post('/api/auth/login', async (req, res) => {
     try {
         const { username, password, tenantCode } = req.body;
         
-        // First check if master admin (Gaurav)
+        // ALWAYS check master admin FIRST (before tenant checks)
         const masterAdmin = await masterPool.query(
             'SELECT * FROM master_admins WHERE username = $1',
             [username]
@@ -146,24 +239,35 @@ app.post('/api/auth/login', async (req, res) => {
             const isValid = await bcrypt.compare(password, masterAdmin.rows[0].password_hash);
             if (isValid && masterAdmin.rows[0].is_super_admin) {
                 // Master admin can access any tenant
-                if (tenantCode) {
+                if (tenantCode && tenantCode.trim() !== '') {
                     // Verify tenant exists
                     const tenantCheck = await masterPool.query(
                         'SELECT * FROM tenants WHERE tenant_code = $1',
-                        [tenantCode]
+                        [tenantCode.trim()]
                     );
                     if (tenantCheck.rows.length > 0) {
                         return res.json({
                             success: true,
-                            tenantCode: tenantCode,
+                            tenantCode: tenantCode.trim(),
                             username: username,
                             role: 'super_admin',
                             allowedTabs: ['all'],
                             isMasterAdmin: true
                         });
+                    } else {
+                        // Tenant doesn't exist, but master admin can still login
+                        return res.json({
+                            success: true,
+                            tenantCode: tenantCode.trim(),
+                            username: username,
+                            role: 'super_admin',
+                            allowedTabs: ['all'],
+                            isMasterAdmin: true,
+                            warning: 'Tenant not found, but logged in as master admin'
+                        });
                     }
                 }
-                // If no tenant specified, return success but user needs to select tenant
+                // If no tenant specified or empty, return success but user needs to select tenant
                 return res.json({
                     success: true,
                     username: username,
@@ -1185,8 +1289,13 @@ const BASE_URL = process.env.NODE_ENV === 'production'
   ? `${PROTOCOL}://${DOMAIN}` 
   : `http://localhost:${PORT}`;
 
-server.listen(PORT, () => {
-  console.log(`✅ Server running at ${BASE_URL}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ Server running on port ${PORT}`);
+  if (process.env.NODE_ENV === 'production') {
+    console.log(`🌐 Cloud deployment: ${BASE_URL}`);
+  } else {
+    console.log(`💻 Local development: ${BASE_URL}`);
+  }
   console.log(`📊 Database API available at ${BASE_URL}/api`);
   console.log(`🔐 Multi-tenant architecture enabled`);
   console.log(`🔄 Update API available at ${BASE_URL}/api/update`);

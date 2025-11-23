@@ -455,6 +455,61 @@ npm run backup-db
 - ✅ Regular backups enabled
 - ✅ PM2 auto-restart on crash
 - ✅ Nginx security headers configured
+- ✅ **Admin Panel Protected** - Only master admin can access `/admin.html`
+- ✅ **Master Admin Setup** - Run `npm run fix-gaurav-password` to set master admin password
+
+---
+
+## 🔒 ADMIN PANEL SECURITY
+
+**Important:** The admin panel at `https://software.my925silver.in/admin.html` is **PROTECTED** and only accessible by master admin.
+
+### How It Works:
+
+1. **Access Admin Panel:**
+   - Go to: `https://software.my925silver.in/admin-login.html`
+   - Enter master admin credentials (default: username `Gaurav`)
+   - You'll be redirected to admin panel after authentication
+
+2. **Master Admin Credentials:**
+   - **Default Username:** `Gaurav`
+   - **Default Password:** Set via `npm run fix-gaurav-password` script
+   - **Location:** Stored in `jewelry_master` database → `master_admins` table
+
+3. **Setup Master Admin Password:**
+   ```bash
+   cd /var/www/jewelry-app
+   npm run fix-gaurav-password
+   ```
+   This sets the password to: `@GauravSolanki56789__`
+
+4. **Change Master Admin Password:**
+   - Edit `scripts/fix-gaurav-password.js`
+   - Change the password on line 16
+   - Run: `npm run fix-gaurav-password`
+
+5. **Security Features:**
+   - ✅ Admin panel requires authentication
+   - ✅ Session-based authentication (24-hour sessions)
+   - ✅ Only master admin can create clients
+   - ✅ Regular users cannot access admin panel
+   - ✅ All passwords are hashed (bcrypt)
+
+### What Master Admin Can Do:
+
+- ✅ Create new clients/tenants
+- ✅ View all clients
+- ✅ Monitor all client databases
+- ✅ Generate API keys
+- ✅ Access database query interface
+- ✅ View statistics and activity
+
+### Regular Users Cannot:
+
+- ❌ Access admin panel
+- ❌ Create new clients
+- ❌ View other clients' data
+- ❌ Access master database
 
 ---
 

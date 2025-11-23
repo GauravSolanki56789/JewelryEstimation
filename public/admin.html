@@ -194,8 +194,8 @@
     <script>
         let currentTenant = null;
 
-        // Tab Management
-        function showAdminTab(tabName) {
+        // Tab Management - Make function globally accessible
+        window.showAdminTab = function(tabName) {
             document.querySelectorAll('.admin-tab').forEach(tab => tab.classList.add('hidden'));
             document.querySelectorAll('[id^="tab"]').forEach(btn => {
                 btn.classList.remove('bg-gray-600');
@@ -211,11 +211,83 @@
             if (tabName === 'apikeys') loadApiKeys();
         }
 
+        // Master admin authentication
+        let masterAdminAuth = {
+            username: null,
+            password: null
+        };
+        
+        // Check if user is authenticated (session token from URL)
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionToken = urlParams.get('session');
+        
+        function checkMasterAdminAuth() {
+            // If we have a session token, user is authenticated via server
+            if (sessionToken) {
+                return true;
+            }
+            // Otherwise check if we have stored credentials
+            return masterAdminAuth.username && masterAdminAuth.password;
+        }
+        
+        // Prompt for master admin credentials
+        async function getMasterAdminCredentials() {
+            // If we have session token, return authenticated (but we still need real password for API calls)
+            // For API calls, we'll need to prompt for password
+            if (sessionToken && masterAdminAuth.username && masterAdminAuth.password) {
+                return masterAdminAuth;
+            }
+            
+            // If already have credentials, return them
+            if (masterAdminAuth.username && masterAdminAuth.password) {
+                return masterAdminAuth;
+            }
+            
+            // Prompt for credentials
+            const username = prompt('Enter Master Admin Username:');
+            if (!username) return null;
+            
+            const password = prompt('Enter Master Admin Password:');
+            if (!password) return null;
+            
+            // Verify credentials
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, tenantCode: '' })
+                });
+                
+                const data = await response.json();
+                if (data.success && data.isMasterAdmin) {
+                    masterAdminAuth = { username, password };
+                    return masterAdminAuth;
+                } else {
+                    alert('Invalid master admin credentials');
+                    return null;
+                }
+            } catch (error) {
+                alert('Error verifying credentials: ' + error.message);
+                return null;
+            }
+        }
+        
         // Load Clients (requires master admin)
         async function loadClients() {
             if (!checkMasterAdminAuth()) return;
+            
+            const auth = await getMasterAdminCredentials();
+            if (!auth) return;
+            
             try {
-                const response = await fetch('/api/tenants?username=Gaurav&password=@GauravSolanki56789__');
+                const response = await fetch('/api/tenants', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: auth.username,
+                        password: auth.password
+                    })
+                });
                 const clients = await response.json();
                 
                 const list = document.getElementById('clientsList');
@@ -250,8 +322,19 @@
         // Load Monitoring (requires master admin)
         async function loadMonitoring() {
             if (!checkMasterAdminAuth()) return;
+            
+            const auth = await getMasterAdminCredentials();
+            if (!auth) return;
+            
             try {
-                const response = await fetch('/api/tenants?username=Gaurav&password=@GauravSolanki56789__');
+                const response = await fetch('/api/tenants', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: auth.username,
+                        password: auth.password
+                    })
+                });
                 const clients = await response.json();
                 
                 document.getElementById('statTotalClients').textContent = clients.length;
@@ -326,50 +409,48 @@
         }
 
         // Master Admin Authentication
-        let masterAdminAuthenticated = false;
-        let masterAdminSession = sessionStorage.getItem('masterAdminAuth') === 'true';
+        let masterAdminAuth = {
+            username: null,
+            password: null
+        };
         
-        function checkMasterAdminAuth() {
-            if (masterAdminSession) {
-                masterAdminAuthenticated = true;
-                return true;
-            }
-            
-            if (!masterAdminAuthenticated) {
-                const modal = document.createElement('div');
-                modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
-                modal.id = 'masterAdminAuthModal';
-                modal.innerHTML = `
-                    <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full mx-4">
-                        <h2 class="text-2xl font-bold mb-4">Master Admin Authentication</h2>
-                        <div class="space-y-4">
-                            <div>
-                                <label class="block text-sm font-medium mb-1">Username</label>
-                                <input type="text" id="masterAdminUsername" class="w-full px-4 py-2 border rounded-lg" autofocus>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium mb-1">Password</label>
-                                <input type="password" id="masterAdminPassword" class="w-full px-4 py-2 border rounded-lg">
-                            </div>
-                            <div class="flex gap-3">
-                                <button onclick="authenticateMasterAdmin()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Login</button>
-                                <button onclick="window.location.href='/'" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">Cancel</button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                document.body.appendChild(modal);
-                document.getElementById('masterAdminUsername').focus();
-                return false;
-            }
-            return true;
+        // Check session from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionToken = urlParams.get('session');
+        if (sessionToken) {
+            // Session token present - user is authenticated via server
+            masterAdminAuth = { username: 'Gaurav', password: 'authenticated' };
         }
         
-        async function authenticateMasterAdmin() {
-            const username = document.getElementById('masterAdminUsername').value;
-            const password = document.getElementById('masterAdminPassword').value;
+        function checkMasterAdminAuth() {
+            // If we have a session token, user is authenticated
+            if (sessionToken) {
+                return true;
+            }
+            // Otherwise check if we have stored credentials
+            return masterAdminAuth.username && masterAdminAuth.password;
+        }
+        
+        // Prompt for master admin credentials
+        async function getMasterAdminCredentials() {
+            // If we have session token, return authenticated
+            if (sessionToken) {
+                return { username: 'Gaurav', password: 'session' };
+            }
             
-            // Verify with server
+            // If already have credentials, return them
+            if (masterAdminAuth.username && masterAdminAuth.password && masterAdminAuth.password !== 'session') {
+                return masterAdminAuth;
+            }
+            
+            // Prompt for credentials
+            const username = prompt('Enter Master Admin Username:');
+            if (!username) return null;
+            
+            const password = prompt('Enter Master Admin Password:');
+            if (!password) return null;
+            
+            // Verify credentials
             try {
                 const response = await fetch('/api/auth/login', {
                     method: 'POST',
@@ -377,40 +458,45 @@
                     body: JSON.stringify({ username, password, tenantCode: '' })
                 });
                 
-                const result = await response.json();
-                if (result.success && result.isMasterAdmin) {
-                    masterAdminAuthenticated = true;
-                    masterAdminSession = true;
-                    sessionStorage.setItem('masterAdminAuth', 'true');
-                    document.getElementById('masterAdminAuthModal').remove();
-                    loadClients();
+                const data = await response.json();
+                if (data.success && data.isMasterAdmin) {
+                    masterAdminAuth = { username, password };
+                    return masterAdminAuth;
                 } else {
                     alert('Invalid master admin credentials');
+                    return null;
                 }
             } catch (error) {
-                alert('Authentication failed: ' + error.message);
+                alert('Error verifying credentials: ' + error.message);
+                return null;
             }
         }
         
-        // Create Client
-        function showCreateClientModal() {
+        // Create Client - Make functions globally accessible
+        window.showCreateClientModal = function() {
             if (!checkMasterAdminAuth()) return;
             document.getElementById('createClientModal').classList.remove('hidden');
-        }
+        };
 
-        function closeCreateClientModal() {
+        window.closeCreateClientModal = function() {
             document.getElementById('createClientModal').classList.add('hidden');
-        }
+        };
 
-        async function createClient() {
+        window.createClient = async function() {
             if (!checkMasterAdminAuth()) return;
             
             const tenantCode = document.getElementById('newTenantCode').value;
             const tenantName = document.getElementById('newTenantName').value;
             const adminUsername = document.getElementById('newAdminUsername').value;
             const adminPassword = document.getElementById('newAdminPassword').value;
-            const masterUsername = 'Gaurav';
-            const masterPassword = '@GauravSolanki56789__';
+            // Get master admin credentials from session or prompt
+            const auth = await getMasterAdminCredentials();
+            if (!auth) {
+                alert('Master admin authentication required');
+                return;
+            }
+            const masterUsername = auth.username;
+            const masterPassword = auth.password;
             
             if (!tenantCode || !tenantName || !adminUsername || !adminPassword) {
                 alert('Please fill all fields');
@@ -418,7 +504,7 @@
             }
             
             try {
-                const response = await fetch('/api/tenants', {
+                const response = await fetch('/api/admin/create-tenant', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
@@ -449,16 +535,16 @@
             checkMasterAdminAuth();
         });
 
-        // Create API Key
-        function showCreateApiKeyModal() {
+        // Create API Key - Make functions globally accessible
+        window.showCreateApiKeyModal = function() {
             document.getElementById('createApiKeyModal').classList.remove('hidden');
-        }
+        };
 
-        function closeCreateApiKeyModal() {
+        window.closeCreateApiKeyModal = function() {
             document.getElementById('createApiKeyModal').classList.add('hidden');
-        }
+        };
 
-        async function createApiKey() {
+        window.createApiKey = async function() {
             const tenantCode = document.getElementById('apiKeyTenantCode').value;
             const description = document.getElementById('apiKeyDescription').value;
             const masterKey = prompt('Enter Master API Key:');
@@ -491,8 +577,8 @@
             }
         }
 
-        // Database Functions
-        async function loadTenantInfo() {
+        // Database Functions - Make functions globally accessible
+        window.loadTenantInfo = async function() {
             const tenantCode = document.getElementById('tenantCode').value;
             if (!tenantCode) {
                 alert('Please enter tenant code');
@@ -518,7 +604,7 @@
             }
         }
 
-        async function loadTable(tableName) {
+        window.loadTable = async function(tableName) {
             if (!currentTenant) {
                 alert('Please select a tenant first');
                 return;
@@ -528,7 +614,7 @@
             await executeQuery();
         }
 
-        async function executeQuery() {
+        window.executeQuery = async function() {
             if (!currentTenant) {
                 alert('Please select a tenant first');
                 return;
@@ -586,7 +672,7 @@
             }
         }
 
-        function viewClientDatabase(tenantCode) {
+        window.viewClientDatabase = function(tenantCode) {
             document.getElementById('tenantCode').value = tenantCode;
             showAdminTab('database');
             loadTenantInfo();

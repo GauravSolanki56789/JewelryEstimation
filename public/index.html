@@ -3188,20 +3188,28 @@ async function renderUserManagement() {
         // Load users from API
         const apiUsers = await api.getUsers();
         
-        // Also get tenant admin from master database
-        const tenantAdmin = currentUser.username === 'admin' || currentUser.isMasterAdmin ? {
-            username: 'admin',
-            role: 'admin',
-            allowedTabs: ['all'],
-            isProtected: true
-        } : null;
+        // Always show admin and Gaurav if user can manage users
+        const canManageUsers = (currentUser.username === 'admin' || 
+                                currentUser.username === 'Gaurav' || 
+                                currentUser.role === 'admin' || 
+                                currentUser.isMasterAdmin === true) &&
+                               currentUser.role !== 'employee';
         
-        // Combine API users with tenant admin
+        // Combine API users with protected users
         const allUsers = [];
-        if (tenantAdmin) {
-            allUsers.push(tenantAdmin);
+        
+        // Always show 'admin' if current user is admin or master admin
+        if (canManageUsers) {
+            allUsers.push({
+                username: 'admin',
+                role: 'admin',
+                allowedTabs: ['all'],
+                isProtected: true
+            });
         }
-        if (currentUser.isMasterAdmin) {
+        
+        // Always show 'Gaurav' if current user is master admin
+        if (currentUser.isMasterAdmin || currentUser.username === 'Gaurav') {
             allUsers.push({
                 username: 'Gaurav',
                 role: 'super_admin',
@@ -3574,9 +3582,16 @@ async function addNewUser() {
 }
 
 window.handleLogin = async function() {
-    const tenantCode = document.getElementById('authTenant').value.trim();
+    let tenantCode = document.getElementById('authTenant').value.trim();
     const username = document.getElementById('authUsername').value.trim();
     const password = document.getElementById('authPassword').value;
+    
+    // Special handling: If username is "Gaurav", allow login even without tenant code
+    // Master admin can access any tenant
+    if (username === 'Gaurav' && !tenantCode) {
+        // Try to get first available tenant, or allow login without tenant
+        tenantCode = '';
+    }
 
     // Allow empty tenant code only for master admin
     if (!tenantCode && username !== 'Gaurav') {
@@ -3610,17 +3625,11 @@ window.handleLogin = async function() {
                 return;
             }
             
-            // If master admin, verify tenant exists
+            // If master admin with tenant code, use it (server already verified)
             if (loginResult.isMasterAdmin && tenantCode) {
-                // Verify tenant exists
-                const tenants = await api.getTenants(username, password);
-                const tenantExists = tenants.some(t => t.tenant_code === tenantCode);
-                if (!tenantExists) {
-                    showDialog('Error', `Tenant code "${tenantCode}" not found. Please enter a valid tenant code.`, 'error');
-                    document.getElementById('authTenant').focus();
-                    return;
-                }
                 currentUser.tenantCode = tenantCode;
+                // Master admin can access any tenant, even if it doesn't exist yet
+                // (they can create it via admin panel)
             }
             
             // Regular user - verify they can only access their tenant
