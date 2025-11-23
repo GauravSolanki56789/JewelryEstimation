@@ -95,6 +95,7 @@
                             <span id="userManagementBtn" class="hidden">
                                 <button onclick="showUserManagement()" id="btnManageUsers" class="px-3 py-1 bg-white text-amber-600 rounded text-xs hover:bg-amber-50 hidden">👥 Manage Users</button>
                             </span>
+                            <button onclick="checkForUpdates()" id="btnUpdateSW" class="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">🔄 Update S/w</button>
                             <button onclick="logout()" class="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700">Logout</button>
                         </div>
                         <button onclick="showTab('billing')" id="btnBilling"
@@ -132,28 +133,27 @@
         </div>
         
 
-<!-- Billing Tab - REPLACE ENTIRE billingTab div -->
-<div id="billingTab" class="space-y-4">
-    <!-- Customer Details Card - Compact -->
-    <div class="bg-white p-4 rounded-xl shadow-lg">
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <div>
+<!-- Billing Tab - COMPACT ONE-SCREEN DESIGN -->
+<div id="billingTab" class="hidden" style="height: calc(100vh - 200px); display: flex; flex-direction: column; overflow: hidden;">
+    <!-- Top Row: Customer Details + Action Buttons -->
+    <div class="bg-white p-2 rounded-lg shadow mb-2 flex-shrink-0">
+        <div class="grid grid-cols-12 gap-2 items-end">
+            <div class="col-span-3">
                 <label class="block text-xs font-medium text-gray-700 mb-1">Customer</label>
                 <input type="text" id="customerSelect" list="customerList" 
                     oninput="handleCustomerInput()" onchange="handleCustomerSelect()"
                     placeholder="Type or select customer..."
-                    class="w-full px-3 py-2 text-sm border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500">
-                <datalist id="customerList">
-                </datalist>
+                    class="w-full px-2 py-1.5 text-xs border-2 border-gray-300 rounded focus:ring-1 focus:ring-amber-500">
+                <datalist id="customerList"></datalist>
             </div>
-            <div>
+            <div class="col-span-2">
                 <label class="block text-xs font-medium text-gray-700 mb-1">Mobile</label>
-                <input type="text" id="customerMobile" readonly class="w-full px-3 py-2 text-sm bg-gray-100 border rounded-lg">
+                <input type="text" id="customerMobile" readonly class="w-full px-2 py-1.5 text-xs bg-gray-100 border rounded">
             </div>
-            <div>
+            <div class="col-span-2">
                 <label class="block text-xs font-medium text-gray-700 mb-1">Rate Slab</label>
                 <select id="rateSlab" onchange="updateRateSlabInfo()"
-                    class="w-full px-3 py-2 text-sm border-2 border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-semibold">
+                    class="w-full px-2 py-1.5 text-xs border-2 border-amber-300 rounded focus:ring-1 focus:ring-amber-500 font-semibold">
                     <option value="R">R</option>
                     <option value="R1">R1</option>
                     <option value="R2">R2</option>
@@ -161,197 +161,176 @@
                     <option value="R4">R4</option>
                 </select>
             </div>
-            <div class="flex items-end gap-2">
+            <div class="col-span-1">
                 <button onclick="showNewCustomerModal()"
-                    class="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 font-medium">➕ New</button>
+                    class="w-full px-2 py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 font-medium">➕ New</button>
+            </div>
+            <div class="col-span-4 flex gap-2 justify-end">
+                <button onclick="generateQuote()"
+                    class="px-3 py-1.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 font-bold">📄 Quote</button>
+                <button onclick="showCashReceiveModal()"
+                    class="px-3 py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 font-bold">💵 Cash</button>
+                <button onclick="clearAll()"
+                    class="px-3 py-1.5 bg-gray-600 text-white text-xs rounded hover:bg-gray-700 font-bold">🗑️ Clear</button>
             </div>
         </div>
-        
         <!-- Customer Details Compact Display -->
-        <div id="customerDetailsDisplay" class="mt-3 hidden">
-            <div class="bg-gradient-to-r from-amber-50 to-orange-50 p-3 rounded-lg border-l-4 border-amber-500">
+        <div id="customerDetailsDisplay" class="mt-2 hidden">
+            <div class="bg-gradient-to-r from-amber-50 to-orange-50 p-2 rounded border-l-4 border-amber-500">
                 <div class="flex justify-between items-center">
                     <div>
-                        <p class="font-bold text-gray-800" id="custName"></p>
+                        <p class="font-bold text-gray-800 text-sm" id="custName"></p>
                         <p class="text-xs text-gray-600" id="custAddress"></p>
                     </div>
-                    <div class="bg-amber-600 text-white px-3 py-1 rounded-lg text-center">
+                    <div class="bg-amber-600 text-white px-2 py-1 rounded text-center">
                         <p class="text-xs">Rate Slab</p>
-                        <p class="text-lg font-bold" id="rateSlabDisplay">R</p>
-                        <p class="text-xs" id="rateSlabDesc">Standard</p>
+                        <p class="text-sm font-bold" id="rateSlabDisplay">R</p>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Main Grid: Scanner & Rates | Product Table -->
-    <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        <!-- LEFT COLUMN: Scanner, Rates, Manual Entry -->
-        <div class="lg:col-span-1 space-y-4">
+    <!-- Main Content: Left Panel + Product Table -->
+    <div class="flex gap-2 flex-1 overflow-hidden">
+        <!-- LEFT COLUMN: Scanner, Rates, Manual Entry (Fixed Width) -->
+        <div class="w-64 flex-shrink-0 flex flex-col gap-2 overflow-y-auto">
             <!-- Barcode Scanner -->
-            <div class="bg-gradient-to-br from-blue-500 to-indigo-600 text-white p-4 rounded-xl shadow-lg">
-                <div class="flex items-center gap-2 mb-3">
-                    <span class="text-2xl">📷</span>
-                    <h3 class="font-bold text-lg">Scanner</h3>
+            <div class="bg-gradient-to-br from-blue-500 to-indigo-600 text-white p-3 rounded-lg shadow">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="text-xl">📷</span>
+                    <h3 class="font-bold text-sm">Scanner</h3>
                 </div>
                 <input id="barcodeInput" type="text" placeholder="Scan barcode..."
-                    class="w-full px-4 py-3 border-2 border-white/30 rounded-lg focus:ring-2 focus:ring-white text-lg text-gray-900 font-semibold" autofocus>
-                <p class="text-xs text-blue-100 mt-2">🔍 Press Enter</p>
+                    class="w-full px-2 py-2 border-2 border-white/30 rounded focus:ring-1 focus:ring-white text-sm text-gray-900 font-semibold" autofocus>
+                <p class="text-xs text-blue-100 mt-1">🔍 Press Enter</p>
             </div>
 
             <!-- Current Rates -->
-            <div class="bg-white p-4 rounded-xl shadow-lg border-2 border-amber-200">
-                <div class="flex justify-between items-center mb-3">
-                    <h3 class="font-bold text-gray-800 text-sm">Current Rates</h3>
-                    <button onclick="showRatesModal()" class="px-2 py-1 bg-amber-600 text-white text-xs rounded hover:bg-amber-700">Update</button>
+            <div class="bg-white p-2 rounded-lg shadow border-2 border-amber-200">
+                <div class="flex justify-between items-center mb-2">
+                    <h3 class="font-bold text-gray-800 text-xs">Current Rates</h3>
+                    <button onclick="showRatesModal()" class="px-1.5 py-0.5 bg-amber-600 text-white text-xs rounded hover:bg-amber-700">Update</button>
                 </div>
-                <div class="space-y-2">
-                    <div class="flex justify-between items-center p-2 bg-yellow-50 rounded">
+                <div class="space-y-1">
+                    <div class="flex justify-between items-center p-1.5 bg-yellow-50 rounded">
                         <span class="text-xs font-medium">Gold</span>
-                        <span class="text-sm font-bold text-yellow-600" id="goldRate">₹7500/gm</span>
+                        <span class="text-xs font-bold text-yellow-600" id="goldRate">₹7500/gm</span>
                     </div>
-                    <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+                    <div class="flex justify-between items-center p-1.5 bg-gray-50 rounded">
                         <span class="text-xs font-medium">Silver</span>
-                        <span class="text-sm font-bold text-gray-600" id="silverRate">₹156/gm</span>
+                        <span class="text-xs font-bold text-gray-600" id="silverRate">₹156/gm</span>
                     </div>
-                    <div class="flex justify-between items-center p-2 bg-purple-50 rounded">
+                    <div class="flex justify-between items-center p-1.5 bg-purple-50 rounded">
                         <span class="text-xs font-medium">Platinum</span>
-                        <span class="text-sm font-bold text-gray-800" id="platinumRate">₹3500/gm</span>
+                        <span class="text-xs font-bold text-gray-800" id="platinumRate">₹3500/gm</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Manual Entry Form -->
-            <div class="bg-white p-3 rounded-xl shadow-lg border">
-                <h3 class="font-bold text-gray-800 text-sm mb-2">Manual Entry</h3>
-                <div class="space-y-2">
-                    <input type="text" id="itemSku" placeholder="SKU (S=Silver Rings, A=Silver Articles, B=Bullion)" class="w-full px-2 py-1.5 text-xs border rounded" onkeypress="handleSkuShortcut(event)">
-                    <input type="text" id="itemStyleCode" placeholder="Style Code" class="w-full px-2 py-1.5 text-xs border rounded">
-                    <input type="text" id="itemName" placeholder="Item Name" class="w-full px-2 py-1.5 text-xs border rounded">
-                    <div class="grid grid-cols-2 gap-2">
-                        <input type="text" id="itemSize" placeholder="Size" class="px-2 py-1.5 text-xs border rounded">
-                        <input type="number" step="0.01" id="itemWeight" placeholder="Weight" class="px-2 py-1.5 text-xs border rounded">
+            <!-- Manual Entry Form (Compact) -->
+            <div class="bg-white p-2 rounded-lg shadow border flex-1">
+                <h3 class="font-bold text-gray-800 text-xs mb-2">Manual Entry</h3>
+                <div class="space-y-1.5">
+                    <input type="text" id="itemSku" placeholder="SKU" class="w-full px-1.5 py-1 text-xs border rounded" onkeypress="handleSkuShortcut(event)">
+                    <input type="text" id="itemStyleCode" placeholder="Style Code" class="w-full px-1.5 py-1 text-xs border rounded">
+                    <input type="text" id="itemName" placeholder="Item Name" class="w-full px-1.5 py-1 text-xs border rounded">
+                    <div class="grid grid-cols-2 gap-1">
+                        <input type="text" id="itemSize" placeholder="Size" class="px-1.5 py-1 text-xs border rounded">
+                        <input type="number" step="0.01" id="itemWeight" placeholder="Weight" class="px-1.5 py-1 text-xs border rounded">
                     </div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <input type="number" step="0.1" id="itemPurity" placeholder="Purity %" value="100" class="px-2 py-1.5 text-xs border rounded">
-                        <input type="number" step="0.01" id="itemRate" placeholder="Rate/gm" class="px-2 py-1.5 text-xs border rounded">
+                    <div class="grid grid-cols-2 gap-1">
+                        <input type="number" step="0.1" id="itemPurity" placeholder="Purity %" value="100" class="px-1.5 py-1 text-xs border rounded">
+                        <input type="number" step="0.01" id="itemRate" placeholder="Rate/gm" class="px-1.5 py-1 text-xs border rounded">
                     </div>
-                    <input type="number" step="0.01" id="itemMcRate" placeholder="MC Rate/gm" class="w-full px-2 py-1.5 text-xs border rounded">
-                    
-                    <div>
-                        <label class="block text-xs font-medium mb-1">MC Type</label>
-                        <select id="itemMcType" onchange="updateMCTypeLabel()" class="w-full px-2 py-1.5 text-xs border rounded">
-                            <option value="MC/GM">MC per Gram</option>
-                            <option value="PieceCost">Piece Cost</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-medium mb-1">PCS (Pieces)</label>
-                        <input type="number" id="itemPcs" placeholder="1" value="1" min="1" class="w-full px-2 py-1.5 text-xs border rounded">
-                    </div>
+                    <input type="number" step="0.01" id="itemMcRate" placeholder="MC Rate/gm" class="w-full px-1.5 py-1 text-xs border rounded">
+                    <select id="itemMcType" onchange="updateMCTypeLabel()" class="w-full px-1.5 py-1 text-xs border rounded">
+                        <option value="MC/GM">MC per Gram</option>
+                        <option value="PieceCost">Piece Cost</option>
+                    </select>
+                    <input type="number" id="itemPcs" placeholder="PCS" value="1" min="1" class="w-full px-1.5 py-1 text-xs border rounded">
                     <input type="hidden" id="itemMetalType">
-                    <input type="number" step="0.01" id="itemBoxCharges" placeholder="Box Charges"
-                        class="w-full px-2 py-1.5 text-xs border rounded">
-                    <input type="number" step="0.01" id="itemStoneCharges" placeholder="Stone Charges"
-                        class="w-full px-2 py-1.5 text-xs border rounded">
-                    <div class="bg-amber-50 border-2 border-amber-300 rounded p-2 text-center">
+                    <input type="number" step="0.01" id="itemBoxCharges" placeholder="Box Charges" class="w-full px-1.5 py-1 text-xs border rounded">
+                    <input type="number" step="0.01" id="itemStoneCharges" placeholder="Stone Charges" class="w-full px-1.5 py-1 text-xs border rounded">
+                    <div class="bg-amber-50 border-2 border-amber-300 rounded p-1.5 text-center">
                         <p class="text-xs text-gray-600">Amount</p>
-                        <div class="text-lg font-bold text-amber-700" id="itemAmount">₹0.00</div>
+                        <div class="text-sm font-bold text-amber-700" id="itemAmount">₹0.00</div>
                     </div>
-                    <button onclick="addItem()" class="w-full px-3 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 font-bold">➕ Add</button>
+                    <button onclick="addItem()" class="w-full px-2 py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 font-bold">➕ Add</button>
                 </div>
             </div>
         </div>
 
-        <!-- RIGHT COLUMN: Product Table (Excel-like) -->
-        <div class="lg:col-span-3">
-            <div class="bg-white rounded-xl shadow-lg border-2 border-blue-200">
-                <!-- Header -->
-                <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-3 rounded-t-xl">
-                    <div class="flex justify-between items-center">
-                        <h3 class="text-lg font-bold">📦 Scanned Products</h3>
-                        <span class="bg-white text-blue-600 px-3 py-1 rounded-full font-bold" id="itemCount">0 Items</span>
-                    </div>
+        <!-- RIGHT COLUMN: Product Table (Takes remaining space) -->
+        <div class="flex-1 flex flex-col bg-white rounded-lg shadow-lg border-2 border-blue-200 overflow-hidden">
+            <!-- Table Header -->
+            <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-3 py-2 rounded-t-lg flex justify-between items-center flex-shrink-0">
+                <h3 class="text-sm font-bold">📦 Scanned Products</h3>
+                <span class="bg-white text-blue-600 px-2 py-0.5 rounded-full text-xs font-bold" id="itemCount">0 Items</span>
+            </div>
+            
+            <!-- Table Container - Scrollable -->
+            <div class="flex-1 overflow-auto">
+                <!-- Empty State -->
+                <div id="emptyProductsState" class="text-center py-12">
+                    <div class="text-5xl mb-3">🔍</div>
+                    <h4 class="text-lg font-bold text-gray-700 mb-1">No Products Scanned</h4>
+                    <p class="text-gray-500 text-sm">Scan a barcode to begin</p>
                 </div>
                 
-                <!-- Table Container - Scrollable -->
-                <div class="overflow-auto" style="max-height: calc(100vh - 380px); min-height: 600px;">
-                    <!-- Empty State -->
-                    <div id="emptyProductsState" class="text-center py-16">
-                        <div class="text-6xl mb-4">🔍</div>
-                        <h4 class="text-xl font-bold text-gray-700 mb-2">No Products Scanned</h4>
-                        <p class="text-gray-500">Scan a barcode to begin</p>
-                    </div>
-                    
-                    <!-- Products Table - Excel Style -->
-                    <table id="productsTable" class="w-full hidden text-sm">
-                        <thead class="bg-gray-200 sticky top-0 z-10">
-                            <tr class="border-b-2 border-gray-400">
-                                <th class="px-2 py-2 text-center font-bold text-gray-700 border-r">#</th>
-                                <th class="px-2 py-2 text-center font-bold text-gray-700 border-r">Barcode</th>
-                                <th class="px-3 py-2 text-left font-bold text-gray-700 border-r">Item Name</th>
-                                <th class="px-2 py-2 text-center font-bold text-gray-700 border-r">SKU</th>
-                                <th class="px-2 py-2 text-center font-bold text-gray-700 border-r">Style</th>
-                                <th class="px-2 py-2 text-center font-bold text-gray-700 border-r">Metal</th>
-                                <th class="px-2 py-2 text-center font-bold text-gray-700 border-r">Size</th>
-                                <th class="px-2 py-2 text-center font-bold text-gray-700 border-r bg-blue-50">Weight (g)</th>
-                                <th class="px-2 py-2 text-center font-bold text-gray-700 border-r">Purity%</th>
-                                <th class="px-2 py-2 text-right font-bold text-gray-700 border-r bg-yellow-50">Rate/g</th>
-                                <th class="px-2 py-2 text-right font-bold text-gray-700 border-r bg-orange-50">MC/g</th>
-                                <th class="px-2 py-2 text-right font-bold text-gray-700 border-r bg-purple-50">Box</th>
-                                <th class="px-2 py-2 text-right font-bold text-gray-700 border-r bg-pink-50">Stone</th>
-                                <th class="px-2 py-2 text-right font-bold text-gray-700 border-r bg-green-50">Amount</th>
-                                <th class="px-2 py-2 text-center font-bold text-gray-700">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="productTableBody">
-                            <!-- Rows will be inserted here -->
-                        </tbody>
-                    </table>
-                </div>
+                <!-- Products Table - Excel Style -->
+                <table id="productsTable" class="w-full hidden text-xs">
+                    <thead class="bg-gray-200 sticky top-0 z-10">
+                        <tr class="border-b-2 border-gray-400">
+                            <th class="px-1 py-1 text-center font-bold text-gray-700 border-r">#</th>
+                            <th class="px-1 py-1 text-center font-bold text-gray-700 border-r">Barcode</th>
+                            <th class="px-2 py-1 text-left font-bold text-gray-700 border-r">Item Name</th>
+                            <th class="px-1 py-1 text-center font-bold text-gray-700 border-r">SKU</th>
+                            <th class="px-1 py-1 text-center font-bold text-gray-700 border-r">Style</th>
+                            <th class="px-1 py-1 text-center font-bold text-gray-700 border-r">Metal</th>
+                            <th class="px-1 py-1 text-center font-bold text-gray-700 border-r">Size</th>
+                            <th class="px-1 py-1 text-center font-bold text-gray-700 border-r bg-blue-50">Wt(g)</th>
+                            <th class="px-1 py-1 text-center font-bold text-gray-700 border-r">P%</th>
+                            <th class="px-1 py-1 text-right font-bold text-gray-700 border-r bg-yellow-50">Rate</th>
+                            <th class="px-1 py-1 text-right font-bold text-gray-700 border-r bg-orange-50">MC</th>
+                            <th class="px-1 py-1 text-right font-bold text-gray-700 border-r bg-purple-50">Box</th>
+                            <th class="px-1 py-1 text-right font-bold text-gray-700 border-r bg-pink-50">Stone</th>
+                            <th class="px-1 py-1 text-right font-bold text-gray-700 border-r bg-green-50">Amount</th>
+                            <th class="px-1 py-1 text-center font-bold text-gray-700">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="productTableBody">
+                        <!-- Rows will be inserted here -->
+                    </tbody>
+                </table>
+            </div>
 
-                <!-- Summary Footer -->
-                <div class="border-t-2 border-gray-300 bg-gradient-to-r from-amber-50 to-orange-50 p-4 rounded-b-xl mt-4">
-                    <div class="grid grid-cols-5 gap-4 text-center">
-                        <div>
-                            <p class="text-xs text-gray-600 mb-1">Items</p>
-                            <p class="text-xl font-bold text-gray-800" id="totalItems">0</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-600 mb-1">TOTAL WEIGHT</p>
-                            <p class="text-xl font-bold text-blue-600" id="summaryTotalWeight">0.00g</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-600 mb-1">SUBTOTAL</p>
-                            <p class="text-xl font-bold text-gray-800" id="summaryTotal">₹0.00</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-600 mb-1">GST (3%)</p>
-                            <p class="text-xl font-bold text-blue-600" id="summaryGst">₹0.00</p>
-                        </div>
-                        <div class="bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg px-3 py-2">
-                            <p class="text-xs mb-1">NET TOTAL</p>
-                            <p class="text-2xl font-bold" id="summaryNetTotal">₹0.00</p>
-                        </div>
+            <!-- Summary Footer (Fixed at bottom) -->
+            <div class="border-t-2 border-gray-300 bg-gradient-to-r from-amber-50 to-orange-50 p-2 rounded-b-lg flex-shrink-0">
+                <div class="grid grid-cols-5 gap-2 text-center">
+                    <div>
+                        <p class="text-xs text-gray-600 mb-0.5">Items</p>
+                        <p class="text-lg font-bold text-gray-800" id="totalItems">0</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-600 mb-0.5">TOTAL WEIGHT</p>
+                        <p class="text-lg font-bold text-blue-600" id="summaryTotalWeight">0.00g</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-600 mb-0.5">SUBTOTAL</p>
+                        <p class="text-lg font-bold text-gray-800" id="summaryTotal">₹0.00</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-600 mb-0.5">GST (3%)</p>
+                        <p class="text-lg font-bold text-blue-600" id="summaryGst">₹0.00</p>
+                    </div>
+                    <div class="bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded px-2 py-1">
+                        <p class="text-xs mb-0.5">NET TOTAL</p>
+                        <p class="text-xl font-bold" id="summaryNetTotal">₹0.00</p>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-
-    <!-- Action Buttons -->
-    <div class="grid grid-cols-3 gap-4 mt-6">
-        <button onclick="generateQuote()"
-            class="px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:shadow-xl font-bold text-lg transition-all">📄
-            Generate Quote</button>
-        <button onclick="showCashReceiveModal()"
-            class="px-6 py-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:shadow-xl font-bold text-lg transition-all">💵
-            Cash Receive</button>
-        <button onclick="clearAll()"
-            class="px-6 py-4 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-xl hover:shadow-xl font-bold text-lg transition-all">🗑️
-            Clear All</button>
     </div>
 </div>
 
@@ -3429,6 +3408,8 @@ window.handleLogin = async function() {
             document.getElementById('authModal').classList.add('hidden');
             document.getElementById('app').classList.remove('hidden');
             updateTabVisibility();
+            // Show billing tab by default
+            showTab('billing');
             // Load data from API
             await loadDataFromAPI();
             return;
@@ -3606,6 +3587,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('authModal').classList.add('hidden');
                 document.getElementById('app').classList.remove('hidden');
                 updateTabVisibility();
+                // Show billing tab by default
+                showTab('billing');
                 return;
             }
         } catch(e) {}
@@ -4544,57 +4527,65 @@ async function generateSalesBillPDF() {
                     return;
                 }
                 
-                // Hide all tabs
-                document.getElementById('billingTab').classList.add('hidden');
-                document.getElementById('productsTab').classList.add('hidden');
-                document.getElementById('customersTab').classList.add('hidden');
-                document.getElementById('rolTab').classList.add('hidden');
-                document.getElementById('quotationsTab').classList.add('hidden');
-                document.getElementById('salesbillTab').classList.add('hidden'); 
-                document.getElementById('billHistoryTab').classList.add('hidden'); 
-                document.getElementById('ledgerTab').classList.add('hidden'); 
-                document.getElementById('pvTab').classList.add('hidden'); 
-                document.getElementById('tagsplitTab').classList.add('hidden');
-                document.getElementById('tagsearchTab').classList.add('hidden');
-                document.getElementById('floorTab').classList.add('hidden');
+                // Get all tab elements
+                const allTabs = [
+                    'billingTab', 'productsTab', 'customersTab', 'rolTab', 
+                    'quotationsTab', 'salesbillTab', 'billHistoryTab', 
+                    'ledgerTab', 'pvTab', 'tagsplitTab', 'tagsearchTab', 'floorTab'
+                ];
+                
+                // Hide all tabs - use display: none to ensure they're completely hidden
+                allTabs.forEach(tabId => {
+                    const tabElement = document.getElementById(tabId);
+                    if (tabElement) {
+                        tabElement.classList.add('hidden');
+                        // Force display: none for billing tab (has inline display: flex)
+                        if (tabId === 'billingTab') {
+                            tabElement.style.display = 'none';
+                        }
+                    }
+                });
 
                 // Reset all buttons
-                document.getElementById('btnBilling').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
-                document.getElementById('btnProducts').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
-                document.getElementById('btnCustomers').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
-                document.getElementById('btnROL').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
-                document.getElementById('btnQuotations').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
-                document.getElementById('btnSalesBill').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition'; 
-                document.getElementById('btnBillHistory').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
-                document.getElementById('btnLedger').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition'; 
-                document.getElementById('btnPV').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition'; 
-                document.getElementById('btnTagSplit').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
-                document.getElementById('btnTagSearch').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
-                document.getElementById('btnFloor').className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
+                const allButtons = [
+                    'btnBilling', 'btnProducts', 'btnCustomers', 'btnROL',
+                    'btnQuotations', 'btnSalesBill', 'btnBillHistory',
+                    'btnLedger', 'btnPV', 'btnTagSplit', 'btnTagSearch', 'btnFloor'
+                ];
+                
+                allButtons.forEach(btnId => {
+                    const btn = document.getElementById(btnId);
+                    if (btn) {
+                        btn.className = 'px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition';
+                    }
+                });
 
+                // Show selected tab and update button
+                let selectedTabElement = null;
+                let selectedButton = null;
+                
                 if (tab === 'billing') {
-                    document.getElementById('billingTab').classList.remove('hidden');
-                    document.getElementById('btnBilling').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
+                    selectedTabElement = document.getElementById('billingTab');
+                    selectedButton = document.getElementById('btnBilling');
                 } else if (tab === 'products') {
-                    document.getElementById('productsTab').classList.remove('hidden');
-                    document.getElementById('btnProducts').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
+                    selectedTabElement = document.getElementById('productsTab');
+                    selectedButton = document.getElementById('btnProducts');
                     updateProductsTable();
                 } else if (tab === 'customers') {
-                    document.getElementById('customersTab').classList.remove('hidden');
-                    document.getElementById('btnCustomers').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
+                    selectedTabElement = document.getElementById('customersTab');
+                    selectedButton = document.getElementById('btnCustomers');
                     loadCustomersDisplay();
                 } else if (tab === 'rol') {
-                    document.getElementById('rolTab').classList.remove('hidden');
-                    document.getElementById('btnROL').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
+                    selectedTabElement = document.getElementById('rolTab');
+                    selectedButton = document.getElementById('btnROL');
                     initializeROL();
-                    // ROL display is now loaded via loadROLForStyleCode() when style code is selected
                 } else if (tab === 'quotations') {
-                    document.getElementById('quotationsTab').classList.remove('hidden');
-                    document.getElementById('btnQuotations').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
+                    selectedTabElement = document.getElementById('quotationsTab');
+                    selectedButton = document.getElementById('btnQuotations');
                     loadQuotationsHistory();
-                } else if (tab === 'salesbill') { // ADD THIS BLOCK
-                    document.getElementById('salesbillTab').classList.remove('hidden');
-                    document.getElementById('btnSalesBill').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
+                } else if (tab === 'salesbill') {
+                    selectedTabElement = document.getElementById('salesbillTab');
+                    selectedButton = document.getElementById('btnSalesBill');
                     updateBillRatesDisplay();
                     setTimeout(() => {
                         const billInput = document.getElementById('billBarcodeInput');
@@ -4603,22 +4594,21 @@ async function generateSalesBillPDF() {
                         }
                     }, 100);
                 } else if (tab === 'billhistory') {
-                    document.getElementById('billHistoryTab').classList.remove('hidden');
-                    document.getElementById('btnBillHistory').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
+                    selectedTabElement = document.getElementById('billHistoryTab');
+                    selectedButton = document.getElementById('btnBillHistory');
                     loadBillHistory();
                 } else if (tab === 'ledger') {
-                    document.getElementById('ledgerTab').classList.remove('hidden');
-                    document.getElementById('btnLedger').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
+                    selectedTabElement = document.getElementById('ledgerTab');
+                    selectedButton = document.getElementById('btnLedger');
                     updateLedgerDashboard();
-                    showLedgerCustomerAccounts(); // Show customer accounts by default
-                }
-                else if (tab === 'pv') {
-                    document.getElementById('pvTab').classList.remove('hidden');
-                    document.getElementById('btnPV').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
+                    showLedgerCustomerAccounts();
+                } else if (tab === 'pv') {
+                    selectedTabElement = document.getElementById('pvTab');
+                    selectedButton = document.getElementById('btnPV');
                     loadPVTab();
                 } else if (tab === 'tagsplit') {
-                    document.getElementById('tagsplitTab').classList.remove('hidden');
-                    document.getElementById('btnTagSplit').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
+                    selectedTabElement = document.getElementById('tagsplitTab');
+                    selectedButton = document.getElementById('btnTagSplit');
                     setTimeout(() => {
                         const splitInput = document.getElementById('tagSplitBarcodeInput');
                         if (splitInput) {
@@ -4626,8 +4616,8 @@ async function generateSalesBillPDF() {
                         }
                     }, 100);
                 } else if (tab === 'tagsearch') {
-                    document.getElementById('tagsearchTab').classList.remove('hidden');
-                    document.getElementById('btnTagSearch').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
+                    selectedTabElement = document.getElementById('tagsearchTab');
+                    selectedButton = document.getElementById('btnTagSearch');
                     setTimeout(() => {
                         const searchInput = document.getElementById('tagSearchInput');
                         if (searchInput) {
@@ -4635,10 +4625,26 @@ async function generateSalesBillPDF() {
                         }
                     }, 100);
                 } else if (tab === 'floor') {
-                    document.getElementById('floorTab').classList.remove('hidden');
-                    document.getElementById('btnFloor').className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
+                    selectedTabElement = document.getElementById('floorTab');
+                    selectedButton = document.getElementById('btnFloor');
                     updateFloorsTable();
                     updateFloorDropdowns();
+                }
+                
+                // Show selected tab
+                if (selectedTabElement) {
+                    selectedTabElement.classList.remove('hidden');
+                    // For billing tab, restore display: flex
+                    if (tab === 'billing') {
+                        selectedTabElement.style.display = 'flex';
+                    } else {
+                        selectedTabElement.style.display = '';
+                    }
+                }
+                
+                // Update selected button style
+                if (selectedButton) {
+                    selectedButton.className = 'px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition';
                 }
             }
 
@@ -12710,6 +12716,160 @@ function updateFloorDropdowns() {
         });
     }
 }
+
+// ========== SOFTWARE UPDATE FUNCTIONALITY ==========
+let currentAppVersion = '2.0.0'; // Update this when releasing new version
+
+async function checkForUpdates() {
+    const btn = document.getElementById('btnUpdateSW');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '🔄 Checking...';
+    btn.disabled = true;
+    
+    try {
+        // Check if running in Electron
+        if (window.electronAPI) {
+            // Use Electron IPC for updates
+            const updateInfo = await window.electronAPI.checkForUpdates();
+            
+            if (!updateInfo.success) {
+                throw new Error(updateInfo.error || 'Update check failed');
+            }
+            
+            if (updateInfo.updateAvailable) {
+                const shouldUpdate = confirm(
+                    `🔄 Update Available!\n\n` +
+                    `Current Version: ${updateInfo.currentVersion}\n` +
+                    `New Version: ${updateInfo.version}\n\n` +
+                    `Release Notes: ${updateInfo.releaseNotes || 'Latest update with improvements'}\n\n` +
+                    `Would you like to download and install the update?`
+                );
+                
+                if (shouldUpdate) {
+                    await downloadAndInstallUpdate(updateInfo);
+                }
+            } else {
+                showSuccessMessage('✅ You are using the latest version!');
+            }
+        } else {
+            // Fallback to server API (for browser testing)
+            const response = await fetch('http://localhost:3000/api/update/check');
+            const updateInfo = await response.json();
+            
+            if (updateInfo.available && updateInfo.version !== currentAppVersion) {
+                const shouldUpdate = confirm(
+                    `🔄 Update Available!\n\n` +
+                    `Current Version: ${currentAppVersion}\n` +
+                    `New Version: ${updateInfo.version}\n\n` +
+                    `Release Notes: ${updateInfo.releaseNotes}\n\n` +
+                    `Would you like to download and install the update?`
+                );
+                
+                if (shouldUpdate) {
+                    await downloadAndInstallUpdate(updateInfo);
+                }
+            } else {
+                showSuccessMessage('✅ You are using the latest version!');
+            }
+        }
+    } catch (error) {
+        console.error('Update check failed:', error);
+        alert('⚠️ Could not check for updates. Please check your internet connection or contact support.');
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+}
+
+async function downloadAndInstallUpdate(updateInfo) {
+    const btn = document.getElementById('btnUpdateSW');
+    btn.innerHTML = '⬇️ Downloading...';
+    btn.disabled = true;
+    
+    try {
+        if (window.electronAPI && updateInfo.downloadUrl) {
+            // Download using Electron
+            btn.innerHTML = '⬇️ Downloading update...';
+            
+            const installerPath = await window.electronAPI.downloadUpdate(updateInfo.downloadUrl);
+            
+            btn.innerHTML = '📦 Installing...';
+            
+            // Install the update
+            await window.electronAPI.installUpdate(installerPath);
+            
+            // Show success message (though app will quit)
+            showSuccessMessage('✅ Update downloaded successfully! The installer will now launch. Please follow the installation prompts.');
+        } else {
+            // Fallback: open download URL
+            if (updateInfo.downloadUrl) {
+                window.open(updateInfo.downloadUrl, '_blank');
+                showSuccessMessage('✅ Download started! Please run the installer after download completes.');
+            } else {
+                throw new Error('Download URL not available');
+            }
+        }
+    } catch (error) {
+        console.error('Update download failed:', error);
+        alert('❌ Update download failed. Please try again later.\n\nError: ' + error.message);
+        btn.innerHTML = '🔄 Update S/w';
+        btn.disabled = false;
+    }
+}
+
+function showSuccessMessage(message) {
+    // Create a beautiful success notification
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        padding: 16px 24px;
+        border-radius: 12px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        z-index: 10000;
+        font-size: 14px;
+        font-weight: 500;
+        max-width: 400px;
+        animation: slideIn 0.3s ease-out;
+    `;
+    notification.innerHTML = `✅ ${message}`;
+    document.body.appendChild(notification);
+    
+    // Remove after 5 seconds
+    setTimeout(() => {
+        notification.style.animation = 'slideOut 0.3s ease-out';
+        setTimeout(() => notification.remove(), 300);
+    }, 5000);
+}
+
+// Add CSS animations
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideIn {
+        from {
+            transform: translateX(400px);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    @keyframes slideOut {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(400px);
+            opacity: 0;
+        }
+    }
+`;
+document.head.appendChild(style);
 
 // ========== GLOBAL ERROR HANDLER  ==========
 window.addEventListener('error', function(e) {

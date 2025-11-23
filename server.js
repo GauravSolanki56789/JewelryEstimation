@@ -974,8 +974,92 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public/index.html'));
 });
 
+// ========== SOFTWARE UPDATE API ==========
+
+// Check for updates
+app.get('/api/update/check', async (req, res) => {
+    try {
+        const packageJson = require('./package.json');
+        const currentVersion = packageJson.version;
+        
+        // Check GitHub releases if configured
+        const githubRepo = process.env.GITHUB_REPO; // Format: "username/repo"
+        
+        if (githubRepo) {
+            try {
+                const https = require('https');
+                const githubUrl = `https://api.github.com/repos/${githubRepo}/releases/latest`;
+                
+                const githubResponse = await new Promise((resolve, reject) => {
+                    https.get(githubUrl, {
+                        headers: {
+                            'User-Agent': 'JP-Jewellery-Estimations'
+                        }
+                    }, (res) => {
+                        let data = '';
+                        res.on('data', chunk => data += chunk);
+                        res.on('end', () => {
+                            if (res.statusCode === 200) {
+                                resolve(JSON.parse(data));
+                            } else {
+                                reject(new Error(`GitHub API returned ${res.statusCode}`));
+                            }
+                        });
+                    }).on('error', reject);
+                });
+                
+                const latestVersion = githubResponse.tag_name.replace('v', '').replace('V', '');
+                const installerAsset = githubResponse.assets.find(asset => 
+                    asset.name.includes('.exe') && asset.name.includes('Setup')
+                );
+                
+                const updateAvailable = latestVersion !== currentVersion;
+                
+                return res.json({
+                    available: updateAvailable,
+                    version: latestVersion,
+                    currentVersion: currentVersion,
+                    downloadUrl: installerAsset ? installerAsset.browser_download_url : null,
+                    releaseNotes: githubResponse.body || 'Latest update with improvements',
+                    mandatory: false
+                });
+            } catch (githubError) {
+                console.error('GitHub check failed:', githubError);
+                // Fall through to local version check
+            }
+        }
+        
+        // Fallback: return current version (no update available)
+        res.json({
+            available: false,
+            version: currentVersion,
+            currentVersion: currentVersion,
+            downloadUrl: null,
+            releaseNotes: 'No updates available',
+            mandatory: false
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Download update (in production, serve actual installer)
+app.get('/api/update/download', (req, res) => {
+    try {
+        // In production, this would serve the actual installer file
+        res.json({
+            message: 'Update download endpoint',
+            note: 'In production, this would serve the installer file',
+            instructions: 'Download the latest installer from your update server and run it to update the application.'
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.listen(PORT, () => {
   console.log(`✅ Server running at http://localhost:${PORT}`);
     console.log(`📊 Database API available at http://localhost:${PORT}/api`);
     console.log(`🔐 Multi-tenant architecture enabled`);
+    console.log(`🔄 Update API available at http://localhost:${PORT}/api/update`);
 });
