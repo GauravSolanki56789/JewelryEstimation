@@ -2455,15 +2455,24 @@
             },
             
             // Tenants API (for login)
+            // SECURITY: Changed to POST to avoid passwords in URL
             async getTenants(username = null, password = null) {
                 try {
-                    let url = `${API_BASE.replace('/api', '')}/api/tenants`;
+                    const url = `${API_BASE.replace('/api', '')}/api/tenants`;
                     if (username && password) {
-                        url += `?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
+                        // Use POST instead of GET to avoid passwords in URL
+                        const response = await fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ username, password })
+                        });
+                        const data = await response.json();
+                        return data;
+                    } else {
+                        const response = await fetch(url);
+                        const data = await response.json();
+                        return data;
                     }
-                    const response = await fetch(url);
-                    const data = await response.json();
-                    return data;
                 } catch (error) {
                     console.error('Error fetching tenants:', error);
                     return [];
@@ -2907,9 +2916,12 @@ window.confirm = function(message) {
 };
 
 // ========== AUTHENTICATION ==========
+// SECURITY: Removed all plain text passwords from frontend code
+// All authentication now goes through secure API with hashed passwords
 let AUTH_USERS = getCachedItem('authUsers', {
-    'admin': { password: '123456', role: 'admin', allowedTabs: ['all'] },
-    'Gaurav': { password: '@GauravSolanki56789__', role: 'admin', allowedTabs: ['all'] }
+    // Only store role and tabs - NO PASSWORDS
+    'admin': { role: 'admin', allowedTabs: ['all'] },
+    'Gaurav': { role: 'admin', allowedTabs: ['all'] }
 });
 
 let currentUser = null;
@@ -2952,12 +2964,13 @@ function updateTabVisibility() {
         userNameEl.textContent = `User: ${currentUser.username}`;
     }
     
-    // Only admin and Gaurav can access user management
-    // Check: username is 'admin' or 'Gaurav', OR role is 'admin', OR isMasterAdmin
-    const canManageUsers = currentUser.username === 'admin' || 
-                           currentUser.username === 'Gaurav' || 
-                           currentUser.role === 'admin' || 
-                           currentUser.isMasterAdmin === true;
+    // SECURITY: Only admin and Gaurav can access user management
+    // Employee role CANNOT access user management
+    const canManageUsers = (currentUser.username === 'admin' || 
+                            currentUser.username === 'Gaurav' || 
+                            currentUser.role === 'admin' || 
+                            currentUser.isMasterAdmin === true) &&
+                           currentUser.role !== 'employee'; // Explicitly block employees
     
     if (userMgmtBtn && userMgmtBtnContainer) {
         if (canManageUsers) {
@@ -2986,14 +2999,16 @@ function updateTabVisibility() {
 }
 
 async function showUserManagement() {
-    // Check if user can manage users
-    const canManageUsers = currentUser.username === 'admin' || 
+    // SECURITY: Check if user can manage users
+    // Only admin and Gaurav can manage users - employees are explicitly blocked
+    const canManageUsers = (currentUser.username === 'admin' || 
                            currentUser.username === 'Gaurav' || 
                            currentUser.role === 'admin' || 
-                           currentUser.isMasterAdmin === true;
+                           currentUser.isMasterAdmin === true) &&
+                           currentUser.role !== 'employee'; // Explicitly block employees
     
     if (!canManageUsers) {
-        showDialog('Access Denied', 'Only administrators can manage users.', 'error');
+        showDialog('Access Denied', 'Only administrators can manage users. Employee role does not have access to user management.', 'error');
         return;
     }
     
@@ -3084,7 +3099,7 @@ async function renderUserManagement() {
                             <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">${user.role || 'user'}</span>
                         </div>
                         <div class="text-sm text-gray-600 mb-2">
-                            <div><strong>Role Type:</strong> ${user.role === 'admin' || user.role === 'super_admin' ? 'Admin' : (user.role || 'Employee')}</div>
+                            <div><strong>Role Type:</strong> ${user.role === 'admin' || user.role === 'super_admin' ? 'Admin' : (user.role === 'employee' ? 'Employee' : (user.role || 'Employee'))}</div>
                             <div><strong>Allowed Tabs:</strong> ${user.allowedTabs && user.allowedTabs.includes('all') ? 'All Tabs' : (user.allowedTabs || []).join(', ') || 'None'}</div>
                         </div>
                     </div>
@@ -3115,7 +3130,7 @@ async function renderUserManagement() {
                             <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">${user.role || 'user'}</span>
                         </div>
                         <div class="text-sm text-gray-600 mb-2">
-                            <div><strong>Role Type:</strong> ${user.role === 'admin' ? 'Admin' : (user.role || 'Employee')}</div>
+                            <div><strong>Role Type:</strong> ${user.role === 'admin' ? 'Admin' : (user.role === 'employee' ? 'Employee' : (user.role || 'Employee'))}</div>
                             <div><strong>Allowed Tabs:</strong> ${user.allowedTabs && user.allowedTabs.includes('all') ? 'All Tabs' : (user.allowedTabs || []).join(', ') || 'None'}</div>
                         </div>
                     </div>
@@ -3164,22 +3179,20 @@ async function editUser(username) {
             'Enter password or leave empty'
         );
         
-        const newRole = await showInputDialog(
-            'Edit User Role',
-            `Enter role name for ${username}:`,
-            user.role || 'user',
-            'Enter role name'
-        );
-        if (!newRole) return;
+        // SECURITY: Only allow 'admin' or 'employee' roles
+        const currentRole = user.role || 'employee';
+        const isCurrentlyAdmin = currentRole === 'admin' || currentRole === 'super_admin';
         
         showConfirmDialog(
-            'Set Admin Status',
-            `Is ${username} an admin?`,
+            'Set User Role',
+            `Current role: ${isCurrentlyAdmin ? 'Admin' : 'Employee'}\n\nChoose the role for ${username}:\n\n• Admin: Full access including user management\n• Employee: Limited access, cannot manage users`,
             async () => {
+                // User clicked "Yes" = Admin
                 await proceedWithTabsSelection('admin', newPassword);
             },
             async () => {
-                await proceedWithTabsSelection(newRole, newPassword);
+                // User clicked "No" = Employee
+                await proceedWithTabsSelection('employee', newPassword);
             }
         );
         
@@ -3217,15 +3230,15 @@ async function editUser(username) {
                     await api.updateUser(username, updateData);
                     showDialog('Success', `User ${username} updated successfully!`, 'success');
                 } catch (apiError) {
-                    // Fallback to localStorage
+                    // SECURITY: Never store passwords in localStorage
+                    // Fallback to localStorage (without password)
                     user.role = role;
                     user.allowedTabs = allowedTabs;
-                    if (password) {
-                        user.password = password;
-                    }
+                    // NO PASSWORD stored in localStorage
+                    delete user.password; // Remove password if exists
                     AUTH_USERS[username] = user;
                     saveAuthUsers();
-                    showDialog('Success', `User ${username} updated (saved locally)!`, 'success');
+                    showDialog('Warning', `User ${username} updated locally but password changes not saved. Please use API for secure storage.`, 'warning');
                 }
                 
                 await renderUserManagement();
@@ -3282,19 +3295,51 @@ async function addNewUser() {
         const password = await showInputDialog('Add New User', 'Enter password:', '', 'Enter password');
         if (!password) return;
         
-        const roleName = await showInputDialog('Add New User', 'Enter role name (e.g., Employee, Accounts, Sales, ROL):', 'Employee', 'Enter role name');
-        if (!roleName) return;
+        // SECURITY: Only allow 'admin' or 'employee' roles
+        // Use a custom role selection dialog
+        const roleSelected = await new Promise((resolve) => {
+            const dialog = document.createElement('div');
+            dialog.className = 'fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50';
+            dialog.innerHTML = `
+                <div class="bg-white p-6 rounded-lg shadow-2xl max-w-md w-full mx-4 border-2 border-blue-500">
+                    <div class="flex items-center gap-3 mb-4">
+                        <span class="text-3xl">👤</span>
+                        <h3 class="text-xl font-bold text-gray-800">Select User Role</h3>
+                    </div>
+                    <p class="text-gray-700 mb-6">Choose the role for <strong>${username}</strong>:</p>
+                    <div class="space-y-3 mb-6">
+                        <div class="border-2 border-blue-200 rounded-lg p-4 hover:bg-blue-50 cursor-pointer" onclick="selectRole('admin')">
+                            <div class="font-bold text-blue-700">Admin</div>
+                            <div class="text-sm text-gray-600">Full access including user management</div>
+                        </div>
+                        <div class="border-2 border-gray-200 rounded-lg p-4 hover:bg-gray-50 cursor-pointer" onclick="selectRole('employee')">
+                            <div class="font-bold text-gray-700">Employee</div>
+                            <div class="text-sm text-gray-600">Limited access, cannot manage users</div>
+                        </div>
+                    </div>
+                    <div class="flex justify-end">
+                        <button onclick="closeRoleDialog()" class="px-6 py-2 bg-gray-500 text-white rounded-lg font-medium hover:bg-gray-600">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(dialog);
+            
+            window.selectRole = (role) => {
+                document.body.removeChild(dialog);
+                resolve(role);
+            };
+            
+            window.closeRoleDialog = () => {
+                document.body.removeChild(dialog);
+                resolve(null);
+            };
+        });
         
-        showConfirmDialog(
-            'Set Admin Status',
-            'Is this user an admin?',
-            async () => {
-                await proceedWithTabsSelection('admin', password);
-            },
-            async () => {
-                await proceedWithTabsSelection(roleName, password);
-            }
-        );
+        if (!roleSelected) return; // User cancelled
+        
+        await proceedWithTabsSelection(roleSelected, password);
         
         async function proceedWithTabsSelection(role, password) {
             const allTabs = ['billing', 'products', 'customers', 'rol', 'quotations', 'salesbill', 'billhistory', 'ledger', 'pv', 'tagsplit', 'tagsearch', 'floor'];
@@ -3320,14 +3365,15 @@ async function addNewUser() {
                     });
                     showDialog('Success', `User ${username} created successfully!`, 'success');
                 } catch (apiError) {
-                    // Fallback to localStorage
+                    // SECURITY: Never store passwords in localStorage
+                    // Fallback to localStorage (without password)
                     AUTH_USERS[username] = {
-                        password: password,
                         role: role,
                         allowedTabs: allowedTabs
+                        // NO PASSWORD stored in localStorage
                     };
                     saveAuthUsers();
-                    showDialog('Success', `User ${username} created (saved locally)!`, 'success');
+                    showDialog('Warning', `User ${username} created locally but password not saved. Please use API for secure storage.`, 'warning');
                 }
                 
                 await renderUserManagement();
@@ -3578,12 +3624,15 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             currentUser = savedUser;
             // Reload AUTH_USERS again to ensure we have latest data
+            // SECURITY: Removed passwords from localStorage fallback
             AUTH_USERS = getCachedItem('authUsers', {
-                'admin': { password: '123456', role: 'admin', allowedTabs: ['all'] },
-                'Gaurav': { password: '@GauravSolanki56789__', role: 'admin', allowedTabs: ['all'] }
+                'admin': { role: 'admin', allowedTabs: ['all'] },
+                'Gaurav': { role: 'admin', allowedTabs: ['all'] }
             });
-            if (AUTH_USERS[currentUser.username] && AUTH_USERS[currentUser.username].password) {
+            // Check if user exists (without password check - passwords not stored)
+            if (AUTH_USERS[currentUser.username]) {
                 currentUser.allowedTabs = AUTH_USERS[currentUser.username].allowedTabs || ['all'];
+                currentUser.role = AUTH_USERS[currentUser.username].role || 'employee';
                 document.getElementById('authModal').classList.add('hidden');
                 document.getElementById('app').classList.remove('hidden');
                 updateTabVisibility();
