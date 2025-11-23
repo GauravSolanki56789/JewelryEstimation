@@ -8,6 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <style>
     
     /* Table hover effects */
@@ -2215,7 +2216,155 @@
 </div>
 
     <script>
-        // ========== API SERVICE LAYER ==========
+        let socket = null;
+        let isSocketConnected = false;
+        
+        // Initialize Socket.IO connection
+        function initSocketConnection(tenantCode) {
+            if (socket) {
+                socket.disconnect();
+            }
+            
+            // Connect to server
+            socket = io('http://localhost:3000', {
+                transports: ['websocket', 'polling']
+            });
+            
+            socket.on('connect', () => {
+                console.log('✅ Connected to real-time sync server');
+                isSocketConnected = true;
+                
+                // Join tenant room
+                if (tenantCode) {
+                    socket.emit('join-tenant', tenantCode);
+                    console.log(`📱 Joined tenant room: ${tenantCode}`);
+                }
+            });
+            
+            socket.on('disconnect', () => {
+                console.log('❌ Disconnected from real-time sync server');
+                isSocketConnected = false;
+            });
+            
+            // Listen for real-time updates
+            socket.on('product-created', (data) => {
+                console.log('📡 Product created:', data);
+                refreshProducts();
+            });
+            
+            socket.on('product-updated', (data) => {
+                console.log('📡 Product updated:', data);
+                refreshProducts();
+            });
+            
+            socket.on('product-deleted', (data) => {
+                console.log('📡 Product deleted:', data);
+                refreshProducts();
+            });
+            
+            socket.on('customer-created', (data) => {
+                console.log('📡 Customer created:', data);
+                refreshCustomers();
+            });
+            
+            socket.on('customer-updated', (data) => {
+                console.log('📡 Customer updated:', data);
+                refreshCustomers();
+            });
+            
+            socket.on('customer-deleted', (data) => {
+                console.log('📡 Customer deleted:', data);
+                refreshCustomers();
+            });
+            
+            socket.on('quotation-created', (data) => {
+                console.log('📡 Quotation created:', data);
+                refreshQuotations();
+            });
+            
+            socket.on('quotation-updated', (data) => {
+                console.log('📡 Quotation updated:', data);
+                refreshQuotations();
+            });
+            
+            socket.on('quotation-deleted', (data) => {
+                console.log('📡 Quotation deleted:', data);
+                refreshQuotations();
+            });
+            
+            socket.on('bill-created', (data) => {
+                console.log('📡 Bill created:', data);
+                refreshBills();
+            });
+            
+            socket.on('bill-updated', (data) => {
+                console.log('📡 Bill updated:', data);
+                refreshBills();
+            });
+            
+            socket.on('bill-deleted', (data) => {
+                console.log('📡 Bill deleted:', data);
+                refreshBills();
+            });
+            
+            socket.on('rates-updated', (data) => {
+                console.log('📡 Rates updated:', data);
+                refreshRates();
+            });
+            
+            socket.on('user-created', (data) => {
+                console.log('📡 User created:', data);
+                if (typeof renderUserManagement === 'function') {
+                    renderUserManagement();
+                }
+            });
+            
+            socket.on('user-updated', (data) => {
+                console.log('📡 User updated:', data);
+                if (typeof renderUserManagement === 'function') {
+                    renderUserManagement();
+                }
+            });
+            
+            socket.on('user-deleted', (data) => {
+                console.log('📡 User deleted:', data);
+                if (typeof renderUserManagement === 'function') {
+                    renderUserManagement();
+                }
+            });
+        }
+        
+        // Helper functions to refresh data
+        function refreshProducts() {
+            if (typeof loadProducts === 'function') {
+                loadProducts();
+            }
+        }
+        
+        function refreshCustomers() {
+            if (typeof loadCustomers === 'function') {
+                loadCustomers();
+            }
+        }
+        
+        function refreshQuotations() {
+            if (typeof loadQuotations === 'function') {
+                loadQuotations();
+            }
+        }
+        
+        function refreshBills() {
+            if (typeof loadBillHistory === 'function') {
+                loadBillHistory();
+            }
+        }
+        
+        function refreshRates() {
+            if (typeof loadRates === 'function') {
+                loadRates();
+            }
+        }
+        
         const API_BASE = 'http://localhost:3000/api';
         let currentTenant = null; // Store current tenant code
         
@@ -2230,6 +2379,10 @@
             setTenant(tenantCode) {
                 currentTenant = tenantCode;
                 localStorage.setItem('currentTenant', tenantCode);
+                // Initialize real-time sync for this tenant
+                if (typeof initSocketConnection === 'function') {
+                    initSocketConnection(tenantCode);
+                }
             },
             
             // Generic API request
@@ -2761,7 +2914,6 @@ const STATIC_MODAL_IDS = [
     'bulkUpdateModal'
 ];
 
-// ========== DIALOG SYSTEM ==========
 function showDialog(title, message, type = 'info', callback = null) {
     const dialog = document.createElement('div');
     dialog.className = 'fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50';
@@ -2901,13 +3053,11 @@ function confirmDialog() {
     closeDialog();
 }
 
-// Replace all alert() calls with showDialog
 const originalAlert = window.alert;
 window.alert = function(message) {
     showDialog('Information', message, 'info');
 };
 
-// Replace all confirm() calls with showConfirmDialog
 const originalConfirm = window.confirm;
 window.confirm = function(message) {
     let result = false;
@@ -2915,9 +3065,7 @@ window.confirm = function(message) {
     return result;
 };
 
-// ========== AUTHENTICATION ==========
-// SECURITY: Removed all plain text passwords from frontend code
-// All authentication now goes through secure API with hashed passwords
+// SECURITY: All authentication via secure API with hashed passwords
 let AUTH_USERS = getCachedItem('authUsers', {
     // Only store role and tabs - NO PASSWORDS
     'admin': { role: 'admin', allowedTabs: ['all'] },
@@ -2999,8 +3147,7 @@ function updateTabVisibility() {
 }
 
 async function showUserManagement() {
-    // SECURITY: Check if user can manage users
-    // Only admin and Gaurav can manage users - employees are explicitly blocked
+        // Only admin and Gaurav can manage users
     const canManageUsers = (currentUser.username === 'admin' || 
                            currentUser.username === 'Gaurav' || 
                            currentUser.role === 'admin' || 
@@ -3065,15 +3212,20 @@ async function renderUserManagement() {
             });
         }
         
-        // Also include localStorage users for backward compatibility
+        // Include localStorage users for backward compatibility
         Object.keys(AUTH_USERS).forEach(username => {
-            if (!allUsers.find(u => u.username === username)) {
-                const user = AUTH_USERS[username];
+            // Skip protected users and users already in API list
+            if ((username === 'admin' || username === 'Gaurav') || allUsers.find(u => u.username === username)) {
+                return;
+            }
+            const user = AUTH_USERS[username];
+            // Only add if user has valid data
+            if (user && (user.role || user.allowedTabs)) {
                 allUsers.push({
                     username: username,
-                    role: user.role || 'user',
+                    role: user.role || 'employee',
                     allowedTabs: user.allowedTabs || [],
-                    isProtected: username === 'admin' || username === 'Gaurav'
+                    isProtected: false
                 });
             }
         });
@@ -3179,7 +3331,7 @@ async function editUser(username) {
             'Enter password or leave empty'
         );
         
-        // SECURITY: Only allow 'admin' or 'employee' roles
+        // Only allow 'admin' or 'employee' roles
         const currentRole = user.role || 'employee';
         const isCurrentlyAdmin = currentRole === 'admin' || currentRole === 'super_admin';
         
@@ -3230,8 +3382,7 @@ async function editUser(username) {
                     await api.updateUser(username, updateData);
                     showDialog('Success', `User ${username} updated successfully!`, 'success');
                 } catch (apiError) {
-                    // SECURITY: Never store passwords in localStorage
-                    // Fallback to localStorage (without password)
+                    // Never store passwords in localStorage
                     user.role = role;
                     user.allowedTabs = allowedTabs;
                     // NO PASSWORD stored in localStorage
@@ -3259,16 +3410,44 @@ async function deleteUser(username) {
     
     showConfirmDialog('Delete User', `Are you sure you want to delete user "${username}"?`, async () => {
         try {
-            // Try to delete via API
-            await api.deleteUser(username);
-            showDialog('Success', `User ${username} deleted successfully!`, 'success');
+            // First, find the user by username to get their ID
+            const apiUsers = await api.getUsers();
+            const userToDelete = apiUsers.find(u => u.username === username);
+            
+            if (userToDelete && userToDelete.id) {
+                // Delete via API using the user ID
+                await api.deleteUser(userToDelete.id);
+                // Also remove from localStorage if exists (cleanup)
+                if (AUTH_USERS[username]) {
+                    delete AUTH_USERS[username];
+                    saveAuthUsers();
+                }
+                showDialog('Success', `User ${username} deleted successfully!`, 'success');
+            } else {
+                // User not found in API, try localStorage fallback
+                if (AUTH_USERS[username]) {
+                    delete AUTH_USERS[username];
+                    saveAuthUsers();
+                    showDialog('Success', `User ${username} deleted (from local storage)!`, 'success');
+                } else {
+                    showDialog('Error', `User ${username} not found!`, 'error');
+                }
+            }
         } catch (apiError) {
+            console.error('Delete user error:', apiError);
             // Fallback to localStorage
-            delete AUTH_USERS[username];
-            saveAuthUsers();
-            showDialog('Success', `User ${username} deleted (from local storage)!`, 'success');
+            if (AUTH_USERS[username]) {
+                delete AUTH_USERS[username];
+                saveAuthUsers();
+                showDialog('Success', `User ${username} deleted (from local storage)!`, 'success');
+            } else {
+                showDialog('Error', `Failed to delete user ${username}. Please try again.`, 'error');
+            }
         }
-        await renderUserManagement();
+        // Always refresh the user list after deletion (with a small delay to ensure API processed)
+        setTimeout(async () => {
+            await renderUserManagement();
+        }, 300);
     });
 }
 
@@ -3295,7 +3474,7 @@ async function addNewUser() {
         const password = await showInputDialog('Add New User', 'Enter password:', '', 'Enter password');
         if (!password) return;
         
-        // SECURITY: Only allow 'admin' or 'employee' roles
+        // Only allow 'admin' or 'employee' roles
         // Use a custom role selection dialog
         const roleSelected = await new Promise((resolve) => {
             const dialog = document.createElement('div');
@@ -3365,12 +3544,10 @@ async function addNewUser() {
                     });
                     showDialog('Success', `User ${username} created successfully!`, 'success');
                 } catch (apiError) {
-                    // SECURITY: Never store passwords in localStorage
-                    // Fallback to localStorage (without password)
+                    // Never store passwords in localStorage
                     AUTH_USERS[username] = {
                         role: role,
                         allowedTabs: allowedTabs
-                        // NO PASSWORD stored in localStorage
                     };
                     saveAuthUsers();
                     showDialog('Warning', `User ${username} created locally but password not saved. Please use API for secure storage.`, 'warning');
@@ -3386,7 +3563,6 @@ async function addNewUser() {
     }
 }
 
-// Make handleLogin globally accessible
 window.handleLogin = async function() {
     const tenantCode = document.getElementById('authTenant').value.trim();
     const username = document.getElementById('authUsername').value.trim();
@@ -3454,6 +3630,10 @@ window.handleLogin = async function() {
             document.getElementById('authModal').classList.add('hidden');
             document.getElementById('app').classList.remove('hidden');
             updateTabVisibility();
+            // Initialize real-time sync for this tenant
+            if (typeof initSocketConnection === 'function') {
+                initSocketConnection(currentUser.tenantCode);
+            }
             // Show billing tab by default
             showTab('billing');
             // Load data from API
@@ -3472,7 +3652,6 @@ window.handleLogin = async function() {
     document.getElementById('authPassword').value = '';
 };
 
-// Load data from API after login
 async function loadDataFromAPI() {
     try {
         // Load products
@@ -3602,13 +3781,13 @@ async function loadDataFromAPI() {
     }
 }
 
-// Check authentication on load
 document.addEventListener('DOMContentLoaded', function() {
     // Reload AUTH_USERS from cache to get latest users
-    AUTH_USERS = getCachedItem('authUsers', {
-        'admin': { password: '123456', role: 'admin', allowedTabs: ['all'] },
-        'Gaurav': { password: '@GauravSolanki56789__', role: 'admin', allowedTabs: ['all'] }
-    });
+            // No passwords stored in localStorage
+            AUTH_USERS = getCachedItem('authUsers', {
+                'admin': { role: 'admin', allowedTabs: ['all'] },
+                'Gaurav': { role: 'admin', allowedTabs: ['all'] }
+            });
     
     // Update quotation number on page load
     if (typeof getNextQuotationNumber === 'function') {
@@ -3624,7 +3803,7 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             currentUser = savedUser;
             // Reload AUTH_USERS again to ensure we have latest data
-            // SECURITY: Removed passwords from localStorage fallback
+            // No passwords stored in localStorage
             AUTH_USERS = getCachedItem('authUsers', {
                 'admin': { role: 'admin', allowedTabs: ['all'] },
                 'Gaurav': { role: 'admin', allowedTabs: ['all'] }
@@ -4609,7 +4788,6 @@ async function generateSalesBillPDF() {
                     }
                 });
 
-                // Show selected tab and update button
                 let selectedTabElement = null;
                 let selectedButton = null;
                 
@@ -4680,7 +4858,6 @@ async function generateSalesBillPDF() {
                     updateFloorDropdowns();
                 }
                 
-                // Show selected tab
                 if (selectedTabElement) {
                     selectedTabElement.classList.remove('hidden');
                     // For billing tab, restore display: flex
@@ -6407,7 +6584,6 @@ function updateMCTypeLabel() {
                 clearItemForm();
             }
 
-// ========== TABLE-BASED PRODUCT DISPLAY (Excel-like) ==========
 
     function updateItemsTable() {
         const table = document.getElementById('productsTable');
@@ -12046,7 +12222,6 @@ function downloadAllCustomerLedgers() {
     }
                     
 
-// ========== CASH ENTRY FUNCTIONS - FIXED ==========
 
 function showCashEntryModal() {
     document.getElementById('modalOverlay').classList.remove('hidden');
@@ -12134,7 +12309,6 @@ function saveCashEntry() {
     }
 }
 
-// ========== BANK ENTRY FUNCTIONS - FIXED ==========
 
 function showBankEntryModal() {
     const modal = document.createElement('div');
@@ -12303,7 +12477,6 @@ function showBankEntryModal() {
     
     document.body.appendChild(modal);
 
-// Show overlay
 const overlay = document.getElementById('modalOverlay');
 if (overlay) {
     overlay.classList.remove('hidden');
@@ -12538,7 +12711,6 @@ function saveBankEntry() {
     }
 }
 
-// ========== TAG SEARCH FUNCTION ==========
 function searchTag() {
     const tagInput = document.getElementById('tagSearchInput');
     const tag = tagInput.value.trim().toLowerCase();
@@ -12604,9 +12776,7 @@ function searchTag() {
     tagInput.value = '';
 }
 
-// ========== APPROVAL FUNCTIONS ==========
 
-// ========== FLOOR MANAGEMENT FUNCTIONS ==========
 function createFloor() {
     const floorName = document.getElementById('newFloorName').value.trim();
     
@@ -12766,7 +12936,6 @@ function updateFloorDropdowns() {
     }
 }
 
-// ========== SOFTWARE UPDATE FUNCTIONALITY ==========
 let currentAppVersion = '2.0.0'; // Update this when releasing new version
 
 async function checkForUpdates() {
@@ -12920,7 +13089,6 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-// ========== GLOBAL ERROR HANDLER  ==========
 window.addEventListener('error', function(e) {
     console.error('Global Error:', e.error);
     // Silently handle errors in production

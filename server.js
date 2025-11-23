@@ -3,6 +3,8 @@ const express = require('express');
 const path = require('path');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
+const http = require('http');
+const { Server } = require('socket.io');
 const { 
     masterPool, 
     getTenantPool, 
@@ -12,6 +14,13 @@ const {
 } = require('./config/database');
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
+});
 const PORT = process.env.PORT || 3000;
 
 // Middleware
@@ -22,9 +31,6 @@ app.use(express.static('public'));
 // Initialize master database on startup
 initMasterDatabase();
 
-// ========== TENANT MANAGEMENT ==========
-
-// Create new tenant/client (only master admin can do this)
 app.post('/api/tenants', async (req, res) => {
     try {
         const { tenantCode, tenantName, adminUsername, adminPassword, masterUsername, masterPassword } = req.body;
@@ -66,8 +72,6 @@ app.post('/api/tenants', async (req, res) => {
     }
 });
 
-// List all tenants (with access control)
-// SECURITY: Changed from GET to POST to avoid passwords in URL
 app.post('/api/tenants', async (req, res) => {
     try {
         const { username, password } = req.body; // Changed from req.query to req.body
@@ -97,8 +101,6 @@ app.post('/api/tenants', async (req, res) => {
     }
 });
 
-// Get tenants for a specific user (after login)
-// SECURITY: Changed from GET to POST to avoid sensitive data in URL
 app.post('/api/tenants/for-user', async (req, res) => {
     try {
         const { username, tenantCode } = req.body; // Changed from req.query to req.body
@@ -130,9 +132,6 @@ app.post('/api/tenants/for-user', async (req, res) => {
     }
 });
 
-// ========== AUTHENTICATION ==========
-
-// Login (returns tenant info)
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { username, password, tenantCode } = req.body;
@@ -270,12 +269,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// ========== PRODUCTS API ==========
-
-// Middleware to verify tenant access (add to routes that need it)
 async function verifyTenantAccess(req, res, next) {
-    // For now, allow access - in production, add JWT token verification
-    // The tenant code in URL ensures data isolation
     next();
 }
 
@@ -329,6 +323,7 @@ app.post('/api/:tenant/products', async (req, res) => {
         ];
         
         const result = await queryTenant(tenant, query, params);
+        broadcastToTenant(tenant, 'product-created', result[0]);
         res.json(result[0]);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -355,6 +350,7 @@ app.put('/api/:tenant/products/:id', async (req, res) => {
         ];
         
         const result = await queryTenant(tenant, query, params);
+        broadcastToTenant(tenant, 'product-updated', result[0]);
         res.json(result[0]);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -365,13 +361,13 @@ app.delete('/api/:tenant/products/:id', async (req, res) => {
     try {
         const { tenant, id } = req.params;
         await queryTenant(tenant, 'DELETE FROM products WHERE id = $1', [id]);
+        broadcastToTenant(tenant, 'product-deleted', { id: parseInt(id) });
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-// ========== CUSTOMERS API ==========
 
 app.get('/api/:tenant/customers', async (req, res) => {
     try {
@@ -414,6 +410,7 @@ app.post('/api/:tenant/customers', async (req, res) => {
         ];
         
         const result = await queryTenant(tenant, query, params);
+        broadcastToTenant(tenant, 'customer-created', result[0]);
         res.json(result[0]);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -436,6 +433,7 @@ app.put('/api/:tenant/customers/:id', async (req, res) => {
         ];
         
         const result = await queryTenant(tenant, query, params);
+        broadcastToTenant(tenant, 'customer-updated', result[0]);
         res.json(result[0]);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -446,13 +444,13 @@ app.delete('/api/:tenant/customers/:id', async (req, res) => {
     try {
         const { tenant, id } = req.params;
         await queryTenant(tenant, 'DELETE FROM customers WHERE id = $1', [id]);
+        broadcastToTenant(tenant, 'customer-deleted', { id: parseInt(id) });
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-// ========== QUOTATIONS API ==========
 
 app.get('/api/:tenant/quotations', async (req, res) => {
     try {
@@ -482,6 +480,7 @@ app.post('/api/:tenant/quotations', async (req, res) => {
         ];
         
         const result = await queryTenant(tenant, query, params);
+        broadcastToTenant(tenant, 'quotation-created', result[0]);
         res.json(result[0]);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -507,6 +506,7 @@ app.put('/api/:tenant/quotations/:id', async (req, res) => {
         ];
         
         const result = await queryTenant(tenant, query, params);
+        broadcastToTenant(tenant, 'quotation-updated', result[0]);
         res.json(result[0]);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -517,13 +517,13 @@ app.delete('/api/:tenant/quotations/:id', async (req, res) => {
     try {
         const { tenant, id } = req.params;
         await queryTenant(tenant, 'DELETE FROM quotations WHERE id = $1', [id]);
+        broadcastToTenant(tenant, 'quotation-deleted', { id: parseInt(id) });
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-// ========== BILLS API ==========
 
 app.get('/api/:tenant/bills', async (req, res) => {
     try {
@@ -569,6 +569,7 @@ app.post('/api/:tenant/bills', async (req, res) => {
         ];
         
         const result = await queryTenant(tenant, query, params);
+        broadcastToTenant(tenant, 'bill-created', result[0]);
         res.json(result[0]);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -592,6 +593,7 @@ app.put('/api/:tenant/bills/:id', async (req, res) => {
         ];
         
         const result = await queryTenant(tenant, query, params);
+        broadcastToTenant(tenant, 'bill-updated', result[0]);
         res.json(result[0]);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -602,13 +604,13 @@ app.delete('/api/:tenant/bills/:id', async (req, res) => {
     try {
         const { tenant, id } = req.params;
         await queryTenant(tenant, 'DELETE FROM bills WHERE id = $1', [id]);
+        broadcastToTenant(tenant, 'bill-deleted', { id: parseInt(id) });
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-// ========== RATES API ==========
 
 app.get('/api/:tenant/rates', async (req, res) => {
     try {
@@ -630,13 +632,13 @@ app.put('/api/:tenant/rates', async (req, res) => {
         RETURNING *`;
         
         const result = await queryTenant(tenant, query, [gold, silver, platinum]);
+        broadcastToTenant(tenant, 'rates-updated', result[0]);
         res.json(result[0]);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-// ========== LEDGER TRANSACTIONS API ==========
 
 app.get('/api/:tenant/ledger/transactions', async (req, res) => {
     try {
@@ -694,7 +696,6 @@ app.post('/api/:tenant/ledger/transactions', async (req, res) => {
     }
 });
 
-// ========== PURCHASE VOUCHERS API ==========
 
 app.get('/api/:tenant/purchase-vouchers', async (req, res) => {
     try {
@@ -738,7 +739,6 @@ app.post('/api/:tenant/purchase-vouchers', async (req, res) => {
     }
 });
 
-// ========== ROL DATA API ==========
 
 app.get('/api/:tenant/rol', async (req, res) => {
     try {
@@ -804,17 +804,8 @@ app.put('/api/:tenant/rol/:barcode', async (req, res) => {
     }
 });
 
-// ========== USERS MANAGEMENT API ==========
-
-// SECURITY: Middleware to check if user can manage users (only admin, not employee)
 async function checkUserManagementAccess(req, res, next) {
     try {
-        // Extract user info from request (you may need to add authentication middleware)
-        // For now, we'll rely on frontend checks, but this adds server-side validation
-        // In production, use JWT tokens or session-based auth
-        
-        // This is a placeholder - in production, verify the user's role from auth token
-        // For now, the frontend handles this, but we add server-side validation
         next();
     } catch (error) {
         res.status(403).json({ error: 'Access denied. Only administrators can manage users.' });
@@ -824,7 +815,7 @@ async function checkUserManagementAccess(req, res, next) {
 app.get('/api/:tenant/users', checkUserManagementAccess, async (req, res) => {
     try {
         const { tenant } = req.params;
-        // SECURITY: Never return password hashes - exclude password column
+        // SECURITY: Never return password hashes
         const result = await queryTenant(tenant, 'SELECT id, username, role, allowed_tabs, created_at FROM users ORDER BY username');
         // Double-check: ensure no password field is returned
         const sanitized = result.map(user => {
@@ -846,7 +837,7 @@ app.post('/api/:tenant/users', checkUserManagementAccess, async (req, res) => {
         const validRoles = ['admin', 'employee'];
         const userRole = role && validRoles.includes(role.toLowerCase()) ? role.toLowerCase() : 'employee';
         
-        // SECURITY: Always hash passwords - NEVER store plain text
+        // SECURITY: Always hash passwords
         if (!password || password.trim() === '') {
             return res.status(400).json({ error: 'Password is required' });
         }
@@ -861,6 +852,7 @@ app.post('/api/:tenant/users', checkUserManagementAccess, async (req, res) => {
         // Never return password hash in response
         const userResponse = result[0];
         delete userResponse.password;
+        broadcastToTenant(tenant, 'user-created', userResponse);
         res.json(userResponse);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -880,7 +872,7 @@ app.put('/api/:tenant/users/:id', checkUserManagementAccess, async (req, res) =>
         const params = [username, userRole, allowedTabs || ['all']];
         
         if (password && password.trim() !== '') {
-            // SECURITY: Always hash passwords - NEVER store plain text
+            // SECURITY: Always hash passwords
             const hashedPassword = await bcrypt.hash(password, 10);
             query += ', password = $4 WHERE id = $5 RETURNING id, username, role, allowed_tabs';
             params.push(hashedPassword, id);
@@ -893,6 +885,7 @@ app.put('/api/:tenant/users/:id', checkUserManagementAccess, async (req, res) =>
         // Never return password hash in response
         const userResponse = result[0];
         if (userResponse.password) delete userResponse.password;
+        broadcastToTenant(tenant, 'user-updated', userResponse);
         res.json(userResponse);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -909,7 +902,6 @@ app.delete('/api/:tenant/users/:id', checkUserManagementAccess, async (req, res)
     }
 });
 
-// ========== API KEY MANAGEMENT (for monitoring) ==========
 
 app.get('/api/admin/api-keys', async (req, res) => {
     try {
@@ -960,9 +952,6 @@ app.post('/api/admin/api-keys', async (req, res) => {
     }
 });
 
-// ========== DATABASE QUERY INTERFACE ==========
-
-// Execute custom SQL query (for admin access)
 app.post('/api/:tenant/query', async (req, res) => {
     try {
         const { tenant } = req.params;
@@ -1014,14 +1003,10 @@ app.get('/api/:tenant/tables', async (req, res) => {
     }
 });
 
-// Serve frontend
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public/index.html'));
 });
 
-// ========== SOFTWARE UPDATE API ==========
-
-// Check for updates
 app.get('/api/update/check', async (req, res) => {
     try {
         const packageJson = require('./package.json');
@@ -1088,7 +1073,6 @@ app.get('/api/update/check', async (req, res) => {
     }
 });
 
-// Download update (in production, serve actual installer)
 app.get('/api/update/download', (req, res) => {
     try {
         // In production, this would serve the actual installer file
@@ -1102,9 +1086,104 @@ app.get('/api/update/download', (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
+const tenantConnections = {};
+
+io.on('connection', (socket) => {
+    console.log('✅ Client connected:', socket.id);
+    
+    // Join tenant room when client connects
+    socket.on('join-tenant', (tenantCode) => {
+        if (tenantCode) {
+            socket.join(`tenant-${tenantCode}`);
+            if (!tenantConnections[tenantCode]) {
+                tenantConnections[tenantCode] = new Set();
+            }
+            tenantConnections[tenantCode].add(socket.id);
+            console.log(`📱 Client ${socket.id} joined tenant: ${tenantCode}`);
+        }
+    });
+    
+    socket.on('disconnect', () => {
+        console.log('❌ Client disconnected:', socket.id);
+        // Remove from tenant connections
+        Object.keys(tenantConnections).forEach(tenant => {
+            tenantConnections[tenant].delete(socket.id);
+            if (tenantConnections[tenant].size === 0) {
+                delete tenantConnections[tenant];
+            }
+        });
+    });
+});
+
+function broadcastToTenant(tenantCode, event, data) {
+    if (tenantCode) {
+        io.to(`tenant-${tenantCode}`).emit(event, data);
+        console.log(`📡 Broadcasted ${event} to tenant ${tenantCode}`);
+    }
+}
+
+global.broadcastToTenant = broadcastToTenant;
+
+// ========== SERVER SYNC API ==========
+
+app.post('/api/sync/push', async (req, res) => {
+    try {
+        const { tenantCode, table, data } = req.body;
+        const pool = getTenantPool(tenantCode);
+        
+        // Insert or update data
+        for (const row of data) {
+            const { id, ...rowData } = row;
+            const columns = Object.keys(rowData);
+            const values = Object.values(rowData);
+            
+            // Check if exists
+            const exists = await pool.query(`SELECT id FROM ${table} WHERE id = $1`, [id]);
+            
+            if (exists.rows.length > 0) {
+                // Update
+                const setClause = columns.map((col, idx) => `${col} = $${idx + 1}`).join(', ');
+                await pool.query(`UPDATE ${table} SET ${setClause} WHERE id = $${columns.length + 1}`, [...values, id]);
+            } else {
+                // Insert
+                const allColumns = ['id', ...columns];
+                const allValues = [id, ...values];
+                const placeholders = allColumns.map((_, idx) => `$${idx + 1}`).join(', ');
+                await pool.query(`INSERT INTO ${table} (${allColumns.join(', ')}) VALUES (${placeholders})`, allValues);
+            }
+        }
+        
+        broadcastToTenant(tenantCode, 'data-synced', { table, count: data.length });
+        res.json({ success: true, message: `Synced ${data.length} records` });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/sync/pull', async (req, res) => {
+    try {
+        const { tenantCode, table, lastSync } = req.body;
+        const pool = getTenantPool(tenantCode);
+        
+        let query = `SELECT * FROM ${table}`;
+        if (lastSync) {
+            query += ` WHERE updated_at > $1 OR created_at > $1`;
+            const result = await pool.query(query, [lastSync]);
+            res.json(result.rows);
+        } else {
+            const result = await pool.query(query);
+            res.json(result.rows);
+        }
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+server.listen(PORT, () => {
   console.log(`✅ Server running at http://localhost:${PORT}`);
     console.log(`📊 Database API available at http://localhost:${PORT}/api`);
     console.log(`🔐 Multi-tenant architecture enabled`);
     console.log(`🔄 Update API available at http://localhost:${PORT}/api/update`);
+    console.log(`🔌 Real-time sync enabled (Socket.IO)`);
+    console.log(`🔄 Server sync API available at http://localhost:${PORT}/api/sync`);
 });

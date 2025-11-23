@@ -185,6 +185,20 @@ If client can:
 
 ---
 
+## 🔄 Multi-Device Setup (For Multiple Computers)
+
+If your company has multiple computers and you want all of them to share the same data:
+
+**📖 See:** `4) MULTI_DEVICE_SETUP.md` for complete instructions
+
+**Quick Overview:**
+- One computer acts as the server (has PostgreSQL + application)
+- Other computers connect to the server's database
+- All data automatically syncs in real-time across all devices
+- When one computer creates a product/customer, it appears on all other computers instantly!
+
+---
+
 **Last Updated:** January 2025  
 **Version:** 2.0.0
 

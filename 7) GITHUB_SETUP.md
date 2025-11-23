@@ -1,6 +1,6 @@
-# GitHub Setup and Push Instructions
+# 7) GitHub Setup and Push Instructions
 
-This guide will help you push your code to GitHub and set up automatic updates.
+Quick guide to push code to GitHub and set up automatic updates.
 
 ## Step 1: Create GitHub Repository
 
@@ -15,31 +15,17 @@ This guide will help you push your code to GitHub and set up automatic updates.
 
 ---
 
-## Step 2: Initialize Git and Push Code
-
-Open PowerShell in your project directory (`D:\JewelryEstimation`) and run:
+## Step 2: Push Code to GitHub
 
 ```powershell
-# Initialize git repository (if not already done)
-git init
-
-# Add all files
 git add .
-
-# Create initial commit
 git commit -m "Initial commit: Multi-tenant jewelry estimation software"
-
-# Add your GitHub repository as remote (replace YOUR_USERNAME and YOUR_REPO_NAME)
 git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
-
-# Push to GitHub
 git branch -M main
 git push -u origin main
 ```
 
-**Note**: If you haven't set up Git credentials, GitHub will prompt you to:
-- Use a Personal Access Token (recommended)
-- Or use GitHub Desktop
+**Note**: Use Personal Access Token if prompted (GitHub → Settings → Developer settings → Personal access tokens)
 
 ---
 

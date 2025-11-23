@@ -44,16 +44,20 @@ async function initMasterDatabase() {
             )
         `);
         
-        // Create master admin if not exists (Gaurav)
         const bcrypt = require('bcrypt');
         const masterAdminCheck = await masterPool.query('SELECT * FROM master_admins WHERE username = $1', ['Gaurav']);
         if (masterAdminCheck.rows.length === 0) {
-            const hashedPassword = await bcrypt.hash('@GauravSolanki56789__', 10);
+            const tempPassword = await bcrypt.hash('CHANGE_ME_' + Date.now(), 10);
             await masterPool.query(
                 'INSERT INTO master_admins (username, password_hash, is_super_admin) VALUES ($1, $2, $3)',
-                ['Gaurav', hashedPassword, true]
+                ['Gaurav', tempPassword, true]
             );
-            console.log('✅ Master admin user created');
+            console.log('⚠️ Master admin user created with temporary password. Run "npm run fix-gaurav-password" to set the correct password.');
+        } else {
+            const existingAdmin = masterAdminCheck.rows[0];
+            if (existingAdmin.password_hash && !existingAdmin.password_hash.startsWith('$2')) {
+                console.log('⚠️ Master admin password needs to be hashed. Run "npm run fix-gaurav-password" to fix it.');
+            }
         }
         
         console.log('✅ Master database initialized');
