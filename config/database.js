@@ -211,6 +211,7 @@ async function initTenantSchema(pool) {
             sgst DECIMAL(10,2),
             net_total DECIMAL(10,2),
             payment_method VARCHAR(50),
+            cash_type VARCHAR(20),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
         
@@ -241,6 +242,13 @@ async function initTenantSchema(pool) {
             amount DECIMAL(10,2),
             description TEXT,
             date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            cash_type VARCHAR(20),
+            is_restricted BOOLEAN DEFAULT false,
+            payment_method VARCHAR(50),
+            reference VARCHAR(100),
+            customer_name VARCHAR(255),
+            customer_mobile VARCHAR(20),
+            bill_no VARCHAR(50),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
         

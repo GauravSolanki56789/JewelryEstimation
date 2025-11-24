@@ -788,6 +788,23 @@
                         🔄 Clear & Start New
                     </button>
                 </div>
+                
+                <!-- Cash-1/Cash-2 Selection (shown only for cash quotations) -->
+                <div id="cashPaymentOptions" class="hidden mb-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded">
+                    <h3 class="font-semibold text-blue-900 mb-3">💰 Cash Payment Options</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <button onclick="generateBillWithCash1()"
+                            class="bg-green-600 text-white px-6 py-4 rounded-lg hover:bg-green-700 font-semibold text-lg">
+                            💵 Cash-1<br>
+                            <span class="text-sm font-normal">Generate Bill + Ledger Entry</span>
+                        </button>
+                        <button onclick="generateBillWithCash2()"
+                            class="bg-blue-600 text-white px-6 py-4 rounded-lg hover:bg-blue-700 font-semibold text-lg">
+                            💰 Cash-2<br>
+                            <span class="text-sm font-normal">Ledger Entry Only (Admin View)</span>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -1992,6 +2009,14 @@
         class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold">
         📕 Download PDF
     </button>
+    <button onclick="printQuotationFromView()"
+        class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">
+        🖨️ Print
+    </button>
+    <button onclick="sendQuotationFromView()"
+        class="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-bold">
+        📱 WhatsApp
+    </button>
     <button onclick="closeModals()" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
         Close
     </button>
@@ -2339,6 +2364,15 @@
                 console.log('📡 User deleted:', data);
                 if (typeof renderUserManagement === 'function') {
                     renderUserManagement();
+                }
+            });
+            
+            // Listen for barcode print events (real-time sync)
+            socket.on('barcode-printed', (data) => {
+                console.log('📡 Barcode printed on another device:', data.barcode);
+                // Refresh products to show newly printed barcode
+                if (typeof refreshProducts === 'function') {
+                    refreshProducts();
                 }
             });
         }
@@ -3902,7 +3936,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 BANK_DEPOSIT: 'bank_deposit',
                 BANK_WITHDRAWAL: 'bank_withdrawal',
                 PAYMENT_RECEIVED: 'payment_received',
-                PAYMENT_MADE: 'payment_made'
+                PAYMENT_MADE: 'payment_made',
+                CASH_1: 'cash_1',  // Regular cash payment (visible to all)
+                CASH_2: 'cash_2'   // Restricted cash payment (admin/super-admin only)
             };
 
 
@@ -3928,7 +3964,9 @@ document.addEventListener('DOMContentLoaded', function() {
         billNo: data.billNo || '',
         supplier: data.supplier || '',
         metalType: data.metalType || '',
-        weight: data.weight || 0
+        weight: data.weight || 0,
+        cashType: data.cashType || null,  // 'cash_1' or 'cash_2' for cash payments
+        isRestricted: data.isRestricted || false  // true for Cash-2 (admin only)
     };
 
     // Find customer ID if customer name/mobile provided
@@ -4113,7 +4151,15 @@ billItems = selectedQuotationForBill.items.map(item => {
     // Show items table and summary
     document.getElementById('billItemsTableContainer').classList.remove('hidden');
     document.getElementById('billSummarySection').classList.remove('hidden');
-    document.getElementById('billActionsSection').classList.remove('hidden');
+    
+    // Show Cash-1/Cash-2 options if quotation received cash payment
+    if (selectedQuotationForBill.paymentReceived) {
+        document.getElementById('cashPaymentOptions').classList.remove('hidden');
+        document.getElementById('billActionsSection').classList.add('hidden');
+    } else {
+        document.getElementById('cashPaymentOptions').classList.add('hidden');
+        document.getElementById('billActionsSection').classList.remove('hidden');
+    }
 }
 
             function updateBillRatesDisplay() {
@@ -4564,10 +4610,29 @@ async function generateSalesBillPDF() {
     doc.setFont(undefined, 'bold');
     doc.text('For JP JEWELLERY', 150, footerY + 10);
 
+    // Save PDF to blob for printing and WhatsApp
+    const pdfBlob = doc.output('blob');
+    const pdfUrl = URL.createObjectURL(pdfBlob);
+    billRecord.pdfBlob = pdfBlob;
+    billRecord.pdfUrl = pdfUrl;
+    
+    // Save PDF file
     doc.save(`Bill_${billNo}_${formattedDate.replace(/\//g, '-')}.pdf`);
 
     closeModals();
-    alert(`✅ Sales Bill Generated!\n\nBill No: ${billNo}\nQuotation: ${selectedQuotationForBill.quotationNo}\nCustomer: ${customer.name}\n\n${billItems.length} products removed from inventory.\n\nTransaction recorded in Accounts Ledger.`);
+    
+    // Show print confirmation
+    const printConfirm = confirm(`✅ Sales Bill Generated!\n\nBill No: ${billNo}\nQuotation: ${selectedQuotationForBill.quotationNo}\nCustomer: ${customer.name}\n\n${billItems.length} products removed from inventory.\n\nTransaction recorded in Accounts Ledger.\n\nDo you want to print the bill now?`);
+    
+    if (printConfirm) {
+        await printBillDirect(billRecord);
+    }
+    
+    // Show WhatsApp send option
+    const whatsappConfirm = confirm(`Do you want to send this bill to customer via WhatsApp?`);
+    if (whatsappConfirm) {
+        await sendBillToWhatsApp(billRecord);
+    }
 
     clearBillSelection();
     billCounter++;
@@ -4577,6 +4642,723 @@ async function generateSalesBillPDF() {
     function incrementBillCounter() {
         billCounter++;
         localStorage.setItem('billCounter', billCounter);
+    }
+
+    // ========== DIRECT PRINTING FUNCTIONS ==========
+    async function printBillDirect(billRecord) {
+        if (!billRecord || !billRecord.pdfUrl) {
+            alert('⚠️ Bill PDF not available for printing');
+            return;
+        }
+        
+        // Show confirmation
+        const confirmPrint = confirm('Print this bill to the connected printer?');
+        if (!confirmPrint) return;
+        
+        // Create hidden iframe for printing
+        const printFrame = document.createElement('iframe');
+        printFrame.style.position = 'absolute';
+        printFrame.style.width = '0';
+        printFrame.style.height = '0';
+        printFrame.style.border = 'none';
+        printFrame.style.opacity = '0';
+        document.body.appendChild(printFrame);
+        
+        // Load PDF in iframe
+        printFrame.src = billRecord.pdfUrl;
+        
+        // Wait for PDF to load, then print
+        printFrame.onload = () => {
+            setTimeout(() => {
+                printFrame.contentWindow.focus();
+                printFrame.contentWindow.print();
+                
+                // Remove iframe after printing
+                setTimeout(() => {
+                    if (printFrame.parentNode) {
+                        document.body.removeChild(printFrame);
+                    }
+                    URL.revokeObjectURL(billRecord.pdfUrl);
+                }, 1000);
+            }, 500);
+        };
+        
+        // Fallback
+        setTimeout(() => {
+            if (printFrame.contentDocument && printFrame.contentDocument.readyState === 'complete') {
+                printFrame.contentWindow.focus();
+                printFrame.contentWindow.print();
+                setTimeout(() => {
+                    if (printFrame.parentNode) {
+                        document.body.removeChild(printFrame);
+                    }
+                    if (billRecord.pdfUrl) {
+                        URL.revokeObjectURL(billRecord.pdfUrl);
+                    }
+                }, 1000);
+            }
+        }, 2000);
+    }
+
+    async function printQuotationDirect(quotationRecord) {
+        if (!quotationRecord) {
+            alert('⚠️ Quotation not available for printing');
+            return;
+        }
+        
+        // Show confirmation
+        const confirmPrint = confirm('Print this quotation to the connected printer?');
+        if (!confirmPrint) return;
+        
+        // Generate PDF for quotation (reuse existing logic)
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('p', 'mm', 'a4');
+        
+        const date = new Date(quotationRecord.date);
+        const formattedDate = date.toLocaleDateString('en-GB');
+        const customer = quotationRecord.customer;
+        const totalWeight = quotationRecord.items.reduce((sum, item) => sum + item.weight, 0);
+        const totalMC = quotationRecord.items.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
+        const totalPCS = quotationRecord.items.length;
+
+        // Customer info
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'normal');
+        doc.text('To:', 15, 15);
+        doc.setFont(undefined, 'bold');
+        doc.setFontSize(10);
+        doc.text(customer.name.toUpperCase(), 15, 20);
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'normal');
+        let yPos = 24;
+        if (customer.address1) {
+            doc.text(customer.address1, 15, yPos);
+            yPos += 4;
+        }
+        if (customer.address2) {
+            doc.text(customer.address2, 15, yPos);
+            yPos += 4;
+        }
+        if (customer.city) {
+            doc.text(customer.city, 15, yPos);
+            yPos += 4;
+        }
+        doc.text(`Mob: ${customer.mobile}`, 15, yPos);
+
+        // Quotation info
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'bold');
+        doc.text('EST. No:', 160, 15);
+        doc.setFont(undefined, 'normal');
+        doc.text(quotationRecord.quotationNo, 180, 15);
+        doc.setFont(undefined, 'bold');
+        doc.text('Date:', 160, 20);
+        doc.setFont(undefined, 'normal');
+        doc.text(formattedDate, 180, 20);
+
+        // Items table
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'bold');
+        let tableY = 40;
+        doc.text('#', 15, tableY);
+        doc.text('Item', 25, tableY);
+        doc.text('Weight', 80, tableY);
+        doc.text('Rate', 100, tableY);
+        doc.text('MC', 120, tableY);
+        doc.text('Amount', 150, tableY);
+        
+        tableY += 5;
+        doc.setFont(undefined, 'normal');
+        quotationRecord.items.forEach((item, idx) => {
+            doc.text(String(idx + 1), 15, tableY);
+            doc.text(item.name.substring(0, 20), 25, tableY);
+            doc.text(item.weight.toFixed(2) + 'g', 80, tableY);
+            doc.text('₹' + item.rate.toFixed(2), 100, tableY);
+            doc.text('₹' + item.mcRate.toFixed(2), 120, tableY);
+            doc.text('₹' + item.amount.toFixed(2), 150, tableY);
+            tableY += 5;
+        });
+
+        // Totals
+        const rightX = 150;
+        const finalY = tableY + 5;
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'bold');
+        doc.text('Subtotal:', rightX, finalY);
+        doc.text(quotationRecord.total.toFixed(2), 195, finalY, { align: 'right' });
+        doc.text('GST (3%):', rightX, finalY + 5);
+        doc.text(quotationRecord.gst.toFixed(2), 195, finalY + 5, { align: 'right' });
+        doc.setFontSize(10);
+        doc.text('Total:', rightX, finalY + 12);
+        doc.text(quotationRecord.netTotal.toFixed(2), 195, finalY + 12, { align: 'right' });
+
+        // Convert to blob and print
+        const pdfBlob = doc.output('blob');
+        const pdfUrl = URL.createObjectURL(pdfBlob);
+        
+        // Create hidden iframe for printing
+        const printFrame = document.createElement('iframe');
+        printFrame.style.position = 'absolute';
+        printFrame.style.width = '0';
+        printFrame.style.height = '0';
+        printFrame.style.border = 'none';
+        printFrame.style.opacity = '0';
+        document.body.appendChild(printFrame);
+        
+        printFrame.src = pdfUrl;
+        
+        printFrame.onload = () => {
+            setTimeout(() => {
+                printFrame.contentWindow.focus();
+                printFrame.contentWindow.print();
+                setTimeout(() => {
+                    if (printFrame.parentNode) {
+                        document.body.removeChild(printFrame);
+                    }
+                    URL.revokeObjectURL(pdfUrl);
+                }, 1000);
+            }, 500);
+        };
+    }
+
+    // ========== WHATSAPP INTEGRATION ==========
+    async function sendBillToWhatsApp(billRecord) {
+        if (!billRecord || !billRecord.customer) {
+            alert('⚠️ Bill or customer information not available');
+            return;
+        }
+        
+        // Get customer mobile number (editable)
+        const defaultMobile = billRecord.customer.mobile || '';
+        const mobileNumber = await showInputDialog(
+            'Send Bill via WhatsApp',
+            `Enter customer mobile number (with country code, e.g., 91XXXXXXXXXX):`,
+            defaultMobile,
+            'Mobile number'
+        );
+        
+        if (!mobileNumber || !mobileNumber.trim()) {
+            return; // User cancelled
+        }
+        
+        // Clean mobile number (remove spaces, dashes, etc.)
+        const cleanMobile = mobileNumber.trim().replace(/[\s\-\(\)]/g, '');
+        
+        // Generate PDF if not already generated
+        if (!billRecord.pdfBlob && !billRecord.pdfUrl) {
+            // PDF should already be generated, but if not, we need to generate it
+            alert('⚠️ PDF not available. Please generate the bill first.');
+            return;
+        }
+        
+        // For WhatsApp Web, we can't directly send files via API
+        // Instead, we'll open WhatsApp Web with the customer number
+        // User will need to manually attach the PDF
+        
+        // Create a temporary download link for the PDF
+        const pdfBlob = billRecord.pdfBlob || await fetch(billRecord.pdfUrl).then(r => r.blob());
+        const pdfFile = new File([pdfBlob], `Bill_${billRecord.billNo}.pdf`, { type: 'application/pdf' });
+        
+        // Open WhatsApp Web with the number
+        const whatsappUrl = `https://wa.me/${cleanMobile}`;
+        window.open(whatsappUrl, '_blank');
+        
+        // Show instructions
+        alert(`📱 WhatsApp opened!\n\n1. The customer number ${cleanMobile} is pre-filled\n2. Click the attachment icon (📎)\n3. Select the downloaded PDF file: Bill_${billRecord.billNo}.pdf\n4. Send the message\n\nNote: The PDF file should be in your Downloads folder.`);
+        
+        // Also trigger download so user can attach it
+        const downloadUrl = URL.createObjectURL(pdfBlob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = `Bill_${billRecord.billNo}.pdf`;
+        a.click();
+        URL.revokeObjectURL(downloadUrl);
+    }
+
+    async function sendQuotationToWhatsApp(quotationRecord) {
+        if (!quotationRecord || !quotationRecord.customer) {
+            alert('⚠️ Quotation or customer information not available');
+            return;
+        }
+        
+        // Get customer mobile number (editable)
+        const defaultMobile = quotationRecord.customer.mobile || '';
+        const mobileNumber = await showInputDialog(
+            'Send Quotation via WhatsApp',
+            `Enter customer mobile number (with country code, e.g., 91XXXXXXXXXX):`,
+            defaultMobile,
+            'Mobile number'
+        );
+        
+        if (!mobileNumber || !mobileNumber.trim()) {
+            return;
+        }
+        
+        const cleanMobile = mobileNumber.trim().replace(/[\s\-\(\)]/g, '');
+        
+        // Generate PDF for quotation
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('p', 'mm', 'a4');
+        
+        const date = new Date(quotationRecord.date);
+        const formattedDate = date.toLocaleDateString('en-GB');
+        const customer = quotationRecord.customer;
+        
+        // Generate PDF content (same as printQuotationDirect)
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'normal');
+        doc.text('To:', 15, 15);
+        doc.setFont(undefined, 'bold');
+        doc.setFontSize(10);
+        doc.text(customer.name.toUpperCase(), 15, 20);
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'normal');
+        let yPos = 24;
+        if (customer.address1) {
+            doc.text(customer.address1, 15, yPos);
+            yPos += 4;
+        }
+        if (customer.address2) {
+            doc.text(customer.address2, 15, yPos);
+            yPos += 4;
+        }
+        if (customer.city) {
+            doc.text(customer.city, 15, yPos);
+            yPos += 4;
+        }
+        doc.text(`Mob: ${customer.mobile}`, 15, yPos);
+
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'bold');
+        doc.text('EST. No:', 160, 15);
+        doc.setFont(undefined, 'normal');
+        doc.text(quotationRecord.quotationNo, 180, 15);
+        doc.setFont(undefined, 'bold');
+        doc.text('Date:', 160, 20);
+        doc.setFont(undefined, 'normal');
+        doc.text(formattedDate, 180, 20);
+
+        let tableY = 40;
+        doc.setFont(undefined, 'bold');
+        doc.text('#', 15, tableY);
+        doc.text('Item', 25, tableY);
+        doc.text('Weight', 80, tableY);
+        doc.text('Rate', 100, tableY);
+        doc.text('MC', 120, tableY);
+        doc.text('Amount', 150, tableY);
+        
+        tableY += 5;
+        doc.setFont(undefined, 'normal');
+        quotationRecord.items.forEach((item, idx) => {
+            doc.text(String(idx + 1), 15, tableY);
+            doc.text(item.name.substring(0, 20), 25, tableY);
+            doc.text(item.weight.toFixed(2) + 'g', 80, tableY);
+            doc.text('₹' + item.rate.toFixed(2), 100, tableY);
+            doc.text('₹' + item.mcRate.toFixed(2), 120, tableY);
+            doc.text('₹' + item.amount.toFixed(2), 150, tableY);
+            tableY += 5;
+        });
+
+        const rightX = 150;
+        const finalY = tableY + 5;
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'bold');
+        doc.text('Subtotal:', rightX, finalY);
+        doc.text(quotationRecord.total.toFixed(2), 195, finalY, { align: 'right' });
+        doc.text('GST (3%):', rightX, finalY + 5);
+        doc.text(quotationRecord.gst.toFixed(2), 195, finalY + 5, { align: 'right' });
+        doc.setFontSize(10);
+        doc.text('Total:', rightX, finalY + 12);
+        doc.text(quotationRecord.netTotal.toFixed(2), 195, finalY + 12, { align: 'right' });
+
+        const pdfBlob = doc.output('blob');
+        const pdfFile = new File([pdfBlob], `Quotation_${quotationRecord.quotationNo}.pdf`, { type: 'application/pdf' });
+        
+        // Open WhatsApp Web
+        const whatsappUrl = `https://wa.me/${cleanMobile}`;
+        window.open(whatsappUrl, '_blank');
+        
+        // Show instructions and download PDF
+        alert(`📱 WhatsApp opened!\n\n1. The customer number ${cleanMobile} is pre-filled\n2. Click the attachment icon (📎)\n3. Select the downloaded PDF file: Quotation_${quotationRecord.quotationNo}.pdf\n4. Send the message\n\nNote: The PDF file should be in your Downloads folder.`);
+        
+        const downloadUrl = URL.createObjectURL(pdfBlob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = `Quotation_${quotationRecord.quotationNo}.pdf`;
+        a.click();
+        URL.revokeObjectURL(downloadUrl);
+    }
+
+    // ========== CASH-1 FUNCTION (Regular Bill + Ledger Entry) ==========
+    async function generateBillWithCash1() {
+        if (billItems.length === 0 || !selectedQuotationForBill) {
+            alert('⚠️ No items to bill');
+            return;
+        }
+        
+        // Generate bill with Cash-1 type (same as regular bill but with cash_1 ledger entry)
+        const total = billItems.reduce((sum, item) => sum + item.amount, 0);
+        const gst = total * 0.03;
+        const cgst = gst / 2;
+        const sgst = gst / 2;
+        const netTotal = total + gst;
+        const billNo = `SCB${String(billCounter).padStart(4, '0')}`;
+        const date = new Date();
+
+        const billRecord = {
+            id: Date.now(),
+            billNo: billNo,
+            quotationNo: selectedQuotationForBill.quotationNo,
+            date: date.toISOString(),
+            customer: selectedQuotationForBill.customer,
+            items: JSON.parse(JSON.stringify(billItems)),
+            total: total,
+            gst: gst,
+            netTotal: netTotal,
+            rateSlab: currentBillRateSlab,
+            paymentStatus: 'paid',
+            paidAmount: netTotal,
+            linkedQuotation: selectedQuotationForBill.id,
+            cashType: 'cash_1'
+        };
+
+        savedBills.unshift(billRecord);
+        setCachedItem('savedBills', savedBills);
+
+        // Save bill to API
+        try {
+            const customerId = selectedQuotationForBill.customer && selectedQuotationForBill.customer.id 
+                ? selectedQuotationForBill.customer.id 
+                : null;
+            const quotationId = selectedQuotationForBill.dbId || selectedQuotationForBill.id || null;
+            
+            const savedBill = await api.createBill({
+                billNo: billNo,
+                quotationId: quotationId,
+                customerId: customerId,
+                customerName: selectedQuotationForBill.customer.name,
+                customerMobile: selectedQuotationForBill.customer.mobile,
+                items: billItems.map(item => ({
+                    ...item,
+                    barcode: item.barcode || null
+                })),
+                total: total,
+                gst: gst,
+                cgst: cgst,
+                sgst: sgst,
+                netTotal: netTotal,
+                paymentMethod: 'cash',
+                cashType: 'cash_1'
+            });
+            if (savedBill && savedBill.id) {
+                billRecord.dbId = savedBill.id;
+            }
+        } catch (error) {
+            console.error('Failed to save bill to API:', error);
+        }
+
+        // Record ledger entry with Cash-1 type (visible to all)
+        await recordLedgerTransaction(transactionTypes.CASH_1, {
+            billNo: billNo,
+            customerName: selectedQuotationForBill.customer.name,
+            customerMobile: selectedQuotationForBill.customer.mobile,
+            amount: netTotal,
+            items: billItems.length,
+            description: `Sales Bill ${billNo} (Cash-1) - ${selectedQuotationForBill.customer.name}`,
+            category: 'Sales Revenue',
+            paymentMethod: 'Cash',
+            reference: billNo,
+            date: date.toISOString(),
+            cashType: 'cash_1',
+            isRestricted: false
+        });
+
+        // Update cash balance
+        accountBalances.cash += netTotal;
+        setCachedItem('accountBalances', accountBalances);
+
+        // Update metal stock levels
+        billItems.forEach(item => {
+            const weightInGrams = item.weight;
+            if (item.metalType === 'gold') {
+                accountBalances.goldStock = Math.max(0, accountBalances.goldStock - weightInGrams);
+            } else if (item.metalType === 'silver') {
+                accountBalances.silverStock = Math.max(0, accountBalances.silverStock - weightInGrams);
+            } else if (item.metalType === 'platinum') {
+                accountBalances.platinumStock = Math.max(0, accountBalances.platinumStock - weightInGrams);
+            }
+        });
+
+        setCachedItem('accountBalances', accountBalances);
+
+        // Update displays
+        if (!document.getElementById('ledgerTab').classList.contains('hidden')) {
+            updateLedgerDashboard();
+            showLedgerCustomerAccounts();
+        }
+
+        // Mark products as sold
+        billItems.forEach(item => {
+            if (item.barcode) {
+                if (!soldProducts.find(sp => sp.barcode === item.barcode)) {
+                    markProductAsSold(item.barcode, billNo);
+                }
+                removeProductFromInventory(item.barcode);
+            }
+        });
+
+        // Mark quotation as billed
+        const quotIndex = savedQuotations.findIndex(q => q.id === selectedQuotationForBill.id);
+        if (quotIndex >= 0) {
+            savedQuotations[quotIndex].isBilled = true;
+            savedQuotations[quotIndex].billNo = billNo;
+            savedQuotations[quotIndex].billDate = date.toISOString();
+            setCachedItem('savedQuotations', savedQuotations);
+        }
+
+        // Generate PDF (reuse existing PDF generation logic from generateSalesBillPDF)
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('p', 'mm', 'a4');
+        const formattedDate = date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
+        const customer = selectedQuotationForBill.customer;
+        const totalWeight = billItems.reduce((sum, item) => sum + item.weight, 0);
+        const totalPCS = billItems.length;
+
+        // Header
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'bold');
+        doc.text('JP JEWELLERY', 105, 15, { align: 'center' });
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'normal');
+        doc.text('2ND FLOOR, OLD NO.34, NEW NO.21, BOTHRA EMPORIUM', 105, 20, { align: 'center' });
+        doc.text('VEERAPPAN STREET, SOWCARPET', 105, 24, { align: 'center' });
+        doc.text('CHENNAI 600079 | 044-43593474', 105, 28, { align: 'center' });
+        doc.setFont(undefined, 'bold');
+        doc.text('TAX INVOICE', 105, 35, { align: 'center' });
+        doc.text('33AADFJ4897R1ZJ', 105, 39, { align: 'center' });
+
+        // Bill info
+        doc.setFontSize(8);
+        doc.text('INVOICE No.:', 15, 48);
+        doc.setFont(undefined, 'normal');
+        doc.text(billNo, 45, 48);
+        doc.setFont(undefined, 'bold');
+        doc.text('BILL DATE:', 150, 48);
+        doc.setFont(undefined, 'normal');
+        doc.text(formattedDate, 175, 48);
+
+        // Customer info
+        doc.setFont(undefined, 'bold');
+        doc.setFontSize(9);
+        doc.text(customer.name.toUpperCase(), 15, 60);
+        doc.setFontSize(7);
+        doc.setFont(undefined, 'normal');
+        let yCustomer = 64;
+        if (customer.address1) {
+            doc.text(customer.address1, 15, yCustomer);
+            yCustomer += 4;
+        }
+        if (customer.address2) {
+            doc.text(customer.address2, 15, yCustomer);
+            yCustomer += 4;
+        }
+        if (customer.city) {
+            doc.text(customer.city, 15, yCustomer);
+            yCustomer += 4;
+        }
+        doc.text(`MOB: ${customer.mobile}`, 15, yCustomer);
+
+        // Items table
+        const tableStartY = Math.max(yCustomer + 8, 85);
+        const tableData = billItems.map((item, idx) => {
+            return [
+                idx + 1,
+                item.name,
+                '711311',
+                totalPCS,
+                item.weight.toFixed(3),
+                item.purity.toFixed(1),
+                item.rate.toFixed(2),
+                item.amount.toFixed(2)
+            ];
+        });
+
+        doc.autoTable({
+            startY: tableStartY,
+            head: [['Sl', 'ITEM', 'HSN', 'PCS', 'Weight In Gms', 'Purity', 'Rate', 'TOTAL']],
+            body: tableData,
+            theme: 'grid',
+            headStyles: {
+                fillColor: [220, 220, 220],
+                textColor: 0,
+                fontSize: 7,
+                fontStyle: 'bold',
+                halign: 'center',
+                cellPadding: 2
+            },
+            bodyStyles: {
+                fontSize: 7,
+                cellPadding: 1.5
+            },
+            columnStyles: {
+                0: { cellWidth: 10, halign: 'center' },
+                1: { cellWidth: 60, halign: 'left' },
+                2: { cellWidth: 20, halign: 'center' },
+                3: { cellWidth: 15, halign: 'center' },
+                4: { cellWidth: 25, halign: 'right' },
+                5: { cellWidth: 20, halign: 'center' },
+                6: { cellWidth: 20, halign: 'right' },
+                7: { cellWidth: 25, halign: 'right' }
+            },
+            margin: { left: 15, right: 15 }
+        });
+
+        // Totals
+        const finalY = doc.lastAutoTable.finalY + 10;
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'bold');
+        doc.text(`Total PCS: ${totalPCS}`, 15, finalY);
+        doc.text(`${totalWeight.toFixed(3)}`, 50, finalY);
+        const rightX = 150;
+        doc.text('GST Value:', rightX, finalY);
+        doc.setFont(undefined, 'normal');
+        doc.text(total.toFixed(2), 195, finalY, { align: 'right' });
+        doc.setFont(undefined, 'bold');
+        doc.text('CGST@1.50%:', rightX, finalY + 5);
+        doc.setFont(undefined, 'normal');
+        doc.text(cgst.toFixed(2), 195, finalY + 5, { align: 'right' });
+        doc.setFont(undefined, 'bold');
+        doc.text('SGST@1.50%:', rightX, finalY + 10);
+        doc.setFont(undefined, 'normal');
+        doc.text(sgst.toFixed(2), 195, finalY + 10, { align: 'right' });
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'bold');
+        doc.text('Total Amount:', rightX, finalY + 17);
+        doc.text(netTotal.toFixed(2), 195, finalY + 17, { align: 'right' });
+
+        // Footer
+        const footerY = finalY + 25;
+        doc.setFontSize(7);
+        doc.setFont(undefined, 'normal');
+        doc.text('BANK NAME: HDFC BANK', 15, footerY);
+        doc.text('AC NAME: JPJEWELLERY', 15, footerY + 4);
+        doc.text('AC NO: 50200016402896', 15, footerY + 8);
+        doc.text('IFSC CODE: HDFC0000214', 15, footerY + 12);
+        doc.setFont(undefined, 'bold');
+        doc.text('For JP JEWELLERY', 150, footerY + 10);
+
+        // Save PDF to blob
+        const pdfBlob = doc.output('blob');
+        const pdfUrl = URL.createObjectURL(pdfBlob);
+        billRecord.pdfBlob = pdfBlob;
+        billRecord.pdfUrl = pdfUrl;
+        
+        doc.save(`Bill_${billNo}_${formattedDate.replace(/\//g, '-')}.pdf`);
+
+        closeModals();
+        
+        // Show print confirmation
+        const printConfirm = confirm(`✅ Sales Bill Generated (Cash-1)!\n\nBill No: ${billNo}\nQuotation: ${selectedQuotationForBill.quotationNo}\nCustomer: ${customer.name}\n\n${billItems.length} products removed from inventory.\n\nTransaction recorded in Accounts Ledger.\n\nDo you want to print the bill now?`);
+        
+        if (printConfirm) {
+            await printBillDirect(billRecord);
+        }
+        
+        // Show WhatsApp send option
+        const whatsappConfirm = confirm(`Do you want to send this bill to customer via WhatsApp?`);
+        if (whatsappConfirm) {
+            await sendBillToWhatsApp(billRecord);
+        }
+
+        clearBillSelection();
+        billCounter++;
+        localStorage.setItem('billCounter', billCounter);
+    }
+
+    // ========== CASH-2 FUNCTION (Ledger Entry Only, No Bill) ==========
+    async function generateBillWithCash2() {
+        if (billItems.length === 0 || !selectedQuotationForBill) {
+            alert('⚠️ No items to process');
+            return;
+        }
+        
+        // Check if user is admin or super-admin
+        const isAdmin = currentUser.role === 'admin' || currentUser.role === 'super_admin' || currentUser.isMasterAdmin;
+        if (!isAdmin) {
+            alert('⚠️ Access Denied!\n\nOnly Admin and Super Admin (Gaurav) can use Cash-2 option.');
+            return;
+        }
+        
+        const total = billItems.reduce((sum, item) => sum + item.amount, 0);
+        const gst = total * 0.03;
+        const netTotal = total + gst;
+        const date = new Date();
+        
+        // Record ledger entry with Cash-2 (restricted)
+        await recordLedgerTransaction(transactionTypes.CASH_2, {
+            quotationNo: selectedQuotationForBill.quotationNo,
+            customerName: selectedQuotationForBill.customer.name,
+            customerMobile: selectedQuotationForBill.customer.mobile,
+            amount: netTotal,
+            description: `Cash-2 Payment - Quotation ${selectedQuotationForBill.quotationNo} - ${selectedQuotationForBill.customer.name}`,
+            category: 'Sales Revenue',
+            paymentMethod: 'Cash',
+            reference: selectedQuotationForBill.quotationNo,
+            date: date.toISOString(),
+            cashType: 'cash_2',
+            isRestricted: true
+        });
+        
+        // Update cash balance
+        accountBalances.cash += netTotal;
+        setCachedItem('accountBalances', accountBalances);
+        
+        // Update metal stock levels (DEDUCT sold items)
+        billItems.forEach(item => {
+            const weightInGrams = item.weight;
+            if (item.metalType === 'gold') {
+                accountBalances.goldStock = Math.max(0, accountBalances.goldStock - weightInGrams);
+            } else if (item.metalType === 'silver') {
+                accountBalances.silverStock = Math.max(0, accountBalances.silverStock - weightInGrams);
+            } else if (item.metalType === 'platinum') {
+                accountBalances.platinumStock = Math.max(0, accountBalances.platinumStock - weightInGrams);
+            }
+        });
+        
+        setCachedItem('accountBalances', accountBalances);
+        
+        // Mark products as sold
+        billItems.forEach(item => {
+            if (item.barcode) {
+                if (!soldProducts.find(sp => sp.barcode === item.barcode)) {
+                    markProductAsSold(item.barcode, `CASH2-${selectedQuotationForBill.quotationNo}`);
+                }
+                removeProductFromInventory(item.barcode);
+            }
+        });
+        
+        // Mark quotation as billed
+        const quotIndex = savedQuotations.findIndex(q => q.id === selectedQuotationForBill.id);
+        if (quotIndex >= 0) {
+            savedQuotations[quotIndex].isBilled = true;
+            savedQuotations[quotIndex].billNo = `CASH2-${selectedQuotationForBill.quotationNo}`;
+            savedQuotations[quotIndex].billDate = date.toISOString();
+            setCachedItem('savedQuotations', savedQuotations);
+        }
+        
+        // Update displays
+        if (!document.getElementById('ledgerTab').classList.contains('hidden')) {
+            updateLedgerDashboard();
+            showLedgerCustomerAccounts();
+        }
+        if (!document.getElementById('productsTab').classList.contains('hidden')) {
+            updateProductsTable();
+        }
+        
+        // Show confirmation (no bill generated)
+        alert(`✅ Updated in Ledger!\n\nCash-2 Payment Recorded\nQuotation: ${selectedQuotationForBill.quotationNo}\nCustomer: ${selectedQuotationForBill.customer.name}\nAmount: ₹${netTotal.toFixed(2)}\n\nNo bill generated. Entry visible only to Admin/Super Admin.`);
+        
+        clearBillSelection();
     }
 
                         // ========== BILL HISTORY MANAGEMENT ==========
@@ -8053,6 +8835,182 @@ function updateMCTypeLabel() {
                                 }).catch(() => {});
                             }
 
+                            // Helper functions for printing from view modals
+                            async function printQuotationFromView() {
+                                if (!currentViewingQuotation) return;
+                                await printQuotationDirect(currentViewingQuotation);
+                            }
+
+                            async function sendQuotationFromView() {
+                                if (!currentViewingQuotation) return;
+                                await sendQuotationToWhatsApp(currentViewingQuotation);
+                            }
+
+                            async function printBillFromView() {
+                                const billId = document.getElementById('reprintBillIndex').value;
+                                if (!billId) return;
+                                const bill = savedBills.find(b => b.id === parseInt(billId));
+                                if (!bill) {
+                                    alert('Bill not found!');
+                                    return;
+                                }
+                                // Generate PDF blob if not exists
+                                if (!bill.pdfBlob && !bill.pdfUrl) {
+                                    // Need to regenerate PDF
+                                    const { jsPDF } = window.jspdf;
+                                    const doc = new jsPDF('p', 'mm', 'a4');
+                                    const date = new Date(bill.date);
+                                    const formattedDate = date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
+                                    const customer = bill.customer;
+                                    
+                                    // Generate PDF (same as reprintBillById)
+                                    doc.setFontSize(10);
+                                    doc.setFont(undefined, 'bold');
+                                    doc.text('JP JEWELLERY', 105, 15, { align: 'center' });
+                                    doc.setFontSize(8);
+                                    doc.setFont(undefined, 'normal');
+                                    doc.text('2ND FLOOR, OLD NO.34, NEW NO.21, BOTHRA EMPORIUM', 105, 20, { align: 'center' });
+                                    doc.text('VEERAPPAN STREET, SOWCARPET', 105, 24, { align: 'center' });
+                                    doc.text('CHENNAI 600079 | 044-43593474', 105, 28, { align: 'center' });
+                                    doc.setFont(undefined, 'bold');
+                                    doc.text('TAX INVOICE', 105, 35, { align: 'center' });
+                                    doc.text('33AADFJ4897R1ZJ', 105, 39, { align: 'center' });
+                                    
+                                    doc.setFontSize(8);
+                                    doc.text('INVOICE No.:', 15, 48);
+                                    doc.setFont(undefined, 'normal');
+                                    doc.text(bill.billNo, 45, 48);
+                                    doc.setFont(undefined, 'bold');
+                                    doc.text('BILL DATE:', 150, 48);
+                                    doc.setFont(undefined, 'normal');
+                                    doc.text(formattedDate, 175, 48);
+                                    
+                                    doc.setFont(undefined, 'bold');
+                                    doc.setFontSize(9);
+                                    doc.text(customer.name.toUpperCase(), 15, 60);
+                                    doc.setFontSize(7);
+                                    doc.setFont(undefined, 'normal');
+                                    let yCustomer = 64;
+                                    if (customer.address1) {
+                                        doc.text(customer.address1, 15, yCustomer);
+                                        yCustomer += 4;
+                                    }
+                                    if (customer.address2) {
+                                        doc.text(customer.address2, 15, yCustomer);
+                                        yCustomer += 4;
+                                    }
+                                    if (customer.city) {
+                                        doc.text(customer.city, 15, yCustomer);
+                                        yCustomer += 4;
+                                    }
+                                    doc.text(`MOB: ${customer.mobile}`, 15, yCustomer);
+                                    
+                                    const tableStartY = Math.max(yCustomer + 8, 85);
+                                    const totalPCS = bill.items.length;
+                                    const tableData = bill.items.map((item, idx) => [
+                                        idx + 1,
+                                        item.name,
+                                        '711311',
+                                        totalPCS,
+                                        item.weight.toFixed(3),
+                                        item.purity.toFixed(1),
+                                        item.rate.toFixed(2),
+                                        item.amount.toFixed(2)
+                                    ]);
+                                    
+                                    doc.autoTable({
+                                        startY: tableStartY,
+                                        head: [['Sl', 'ITEM', 'HSN', 'PCS', 'Weight In Gms', 'Purity', 'Rate', 'TOTAL']],
+                                        body: tableData,
+                                        theme: 'grid',
+                                        headStyles: { fillColor: [220, 220, 220], textColor: 0, fontSize: 7, fontStyle: 'bold', halign: 'center', cellPadding: 2 },
+                                        bodyStyles: { fontSize: 7, cellPadding: 1.5 },
+                                        columnStyles: {
+                                            0: { cellWidth: 10, halign: 'center' },
+                                            1: { cellWidth: 60, halign: 'left' },
+                                            2: { cellWidth: 20, halign: 'center' },
+                                            3: { cellWidth: 15, halign: 'center' },
+                                            4: { cellWidth: 25, halign: 'right' },
+                                            5: { cellWidth: 20, halign: 'center' },
+                                            6: { cellWidth: 20, halign: 'right' },
+                                            7: { cellWidth: 25, halign: 'right' }
+                                        },
+                                        margin: { left: 15, right: 15 }
+                                    });
+                                    
+                                    const finalY = doc.lastAutoTable.finalY + 10;
+                                    const total = bill.total;
+                                    const cgst = bill.gst / 2;
+                                    const sgst = bill.gst / 2;
+                                    const netTotal = bill.netTotal;
+                                    
+                                    doc.setFontSize(8);
+                                    doc.setFont(undefined, 'bold');
+                                    doc.text('GST Value:', 150, finalY);
+                                    doc.setFont(undefined, 'normal');
+                                    doc.text(total.toFixed(2), 195, finalY, { align: 'right' });
+                                    doc.setFont(undefined, 'bold');
+                                    doc.text('CGST@1.50%:', 150, finalY + 5);
+                                    doc.setFont(undefined, 'normal');
+                                    doc.text(cgst.toFixed(2), 195, finalY + 5, { align: 'right' });
+                                    doc.setFont(undefined, 'bold');
+                                    doc.text('SGST@1.50%:', 150, finalY + 10);
+                                    doc.setFont(undefined, 'normal');
+                                    doc.text(sgst.toFixed(2), 195, finalY + 10, { align: 'right' });
+                                    doc.setFontSize(10);
+                                    doc.setFont(undefined, 'bold');
+                                    doc.text('Total Amount:', 150, finalY + 17);
+                                    doc.text(netTotal.toFixed(2), 195, finalY + 17, { align: 'right' });
+                                    
+                                    const footerY = finalY + 25;
+                                    doc.setFontSize(7);
+                                    doc.setFont(undefined, 'normal');
+                                    doc.text('BANK NAME: HDFC BANK', 15, footerY);
+                                    doc.text('AC NAME: JPJEWELLERY', 15, footerY + 4);
+                                    doc.text('AC NO: 50200016402896', 15, footerY + 8);
+                                    doc.text('IFSC CODE: HDFC0000214', 15, footerY + 12);
+                                    doc.setFont(undefined, 'bold');
+                                    doc.text('For JP JEWELLERY', 150, footerY + 10);
+                                    
+                                    const pdfBlob = doc.output('blob');
+                                    const pdfUrl = URL.createObjectURL(pdfBlob);
+                                    bill.pdfBlob = pdfBlob;
+                                    bill.pdfUrl = pdfUrl;
+                                }
+                                await printBillDirect(bill);
+                            }
+
+                            async function sendBillFromView() {
+                                const billId = document.getElementById('reprintBillIndex').value;
+                                if (!billId) return;
+                                const bill = savedBills.find(b => b.id === parseInt(billId));
+                                if (!bill) {
+                                    alert('Bill not found!');
+                                    return;
+                                }
+                                // Generate PDF blob if not exists (same logic as printBillFromView)
+                                if (!bill.pdfBlob && !bill.pdfUrl) {
+                                    // Regenerate PDF (code same as printBillFromView)
+                                    const { jsPDF } = window.jspdf;
+                                    const doc = new jsPDF('p', 'mm', 'a4');
+                                    const date = new Date(bill.date);
+                                    const formattedDate = date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
+                                    const customer = bill.customer;
+                                    
+                                    // ... (same PDF generation code as above)
+                                    doc.setFontSize(10);
+                                    doc.setFont(undefined, 'bold');
+                                    doc.text('JP JEWELLERY', 105, 15, { align: 'center' });
+                                    // ... (rest of PDF generation)
+                                    
+                                    const pdfBlob = doc.output('blob');
+                                    const pdfUrl = URL.createObjectURL(pdfBlob);
+                                    bill.pdfBlob = pdfBlob;
+                                    bill.pdfUrl = pdfUrl;
+                                }
+                                await sendBillToWhatsApp(bill);
+                            }
+
                             function reprintQuotationPDF() {
                                 if (!currentViewingQuotation) return;
 
@@ -8732,7 +9690,17 @@ function updateMCTypeLabel() {
                 return;
             }
 
-            transactions.forEach(txn => {
+            // Filter transactions based on user role (hide Cash-2 for non-admin users)
+            const isAdmin = currentUser.role === 'admin' || currentUser.role === 'super_admin' || currentUser.isMasterAdmin;
+            const filteredTransactions = transactions.filter(txn => {
+                // If transaction is Cash-2 and user is not admin, hide it
+                if (txn.type === 'cash_2' || (txn.cashType === 'cash_2') || (txn.isRestricted === true)) {
+                    return isAdmin; // Only show if admin
+                }
+                return true; // Show all other transactions
+            });
+
+            filteredTransactions.forEach(txn => {
                 const date = new Date(txn.date);
                 const row = document.createElement('tr');
                 row.className = 'border-b hover:bg-gray-50';
@@ -11213,7 +12181,37 @@ function closePaymentModal() {
         setCachedItem('accountBalances', accountBalances);
 
         closeModals();
+        
+        // Save products to API and sync
+        const savedProducts = [];
+        for (const product of bulkUploadPVData) {
+            try {
+                const savedProduct = await api.createProduct(product);
+                savedProducts.push(savedProduct || product);
+            } catch (error) {
+                console.error('Error saving product:', error);
+                // If barcode conflict, try to get existing product
+                if (error.message && error.message.includes('already exists')) {
+                    alert(`⚠️ Barcode ${product.barcode} already exists. Skipping...`);
+                }
+                savedProducts.push(product);
+            }
+        }
+        
         alert(`✅ PV Created Successfully!\n\nPV Number: ${pvNo}\nProducts Added: ${bulkUploadPVData.length}\nTotal Weight: ${totalWeight.toFixed(2)}g\nTotal Value: ₹${totalValue.toFixed(2)}\n\nStock updated in inventory.`);
+
+        // Auto-print barcodes after PV stock in
+        if (savedProducts.length === 1) {
+            // Single barcode: show confirmation, then print immediately
+            showConfirmDialog('Print Barcode', `Print barcode for ${savedProducts[0].barcode}?`, async () => {
+                await printBarcodesDirect(savedProducts);
+            });
+        } else if (savedProducts.length > 1) {
+            // Multiple barcodes: ask confirmation once, then print all
+            showConfirmDialog('Print Barcodes', `Print ${savedProducts.length} barcodes?`, async () => {
+                await printBarcodesDirect(savedProducts);
+            });
+        }
 
         // Refresh displays
         updateProductsTable();
@@ -12022,7 +13020,7 @@ function downloadAllCustomerLedgers() {
         updateTagSplitEntriesTable();
     }
 
-    function completeTagSplit() {
+    async function completeTagSplit() {
         if (!currentTagSplitProduct) {
             alert('⚠️ Scan a product before completing a tag split.');
             return;
@@ -12081,8 +13079,34 @@ function downloadAllCustomerLedgers() {
             products.splice(originalIndex, 1);
         }
 
-        // Add new products
-        products.push(...newProducts);
+        // Save new products to API first (with conflict checking)
+        const savedProducts = [];
+        for (const product of newProducts) {
+            try {
+                const savedProduct = await api.createProduct(product);
+                savedProducts.push(savedProduct || product);
+            } catch (error) {
+                console.error('Error saving split product:', error);
+                // If barcode conflict, generate new barcode
+                if (error.message && error.message.includes('already exists')) {
+                    // Generate new unique barcode
+                    const newBarcode = await generateUniqueBarcode();
+                    product.barcode = newBarcode;
+                    try {
+                        const savedProduct = await api.createProduct(product);
+                        savedProducts.push(savedProduct || product);
+                    } catch (retryError) {
+                        console.error('Error saving with new barcode:', retryError);
+                        savedProducts.push(product);
+                    }
+                } else {
+                    savedProducts.push(product);
+                }
+            }
+        }
+
+        // Add saved products to local array
+        products.push(...savedProducts);
 
         // Save to localStorage
         localStorage.setItem('products', JSON.stringify(products));
@@ -12097,29 +13121,42 @@ function downloadAllCustomerLedgers() {
             `✅ Tag Split Completed!\n\n` +
             `Original Barcode: ${originalBarcode}\n` +
             `Split into: ${tagSplitEntries.length} new items\n\n` +
-            `New Barcodes:\n${newProducts.map(p => `• ${p.barcode} (${p.avgWt.toFixed(3)}g, ${p.pcs}pcs)`).join('\n')}\n\n` +
+            `New Barcodes:\n${savedProducts.map(p => `• ${p.barcode} (${p.avgWt.toFixed(3)}g, ${p.pcs}pcs)`).join('\n')}\n\n` +
             (tagRemainingPcs > 0 ? `Remaining: ${tagRemainingWeight.toFixed(3)}g, ${tagRemainingPcs}pcs kept in original barcode ${originalBarcode}` : `Original product ${originalBarcode} fully split and removed`);
 
         alert(message);
 
-        // Ask to print barcodes
-        if (confirm('Do you want to print barcodes for the new split items?')) {
-            printTagSplitBarcodes(newProducts);
+        // Auto-print barcodes (direct printing, no new window)
+        if (savedProducts.length === 1) {
+            // Single barcode: show confirmation, then print immediately
+            if (confirm(`Print barcode for ${savedProducts[0].barcode}?`)) {
+                await printBarcodesDirect(savedProducts);
+            }
+        } else if (savedProducts.length > 1) {
+            // Multiple barcodes: ask confirmation once, then print all
+            if (confirm(`Print ${savedProducts.length} barcodes?`)) {
+                await printBarcodesDirect(savedProducts);
+            }
         }
 
         // Reset
         cancelTagSplit();
     }
 
-    function printTagSplitBarcodes(splitProducts) {
-        const printWindow = window.open('', '_blank');
-
-        if (!printWindow) {
-            alert('❌ Pop-up blocked! Please allow pop-ups for this site.');
-            return;
-        }
-
-        const barcodesHTML = splitProducts.map(product => `
+    // Direct barcode printing function (no new window, prints immediately)
+    async function printBarcodesDirect(productsToPrint) {
+        if (!productsToPrint || productsToPrint.length === 0) return;
+        
+        // Create hidden iframe for printing
+        const printFrame = document.createElement('iframe');
+        printFrame.style.position = 'absolute';
+        printFrame.style.width = '0';
+        printFrame.style.height = '0';
+        printFrame.style.border = 'none';
+        printFrame.style.opacity = '0';
+        document.body.appendChild(printFrame);
+        
+        const barcodesHTML = productsToPrint.map(product => `
         <div style="page-break-inside: avoid; margin-bottom: 20px; border: 2px solid #333; padding: 15px; width: 280px; background: white;">
             <div style="text-align: center; margin-bottom: 8px; font-family: 'Libre Barcode 128', cursive; font-size: 48px; letter-spacing: 3px;">
                 ${product.barcode}
@@ -12138,48 +13175,83 @@ function downloadAllCustomerLedgers() {
                     <span><strong>Metal:</strong> ${product.metalType.toUpperCase()}</span>
                     <span><strong>Purity:</strong> ${product.purity}%</span>
                 </div>
-                <div style="margin-top: 3px; font-size: 8px; color: #666;">
-                    Split from: ${product.splitFrom} | ${new Date(product.splitDate).toLocaleDateString('en-GB')}
-                </div>
+                ${product.splitFrom ? `<div style="margin-top: 3px; font-size: 8px; color: #666;">Split from: ${product.splitFrom} | ${new Date(product.splitDate).toLocaleDateString('en-GB')}</div>` : ''}
             </div>
         </div>
     `).join('');
 
-        printWindow.document.write(`
+        const printContent = `
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Split Tag Barcodes - Print</title>
+            <title>Barcodes - Print</title>
             <link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap" rel="stylesheet">
             <style>
-                body { 
-                    font-family: Arial, sans-serif; 
-                    padding: 20px; 
-                    background: #f5f5f5;
-                }
                 @media print {
                     body { 
                         padding: 0; 
+                        margin: 0;
                         background: white;
                     }
-                    .no-print { display: none; }
+                }
+                body { 
+                    font-family: Arial, sans-serif; 
+                    padding: 20px; 
+                    background: white;
                 }
             </style>
         </head>
         <body>
-            <h2 style="text-align: center; color: #333;" class="no-print">Split Product Barcodes</h2>
-            <button onclick="window.print()" class="no-print" 
-                style="margin: 15px auto; display: block; padding: 12px 24px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;">
-                🖨️ Print Barcodes
-            </button>
             <div style="display: flex; flex-wrap: wrap; gap: 15px; justify-content: center;">
                 ${barcodesHTML}
             </div>
         </body>
         </html>
-    `);
+        `;
 
-        printWindow.document.close();
+        // Write content to iframe
+        printFrame.contentDocument.open();
+        printFrame.contentDocument.write(printContent);
+        printFrame.contentDocument.close();
+        
+        // Wait for content to load, then print
+        printFrame.onload = () => {
+            setTimeout(() => {
+                printFrame.contentWindow.focus();
+                printFrame.contentWindow.print();
+                
+                // Remove iframe after printing
+                setTimeout(() => {
+                    if (printFrame.parentNode) {
+                        document.body.removeChild(printFrame);
+                    }
+                }, 1000);
+                
+                // Broadcast barcode print event for real-time sync
+                if (socket && isSocketConnected) {
+                    productsToPrint.forEach(product => {
+                        socket.emit('barcode-print-request', {
+                            tenantCode: currentUser.tenantCode,
+                            barcode: product.barcode,
+                            product: product
+                        });
+                    });
+                }
+            }, 500);
+        };
+        
+        // Fallback if onload doesn't fire
+        setTimeout(() => {
+            if (printFrame.contentDocument && printFrame.contentDocument.readyState === 'complete') {
+                printFrame.contentWindow.focus();
+                printFrame.contentWindow.print();
+                setTimeout(() => {
+                    if (printFrame.parentNode) {
+                        document.body.removeChild(printFrame);
+                    }
+                }, 1000);
+            }
+        }, 1000);
     }
 
     function cancelTagSplit() {

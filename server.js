@@ -413,6 +413,14 @@ app.post('/api/:tenant/products', async (req, res) => {
         const { tenant } = req.params;
         const product = req.body;
         
+        // Check if barcode already exists (conflict prevention)
+        if (product.barcode) {
+            const existingCheck = await queryTenant(tenant, 'SELECT id FROM products WHERE barcode = $1', [product.barcode]);
+            if (existingCheck.length > 0) {
+                return res.status(409).json({ error: `Barcode ${product.barcode} already exists` });
+            }
+        }
+        
         const query = `INSERT INTO products (
             barcode, sku, style_code, short_name, item_name, metal_type, size, weight,
             purity, rate, mc_rate, mc_type, pcs, box_charges, stone_charges, floor, avg_wt
@@ -428,8 +436,13 @@ app.post('/api/:tenant/products', async (req, res) => {
         
         const result = await queryTenant(tenant, query, params);
         broadcastToTenant(tenant, 'product-created', result[0]);
+        // Broadcast barcode print event for real-time sync
+        broadcastToTenant(tenant, 'barcode-printed', { barcode: product.barcode, product: result[0] });
         res.json(result[0]);
     } catch (error) {
+        if (error.message.includes('unique') || error.message.includes('duplicate')) {
+            return res.status(409).json({ error: `Barcode ${product.barcode} already exists` });
+        }
         res.status(500).json({ error: error.message });
     }
 });
@@ -785,12 +798,16 @@ app.post('/api/:tenant/ledger/transactions', async (req, res) => {
         const transaction = req.body;
         
         const query = `INSERT INTO ledger_transactions (
-            customer_id, transaction_type, amount, description, date
-        ) VALUES ($1, $2, $3, $4, $5) RETURNING *`;
+            customer_id, transaction_type, amount, description, date, cash_type, is_restricted, payment_method, reference, customer_name, customer_mobile, bill_no
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`;
         
         const params = [
             transaction.customerId || null, transaction.transactionType,
-            transaction.amount, transaction.description, transaction.date || new Date()
+            transaction.amount, transaction.description, transaction.date || new Date(),
+            transaction.cashType || null, transaction.isRestricted || false,
+            transaction.paymentMethod || 'Cash', transaction.reference || '',
+            transaction.customerName || '', transaction.customerMobile || '',
+            transaction.billNo || ''
         ];
         
         const result = await queryTenant(tenant, query, params);
@@ -1216,6 +1233,16 @@ io.on('connection', (socket) => {
                 delete tenantConnections[tenant];
             }
         });
+    });
+    
+    // Handle barcode print requests for real-time sync
+    socket.on('barcode-print-request', (data) => {
+        const { tenantCode, barcode, product } = data;
+        if (tenantCode) {
+            // Broadcast to all clients in the tenant (except sender)
+            socket.to(`tenant-${tenantCode}`).emit('barcode-printed', { barcode, product });
+            console.log(`📡 Barcode print sync: ${barcode} for tenant ${tenantCode}`);
+        }
     });
 });
 
