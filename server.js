@@ -1310,6 +1310,62 @@ app.post('/api/sync/pull', async (req, res) => {
     }
 });
 
+// ========== LABEL PRINTING API ==========
+const labelPrinter = require('./scripts/label-printer');
+
+// Print label endpoint
+app.post('/api/print/label', async (req, res) => {
+    try {
+        const { itemData, printerConfig } = req.body;
+        
+        if (!itemData) {
+            return res.status(400).json({ error: 'itemData is required' });
+        }
+        
+        if (!printerConfig) {
+            return res.status(400).json({ error: 'printerConfig is required' });
+        }
+        
+        // Validate printer config
+        if (!printerConfig.type || !printerConfig.address) {
+            return res.status(400).json({ error: 'printerConfig must have type and address' });
+        }
+        
+        // Print label
+        const success = await labelPrinter.printLabel(itemData, printerConfig);
+        
+        if (success) {
+            res.json({ 
+                success: true, 
+                message: 'Label printed successfully',
+                tspl: labelPrinter.generateTSPLLabel(itemData)
+            });
+        } else {
+            res.status(500).json({ error: 'Failed to print label' });
+        }
+    } catch (error) {
+        console.error('Label printing error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Generate TSPL command only (without printing)
+app.post('/api/print/label/tspl', async (req, res) => {
+    try {
+        const { itemData } = req.body;
+        
+        if (!itemData) {
+            return res.status(400).json({ error: 'itemData is required' });
+        }
+        
+        const tspl = labelPrinter.generateTSPLLabel(itemData);
+        res.json({ tspl, itemData });
+    } catch (error) {
+        console.error('TSPL generation error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 const DOMAIN = process.env.DOMAIN || 'localhost';
 const PROTOCOL = process.env.NODE_ENV === 'production' ? 'https' : 'http';
 const BASE_URL = process.env.NODE_ENV === 'production' 

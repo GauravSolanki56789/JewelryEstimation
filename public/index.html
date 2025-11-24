@@ -4467,72 +4467,139 @@ async function generateSalesBillPDF() {
         setCachedItem('savedQuotations', savedQuotations);
     }
 
-    // ========== PDF GENERATION (MATCHING SAMPLE) ==========
+    // ========== PDF GENERATION - EXACT FORMAT MATCHING REFERENCE PDFs ==========
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'a4');
 
     const formattedDate = date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
     const customer = selectedQuotationForBill.customer;
     const totalWeight = billItems.reduce((sum, item) => sum + item.weight, 0);
-    const totalPCS = billItems.length;
+    const totalPCS = billItems.reduce((sum, item) => sum + (item.pcs || 1), 0);
+    
+    // Determine if inter-state or intra-state based on customer GSTIN
+    // If customer GSTIN starts with "33" (Tamil Nadu), it's intra-state (CGST+SGST)
+    // Otherwise, it's inter-state (IGST)
+    const isInterState = customer.gstin && !customer.gstin.startsWith('33');
+    const roundOff = Math.round(netTotal) - netTotal;
 
-    // ========== HEADER ==========
-    doc.setFontSize(10);
-    doc.setFont(undefined, 'bold');
-    doc.text('JP JEWELLERY', 105, 15, { align: 'center' });
-
+    // ========== HEADER - EXACT FORMAT ==========
+    // GSTIN at top
     doc.setFontSize(8);
     doc.setFont(undefined, 'normal');
-    doc.text('2ND FLOOR, OLD NO.34, NEW NO.21, BOTHRA EMPORIUM', 105, 20, { align: 'center' });
-    doc.text('VEERAPPAN STREET, SOWCARPET', 105, 24, { align: 'center' });
-    doc.text('CHENNAI 600079 | 044-43593474', 105, 28, { align: 'center' });
-
-    doc.setFont(undefined, 'bold');
-    doc.text('TAX INVOICE', 105, 35, { align: 'center' });
-    doc.text('33AADFJ4897R1ZJ', 105, 39, { align: 'center' });
-
-    // ========== BILL INFO ==========
-    doc.setFontSize(8);
-    doc.text('INVOICE No.:', 15, 48);
-    doc.setFont(undefined, 'normal');
-    doc.text(billNo, 45, 48);
-
-    doc.setFont(undefined, 'bold');
-    doc.text('BILL DATE:', 150, 48);
-    doc.setFont(undefined, 'normal');
-    doc.text(formattedDate, 175, 48);
-
-    // ========== CUSTOMER INFO ==========
-    doc.setFont(undefined, 'bold');
+    doc.text('33AADFJ4897R1ZJ', 105, 10, { align: 'center' });
+    
+    // TAX INVOICE
     doc.setFontSize(9);
-    doc.text(customer.name.toUpperCase(), 15, 60);
-
+    doc.setFont(undefined, 'bold');
+    doc.text('TAX INVOICE', 105, 15, { align: 'center' });
+    
+    // Company name
+    doc.setFontSize(10);
+    doc.text('JP JEWELLERY', 105, 20, { align: 'center' });
+    
+    // Address
     doc.setFontSize(7);
     doc.setFont(undefined, 'normal');
-    let yCustomer = 64;
+    doc.text('2ND FLOOR,OLD NO.34,NEW NO.21,BOTHRA EMPORIUM VEERAPPAN STREET', 105, 25, { align: 'center' });
+    doc.text('CHENNAI 600079 044-43593474', 105, 29, { align: 'center' });
+    
+    // Invoice number and date on right
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'bold');
+    doc.text(`*${billNo}*`, 180, 10, { align: 'right' });
+    doc.text('INVOICE No.:', 15, 40);
+    doc.setFont(undefined, 'normal');
+    doc.text(billNo, 50, 40);
+    doc.setFont(undefined, 'bold');
+    doc.text('BILL DATE', 150, 40);
+    doc.setFont(undefined, 'normal');
+    doc.text(`: ${formattedDate}`, 175, 40);
+
+    // ========== CUSTOMER INFO - BILLED TO & SHIP TO ==========
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'bold');
+    doc.text('Billed To', 15, 50);
+    doc.text('Ship To', 100, 50);
+    
+    doc.setFontSize(7);
+    doc.setFont(undefined, 'normal');
+    let yBilled = 54;
+    doc.text('NAME :', 15, yBilled);
+    doc.setFont(undefined, 'bold');
+    doc.text(customer.name.toUpperCase(), 30, yBilled);
+    
+    yBilled += 4;
+    doc.setFont(undefined, 'normal');
+    doc.text('Address :', 15, yBilled);
+    let yAddr = yBilled;
     if (customer.address1) {
-        doc.text(customer.address1, 15, yCustomer);
-        yCustomer += 4;
+        doc.text(customer.address1, 30, yAddr);
+        yAddr += 3.5;
     }
     if (customer.address2) {
-        doc.text(customer.address2, 15, yCustomer);
-        yCustomer += 4;
+        doc.text(customer.address2, 30, yAddr);
+        yAddr += 3.5;
     }
     if (customer.city) {
-        doc.text(customer.city, 15, yCustomer);
-        yCustomer += 4;
+        doc.text(customer.city, 30, yAddr);
+        yAddr += 3.5;
     }
-    doc.text(`MOB: ${customer.mobile}`, 15, yCustomer);
+    if (customer.state) {
+        doc.text(`${customer.state} - ${customer.state === 'TAMIL NADU' ? '33' : (customer.gstin ? customer.gstin.substring(0, 2) : '')}`, 30, yAddr);
+        yAddr += 3.5;
+    }
+    if (customer.mobile) {
+        doc.text(`MOB: ${customer.mobile}`, 30, yAddr);
+        yAddr += 3.5;
+    }
+    if (customer.gstin) {
+        // Extract PAN from GSTIN (first 10 characters before last 3)
+        const pan = customer.gstin.substring(2, 12);
+        doc.text(`PAN NO: ${pan}`, 30, yAddr);
+        yAddr += 3.5;
+        doc.text(`GST NO: ${customer.gstin}`, 30, yAddr);
+    }
+    
+    // Ship To (same as Billed To for now)
+    let yShip = 54;
+    doc.text('NAME :', 100, yShip);
+    doc.setFont(undefined, 'bold');
+    doc.text(customer.name.toUpperCase(), 115, yShip);
+    
+    yShip += 4;
+    doc.setFont(undefined, 'normal');
+    doc.text('Address :', 100, yShip);
+    let yShipAddr = yShip;
+    if (customer.address1) {
+        doc.text(customer.address1, 115, yShipAddr);
+        yShipAddr += 3.5;
+    }
+    if (customer.address2) {
+        doc.text(customer.address2, 115, yShipAddr);
+        yShipAddr += 3.5;
+    }
+    if (customer.city) {
+        doc.text(customer.city, 115, yShipAddr);
+        yShipAddr += 3.5;
+    }
 
-    // ========== ITEMS TABLE ==========
-    const tableStartY = Math.max(yCustomer + 8, 85);
+    // ========== ITEMS TABLE - EXACT FORMAT ==========
+    const tableStartY = Math.max(yAddr + 5, yShipAddr + 5, 90);
 
     const tableData = billItems.map((item, idx) => {
+        // Determine HSN code based on item type
+        // 711311 for Silver Jewellery, 711411 for Silver Article
+        let hsnCode = '711311'; // Default
+        const itemNameUpper = (item.name || '').toUpperCase();
+        if (itemNameUpper.includes('ARTICLE') || itemNameUpper.includes('(EF)')) {
+            hsnCode = '711411';
+        }
+        
         return [
             idx + 1,
-            item.name,
-            '711311', // HSN Code
-            totalPCS,
+            item.name || item.shortName || 'SILVER JEWELLERY',
+            hsnCode,
+            (item.pcs || 1),
             item.weight.toFixed(3),
             item.purity.toFixed(1),
             item.rate.toFixed(2),
@@ -4542,7 +4609,7 @@ async function generateSalesBillPDF() {
 
     doc.autoTable({
         startY: tableStartY,
-        head: [['Sl', 'ITEM', 'HSN', 'PCS', 'Weight In Gms', 'Purity', 'Rate', 'TOTAL']],
+        head: [['Sl', 'ITEM', 'HSN', 'PCS', 'Weight In Gms', 'Purity', 'Rate', 'TOT']],
         body: tableData,
         theme: 'grid',
         headStyles: {
@@ -4570,45 +4637,56 @@ async function generateSalesBillPDF() {
         margin: { left: 15, right: 15 }
     });
 
-    // ========== TOTALS SECTION ==========
-    const finalY = doc.lastAutoTable.finalY + 10;
+    // ========== TOTALS SECTION - EXACT FORMAT ==========
+    const finalY = doc.lastAutoTable.finalY + 8;
 
+    // Total row
     doc.setFontSize(8);
-    doc.setFont(undefined, 'bold');
-    doc.text(`Total PCS: ${totalPCS}`, 15, finalY);
-    doc.text(`${totalWeight.toFixed(3)}`, 50, finalY);
-
+    doc.setFont(undefined, 'normal');
+    doc.text(totalPCS.toString(), 15, finalY);
+    doc.text(totalWeight.toFixed(3), 50, finalY);
+    
+    // Round off, GST Value, Tax, Total Amount (right aligned)
     const rightX = 150;
-    doc.text('GST Value:', rightX, finalY);
-    doc.setFont(undefined, 'normal');
-    doc.text(total.toFixed(2), 195, finalY, { align: 'right' });
-
-    doc.setFont(undefined, 'bold');
-    doc.text('CGST@1.50%:', rightX, finalY + 5);
-    doc.setFont(undefined, 'normal');
-    doc.text(cgst.toFixed(2), 195, finalY + 5, { align: 'right' });
-
-    doc.setFont(undefined, 'bold');
-    doc.text('SGST@1.50%:', rightX, finalY + 10);
-    doc.setFont(undefined, 'normal');
-    doc.text(sgst.toFixed(2), 195, finalY + 10, { align: 'right' });
-
+    doc.text('Round off:', rightX, finalY);
+    doc.text(roundOff.toFixed(2), 195, finalY, { align: 'right' });
+    
+    doc.text('GST Value:', rightX, finalY + 5);
+    doc.text(total.toFixed(2), 195, finalY + 5, { align: 'right' });
+    
+    if (isInterState) {
+        // Inter-state: IGST@3%
+        doc.text('IGST@3%:', rightX, finalY + 10);
+        doc.text(gst.toFixed(2), 195, finalY + 10, { align: 'right' });
+    } else {
+        // Intra-state: CGST@1.50% and SGST@1.50%
+        doc.text('CGST@1.50%:', rightX, finalY + 10);
+        doc.text(cgst.toFixed(2), 195, finalY + 10, { align: 'right' });
+        
+        doc.text('SGST@1.50%:', rightX, finalY + 15);
+        doc.text(sgst.toFixed(2), 195, finalY + 15, { align: 'right' });
+    }
+    
     doc.setFontSize(10);
     doc.setFont(undefined, 'bold');
-    doc.text('Total Amount:', rightX, finalY + 17);
-    doc.text(netTotal.toFixed(2), 195, finalY + 17, { align: 'right' });
+    const totalY = isInterState ? finalY + 15 : finalY + 20;
+    doc.text('Total Amount:', rightX, totalY);
+    doc.text(netTotal.toFixed(2), 195, totalY, { align: 'right' });
 
-    // ========== FOOTER ==========
-    const footerY = finalY + 25;
+    // ========== FOOTER - EXACT FORMAT ==========
+    const footerY = totalY + 10;
     doc.setFontSize(7);
     doc.setFont(undefined, 'normal');
-    doc.text('BANK NAME: HDFC BANK', 15, footerY);
-    doc.text('AC NAME: JPJEWELLERY', 15, footerY + 4);
-    doc.text('AC NO: 50200016402896', 15, footerY + 8);
-    doc.text('IFSC CODE: HDFC0000214', 15, footerY + 12);
-
+    doc.text('BANK NAME : HDFC BANK', 15, footerY);
+    doc.text('AC NAME : JPJEWELLERY', 15, footerY + 4);
+    doc.text('AC NO : 50200016402896.', 15, footerY + 8);
+    doc.text('IFSC CODE : HDFC0000214.', 15, footerY + 12);
+    doc.text('BRANCH : TIRUPATHI AIR BY PASS', 15, footerY + 16);
+    
+    doc.text('CUSTOMER SIGNATURE', 15, footerY + 22);
+    
     doc.setFont(undefined, 'bold');
-    doc.text('For JP JEWELLERY', 150, footerY + 10);
+    doc.text('For JP JEWELLERY', 150, footerY + 12);
 
     // Save PDF to blob for printing and WhatsApp
     const pdfBlob = doc.output('blob');
@@ -7697,8 +7775,10 @@ function updateMCTypeLabel() {
     const doc = new jsPDF('p', 'mm', 'a4');
 
     const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
-    const totalMC = items.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
-    const totalPCS = items.length;
+    const totalMC = items.reduce((sum, item) => {
+        const mcAmount = item.mcType === 'PieceCost' ? item.mcRate : (item.mcRate * item.weight);
+        return sum + mcAmount;
+    }, 0);
     const date = new Date().toLocaleDateString('en-GB');
 
     // Customer info
@@ -7748,42 +7828,56 @@ function updateMCTypeLabel() {
         doc.setTextColor(0, 0, 0);
     }
 
-    // Items table
+    // Items table - EXACT FORMAT MATCHING REFERENCE PDFs (Q8862.pdf, Q8925.pdf)
     const tableStartY = yPos + 8;
 
+    // Calculate totals for grand total section
+    const totalPCS = items.reduce((sum, item) => sum + (item.pcs || 1), 0);
+    const grandTotalWeight = totalWeight.toFixed(2);
+
     const tableData = items.map((item, idx) => {
-        const itemTotal = (item.rate + item.mcRate) * item.weight;
+        // Calculate amount: (Rate + MC/gm) * Weight + Box Charges + Stone Charges
+        const mcAmount = item.mcType === 'PieceCost' ? item.mcRate : (item.mcRate * item.weight);
+        const baseAmount = (item.rate * item.weight) + mcAmount;
+        const itemTotal = baseAmount + (item.boxCharges || 0) + (item.stoneCharges || 0);
+        const avgWt = item.avgWt || item.weight;
+        const pcs = item.pcs || 1;
+        const purity = item.purity || 100;
 
         return [
-            idx + 1,
-            item.sku || '-',
-            item.styleCode || '-',
-            item.name,
-            item.size || '-',
-            item.weight.toFixed(2),
-            item.weight.toFixed(2),
-            item.purity.toFixed(1),
-            item.weight.toFixed(2),
-            '1',
-            item.mcRate.toFixed(2),
-            item.rate.toFixed(2),
-            itemTotal.toFixed(2)
+            idx + 1,                                    // SKU #
+            item.sku || '-',                           // ITEM (SKU)
+            item.styleCode || '-',                     // STYLE CODE
+            item.shortName || item.name || '-',        // Short Name
+            item.size || '-',                          // SIZE
+            pcs,                                       // PCS
+            item.weight.toFixed(2),                   // G.WT (Gross Weight)
+            item.weight.toFixed(2),                   // NET.WT (Net Weight)
+            purity.toFixed(0),                        // % (Purity percentage)
+            purity.toFixed(1),                        // Purs (Purity decimal)
+            avgWt.toFixed(2),                         // AVG.WT (Average Weight)
+            (item.boxCharges || 0).toFixed(0),        // Box
+            item.mcRate.toFixed(2),                   // MC/gm
+            item.rate.toFixed(2),                     // RATE
+            itemTotal.toFixed(2)                      // Amount
         ];
     });
 
     doc.autoTable({
         startY: tableStartY,
         head: [[
-            '#',
-            'SKU',
+            'SKU #',
+            'ITEM',
             'STYLE CODE',
             'Short Name',
             'SIZE',
-            'NET.WT',
-            'AVG.WT',
-            '% Pure',
-            'G.WT',
             'PCS',
+            'G.WT',
+            'NET.WT',
+            '%',
+            'Purs',
+            'AVG.WT',
+            'Box',
             'MC/gm',
             'RATE',
             'Amount'
@@ -7805,76 +7899,69 @@ function updateMCTypeLabel() {
             valign: 'middle'
         },
         columnStyles: {
-            0: { cellWidth: 8, halign: 'center' },
-            1: { cellWidth: 20, halign: 'left', fontSize: 6.5 },
-            2: { cellWidth: 16, halign: 'center', fontSize: 6.5 },
-            3: { cellWidth: 38, halign: 'left' },
-            4: { cellWidth: 12, halign: 'center' },
-            5: { cellWidth: 13, halign: 'right' },
-            6: { cellWidth: 13, halign: 'right' },
-            7: { cellWidth: 11, halign: 'center' },
-            8: { cellWidth: 11, halign: 'right' },
-            9: { cellWidth: 9, halign: 'center' },
-            10: { cellWidth: 12, halign: 'right' },
-            11: { cellWidth: 12, halign: 'right' },
-            12: { cellWidth: 16, halign: 'right' }
+            0: { cellWidth: 8, halign: 'center' },      // SKU #
+            1: { cellWidth: 18, halign: 'left', fontSize: 6.5 },  // ITEM
+            2: { cellWidth: 16, halign: 'center', fontSize: 6.5 },  // STYLE CODE
+            3: { cellWidth: 30, halign: 'left', fontSize: 6.5 },    // Short Name
+            4: { cellWidth: 10, halign: 'center', fontSize: 6.5 },  // SIZE
+            5: { cellWidth: 8, halign: 'center' },      // PCS
+            6: { cellWidth: 10, halign: 'right' },      // G.WT
+            7: { cellWidth: 10, halign: 'right' },      // NET.WT
+            8: { cellWidth: 8, halign: 'center' },     // %
+            9: { cellWidth: 8, halign: 'right' },       // Purs
+            10: { cellWidth: 10, halign: 'right' },     // AVG.WT
+            11: { cellWidth: 8, halign: 'right' },      // Box
+            12: { cellWidth: 10, halign: 'right' },     // MC/gm
+            13: { cellWidth: 10, halign: 'right' },     // RATE
+            14: { cellWidth: 12, halign: 'right' }       // Amount
         },
         margin: { left: 15, right: 14 }
     });
 
-    // Grand total section
+    // Grand Total section - EXACT FORMAT MATCHING REFERENCE PDFs
     const finalY = doc.lastAutoTable.finalY + 8;
 
-    doc.setDrawColor(0);
-    doc.setLineWidth(0.5);
-    doc.rect(15, finalY, 180, 25);
-    doc.line(105, finalY, 105, finalY + 25);
-
-    // Left side
+    // Grand Total row - matching reference format exactly
     doc.setFontSize(8);
     doc.setFont(undefined, 'bold');
-    doc.text('COUNT:', 18, finalY + 6);
-    doc.setFont(undefined, 'normal');
-    doc.text(totalPCS.toString(), 45, finalY + 6);
-
-    doc.setFont(undefined, 'bold');
-    doc.text('Total Weight:', 18, finalY + 12);
-    doc.setFont(undefined, 'normal');
-    doc.text(`${totalWeight.toFixed(2)} gm`, 45, finalY + 12);
-
-    doc.setFont(undefined, 'bold');
-    doc.text('MC:', 18, finalY + 18);
-    doc.setFont(undefined, 'normal');
-    doc.text(totalMC.toFixed(2), 45, finalY + 18);
-
-    // Right side
-    doc.setFontSize(9);
-    doc.setFont(undefined, 'bold');
-    doc.text('GRAND TOTAL', 110, finalY + 5);
-
-    doc.setFontSize(8);
-    doc.text('TOTAL:', 110, finalY + 11);
-    doc.setFont(undefined, 'normal');
-    doc.text(total.toFixed(2), 190, finalY + 11, { align: 'right' });
-
-    doc.setFont(undefined, 'bold');
-    doc.text('GST:', 110, finalY + 16);
-    doc.setFont(undefined, 'normal');
-    doc.text(gst.toFixed(2), 190, finalY + 16, { align: 'right' });
-
-    doc.setFont(undefined, 'bold');
-    doc.text('NET TOTAL:', 110, finalY + 21);
-    doc.setFont(undefined, 'normal');
-    doc.text(netTotal.toFixed(2), 190, finalY + 21, { align: 'right' });
+    doc.text('GRAND TOTAL', 15, finalY + 5);
     
-    // Add discount and advance if applicable
-    let yOffset = 26;
+    // PCS count
+    doc.setFont(undefined, 'normal');
+    doc.text(totalPCS.toString(), 50, finalY + 5);
+    
+    // Empty space
+    doc.text('', 70, finalY + 5);
+    
+    // Total weight
+    doc.text(grandTotalWeight, 90, finalY + 5);
+    
+    // Grand Total amount (right aligned in Amount column)
+    doc.text(total.toFixed(2), 195, finalY + 5, { align: 'right' });
+
+    // GST row (empty cells except amount)
+    doc.text('', 15, finalY + 10);
+    doc.text('', 50, finalY + 10);
+    doc.text('', 70, finalY + 10);
+    doc.text('', 90, finalY + 10);
+    doc.text(gst.toFixed(2), 195, finalY + 10, { align: 'right' });
+
+    // Final Total row (empty cells except amount)
+    doc.text('', 15, finalY + 15);
+    doc.text('', 50, finalY + 15);
+    doc.text('', 70, finalY + 15);
+    doc.text('', 90, finalY + 15);
+    doc.setFont(undefined, 'bold');
+    doc.text(netTotal.toFixed(2), 195, finalY + 15, { align: 'right' });
+
+    // Add discount and advance if applicable (below final total, before footer)
+    let yOffset = finalY + 20;
     if (discount > 0) {
         doc.setFont(undefined, 'bold');
         doc.setTextColor(220, 53, 69);
-        doc.text('DISCOUNT:', 110, finalY + yOffset);
+        doc.text('DISCOUNT:', 15, yOffset);
         doc.setFont(undefined, 'normal');
-        doc.text(`-${discount.toFixed(2)}`, 190, finalY + yOffset, { align: 'right' });
+        doc.text(`-${discount.toFixed(2)}`, 195, yOffset, { align: 'right' });
         doc.setTextColor(0, 0, 0);
         yOffset += 5;
     }
@@ -7882,9 +7969,9 @@ function updateMCTypeLabel() {
     if (advance > 0) {
         doc.setFont(undefined, 'bold');
         doc.setTextColor(0, 123, 255);
-        doc.text('ADVANCE:', 110, finalY + yOffset);
+        doc.text('ADVANCE:', 15, yOffset);
         doc.setFont(undefined, 'normal');
-        doc.text(`+${advance.toFixed(2)}`, 190, finalY + yOffset, { align: 'right' });
+        doc.text(`+${advance.toFixed(2)}`, 195, yOffset, { align: 'right' });
         doc.setTextColor(0, 0, 0);
         yOffset += 5;
     }
@@ -7892,11 +7979,20 @@ function updateMCTypeLabel() {
     if (discount > 0 || advance > 0) {
         doc.setFont(undefined, 'bold');
         doc.setTextColor(0, 128, 0);
-        doc.text('FINAL AMOUNT:', 110, finalY + yOffset);
+        doc.text('FINAL AMOUNT:', 15, yOffset);
         doc.setFont(undefined, 'bold');
-        doc.text(finalAmount.toFixed(2), 190, finalY + yOffset, { align: 'right' });
+        doc.text(finalAmount.toFixed(2), 195, yOffset, { align: 'right' });
         doc.setTextColor(0, 0, 0);
+        yOffset += 5;
     }
+    
+    // Footer section - PREPAIRED BY, COUNT BY, CHECKED BY
+    const footerY = yOffset + 3;
+    doc.setFontSize(7);
+    doc.setFont(undefined, 'normal');
+    doc.text('PREPAIRED BY', 15, footerY);
+    doc.text('COUNT BY', 80, footerY);
+    doc.text('CHECKED BY', 145, footerY);
 
     doc.save(`Quotation_${quotationNo}_${date.replace(/\//g, '-')}.pdf`);
 
@@ -9058,92 +9154,138 @@ function updateMCTypeLabel() {
                                 doc.setFont(undefined, 'normal');
                                 doc.text(date, 180, 20);
 
-                                // Items table
+                                // Items table - EXACT FORMAT MATCHING REFERENCE PDFs
                                 const tableStartY = yPos + 8;
+                                const totalPCS = q.items.reduce((sum, item) => sum + (item.pcs || 1), 0);
+                                const totalWeight = q.items.reduce((sum, item) => sum + item.weight, 0);
+                                const grandTotalWeight = totalWeight.toFixed(2);
+
                                 const tableData = q.items.map((item, idx) => {
-    // CORRECT CALCULATION: (Rate + MC) × Weight
-    const itemTotal = (item.rate + item.mcRate) * item.weight;
-    
-    return [
-        idx + 1,
-        item.sku || '-',
-        item.styleCode || '-',
-        item.name,
-        item.size || '-',
-        item.weight.toFixed(2),
-        item.weight.toFixed(2),
-        item.purity.toFixed(0),
-        item.weight.toFixed(2),
-        '1',
-        item.mcRate.toFixed(2),
-        item.rate.toFixed(0),
-        itemTotal.toFixed(2)
-    ];
-});
+                                    // Calculate amount: (Rate + MC/gm) * Weight + Box Charges + Stone Charges
+                                    const mcAmount = item.mcType === 'PieceCost' ? item.mcRate : (item.mcRate * item.weight);
+                                    const baseAmount = (item.rate * item.weight) + mcAmount;
+                                    const itemTotal = baseAmount + (item.boxCharges || 0) + (item.stoneCharges || 0);
+                                    const avgWt = item.avgWt || item.weight;
+                                    const pcs = item.pcs || 1;
+                                    const purity = item.purity || 100;
+
+                                    return [
+                                        idx + 1,                                    // SKU #
+                                        item.sku || '-',                           // ITEM (SKU)
+                                        item.styleCode || '-',                     // STYLE CODE
+                                        item.shortName || item.name || '-',        // Short Name
+                                        item.size || '-',                          // SIZE
+                                        pcs,                                       // PCS
+                                        item.weight.toFixed(2),                   // G.WT (Gross Weight)
+                                        item.weight.toFixed(2),                   // NET.WT (Net Weight)
+                                        purity.toFixed(0),                        // % (Purity percentage)
+                                        purity.toFixed(1),                        // Purs (Purity decimal)
+                                        avgWt.toFixed(2),                         // AVG.WT (Average Weight)
+                                        (item.boxCharges || 0).toFixed(0),        // Box
+                                        item.mcRate.toFixed(2),                   // MC/gm
+                                        item.rate.toFixed(2),                     // RATE
+                                        itemTotal.toFixed(2)                      // Amount
+                                    ];
+                                });
 
                                 doc.autoTable({
                                     startY: tableStartY,
-                                    head: [['#', 'SKU', 'STYLE CODE', 'Short Name', 'SIZE', 'NET.WT', 'AVG.WT', '% Pure', 'G.WT', 'PCS', 'MC/gm', 'RATE', 'Amount']],
+                                    head: [[
+                                        'SKU #',
+                                        'ITEM',
+                                        'STYLE CODE',
+                                        'Short Name',
+                                        'SIZE',
+                                        'PCS',
+                                        'G.WT',
+                                        'NET.WT',
+                                        '%',
+                                        'Purs',
+                                        'AVG.WT',
+                                        'Box',
+                                        'MC/gm',
+                                        'RATE',
+                                        'Amount'
+                                    ]],
                                     body: tableData,
                                     theme: 'grid',
-                                    headStyles: { fillColor: [211, 211, 211], textColor: 0, fontSize: 7, fontStyle: 'bold', halign: 'center', cellPadding: 1.5 },
-                                    bodyStyles: { fontSize: 7, cellPadding: 1 },
+                                    headStyles: {
+                                        fillColor: [211, 211, 211],
+                                        textColor: 0,
+                                        fontSize: 7,
+                                        fontStyle: 'bold',
+                                        halign: 'center',
+                                        valign: 'middle',
+                                        cellPadding: 1.5
+                                    },
+                                    bodyStyles: {
+                                        fontSize: 7,
+                                        cellPadding: 1,
+                                        valign: 'middle'
+                                    },
                                     columnStyles: {
-                                        0: { cellWidth: 8, halign: 'center' },
-                                        1: { cellWidth: 20, halign: 'left', fontSize: 6.5 },
-                                        2: { cellWidth: 16, halign: 'center', fontSize: 6.5 },
-                                        3: { cellWidth: 38, halign: 'left' },
-                                        4: { cellWidth: 12, halign: 'center' },
-                                        5: { cellWidth: 13, halign: 'right' },
-                                        6: { cellWidth: 13, halign: 'right' },
-                                        7: { cellWidth: 11, halign: 'center' },
-                                        8: { cellWidth: 11, halign: 'right' },
-                                        9: { cellWidth: 9, halign: 'center' },
-                                        10: { cellWidth: 12, halign: 'right' },
-                                        11: { cellWidth: 12, halign: 'right' },
-                                        12: { cellWidth: 16, halign: 'right' }
+                                        0: { cellWidth: 8, halign: 'center' },      // SKU #
+                                        1: { cellWidth: 18, halign: 'left', fontSize: 6.5 },  // ITEM
+                                        2: { cellWidth: 16, halign: 'center', fontSize: 6.5 },  // STYLE CODE
+                                        3: { cellWidth: 30, halign: 'left', fontSize: 6.5 },    // Short Name
+                                        4: { cellWidth: 10, halign: 'center', fontSize: 6.5 },  // SIZE
+                                        5: { cellWidth: 8, halign: 'center' },      // PCS
+                                        6: { cellWidth: 10, halign: 'right' },      // G.WT
+                                        7: { cellWidth: 10, halign: 'right' },      // NET.WT
+                                        8: { cellWidth: 8, halign: 'center' },     // %
+                                        9: { cellWidth: 8, halign: 'right' },       // Purs
+                                        10: { cellWidth: 10, halign: 'right' },     // AVG.WT
+                                        11: { cellWidth: 8, halign: 'right' },      // Box
+                                        12: { cellWidth: 10, halign: 'right' },     // MC/gm
+                                        13: { cellWidth: 10, halign: 'right' },     // RATE
+                                        14: { cellWidth: 12, halign: 'right' }       // Amount
                                     },
                                     margin: { left: 15, right: 14 }
                                 });
 
-                                // Totals section
+                                // Grand Total section - EXACT FORMAT MATCHING REFERENCE PDFs
                                 const finalY = doc.lastAutoTable.finalY + 8;
-                                const totalWeight = q.items.reduce((sum, item) => sum + item.weight, 0);
-                                const totalMC = q.items.reduce((sum, item) => sum + (item.weight * item.mcRate), 0);
 
-                                doc.setDrawColor(0);
-                                doc.setLineWidth(0.5);
-                                doc.rect(15, finalY, 180, 25);
-                                doc.line(105, finalY, 105, finalY + 25);
-
+                                // Grand Total row - matching reference format exactly
                                 doc.setFontSize(8);
                                 doc.setFont(undefined, 'bold');
-                                doc.text('COUNT:', 18, finalY + 6);
+                                doc.text('GRAND TOTAL', 15, finalY + 5);
+                                
+                                // PCS count
                                 doc.setFont(undefined, 'normal');
-                                doc.text(q.items.length.toString(), 45, finalY + 6);
-                                doc.setFont(undefined, 'bold');
-                                doc.text('Total Weight:', 18, finalY + 12);
-                                doc.setFont(undefined, 'normal');
-                                doc.text(`${totalWeight.toFixed(2)} gm`, 45, finalY + 12);
-                                doc.setFont(undefined, 'bold');
-                                doc.text('MC:', 18, finalY + 18);
-                                doc.setFont(undefined, 'normal');
-                                doc.text(totalMC.toFixed(2), 45, finalY + 18);
+                                doc.text(totalPCS.toString(), 50, finalY + 5);
+                                
+                                // Empty space
+                                doc.text('', 70, finalY + 5);
+                                
+                                // Total weight
+                                doc.text(grandTotalWeight, 90, finalY + 5);
+                                
+                                // Grand Total amount (right aligned in Amount column)
+                                doc.text(q.total.toFixed(2), 195, finalY + 5, { align: 'right' });
 
-                                doc.setFontSize(9);
+                                // GST row (empty cells except amount)
+                                doc.text('', 15, finalY + 10);
+                                doc.text('', 50, finalY + 10);
+                                doc.text('', 70, finalY + 10);
+                                doc.text('', 90, finalY + 10);
+                                doc.text(q.gst.toFixed(2), 195, finalY + 10, { align: 'right' });
+
+                                // Final Total row (empty cells except amount)
+                                doc.text('', 15, finalY + 15);
+                                doc.text('', 50, finalY + 15);
+                                doc.text('', 70, finalY + 15);
+                                doc.text('', 90, finalY + 15);
                                 doc.setFont(undefined, 'bold');
-                                doc.text('GRAND TOTAL', 110, finalY + 5);
-                                doc.setFontSize(8);
-                                doc.text('TOTAL:', 110, finalY + 11);
+                                doc.text(q.netTotal.toFixed(2), 195, finalY + 15, { align: 'right' });
+
+                                // Footer section - PREPAIRED BY, COUNT BY, CHECKED BY
+                                const footerY = finalY + 20;
+                                doc.setFontSize(7);
                                 doc.setFont(undefined, 'normal');
-                                doc.text(q.total.toFixed(2), 190, finalY + 11, { align: 'right' });
-                                doc.setFont(undefined, 'bold');
-                                doc.text('GST:', 110, finalY + 16);
-                                doc.setFont(undefined, 'normal');
-                                doc.text(q.gst.toFixed(2), 190, finalY + 16, { align: 'right' });
-                                doc.setFont(undefined, 'bold');
-                                doc.text('NET TOTAL:', 110, finalY + 21);
-                                doc.text(q.netTotal.toFixed(2), 190, finalY + 21, { align: 'right' });
+                                doc.text('PREPAIRED BY', 15, footerY);
+                                doc.text('COUNT BY', 80, footerY);
+                                doc.text('CHECKED BY', 145, footerY);
 
                                 doc.save(`Quotation_${q.quotationNo}_REPRINT.pdf`);
                                 alert('Quotation PDF downloaded!');
@@ -9361,7 +9503,7 @@ function updateMCTypeLabel() {
         return;
     }
     
-    // Generate PDF using same logic as sales bill
+    // Generate PDF using same logic as sales bill - EXACT FORMAT
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'a4');
 
@@ -9369,73 +9511,134 @@ function updateMCTypeLabel() {
     const formattedDate = date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
     const customer = bill.customer;
     const totalWeight = bill.items.reduce((sum, item) => sum + item.weight, 0);
-    const totalPCS = bill.items.length;
+    const totalPCS = bill.items.reduce((sum, item) => sum + (item.pcs || 1), 0);
+    
+    // Determine if inter-state or intra-state
+    const isInterState = customer.gstin && !customer.gstin.startsWith('33');
+    const roundOff = Math.round(bill.netTotal) - bill.netTotal;
+    const cgst = bill.gst / 2;
+    const sgst = bill.gst / 2;
 
-    // Header
-    doc.setFontSize(10);
-    doc.setFont(undefined, 'bold');
-    doc.text('JP JEWELLERY', 105, 15, { align: 'center' });
-
+    // ========== HEADER - EXACT FORMAT ==========
     doc.setFontSize(8);
     doc.setFont(undefined, 'normal');
-    doc.text('2ND FLOOR, OLD NO.34, NEW NO.21, BOTHRA EMPORIUM', 105, 20, { align: 'center' });
-    doc.text('VEERAPPAN STREET, SOWCARPET', 105, 24, { align: 'center' });
-    doc.text('CHENNAI 600079 | 044-43593474', 105, 28, { align: 'center' });
-
-    doc.setFont(undefined, 'bold');
-    doc.text('TAX INVOICE', 105, 35, { align: 'center' });
-    doc.text('33AADFJ4897R1ZJ', 105, 39, { align: 'center' });
-
-    // Bill Info
-    doc.setFontSize(8);
-    doc.text('INVOICE No.:', 15, 48);
-    doc.setFont(undefined, 'normal');
-    doc.text(bill.billNo, 45, 48);
-
-    doc.setFont(undefined, 'bold');
-    doc.text('BILL DATE:', 150, 48);
-    doc.setFont(undefined, 'normal');
-    doc.text(formattedDate, 175, 48);
-
-    // Customer Info
-    doc.setFont(undefined, 'bold');
+    doc.text('33AADFJ4897R1ZJ', 105, 10, { align: 'center' });
+    
     doc.setFontSize(9);
-    doc.text(customer.name.toUpperCase(), 15, 60);
-
+    doc.setFont(undefined, 'bold');
+    doc.text('TAX INVOICE', 105, 15, { align: 'center' });
+    
+    doc.setFontSize(10);
+    doc.text('JP JEWELLERY', 105, 20, { align: 'center' });
+    
     doc.setFontSize(7);
     doc.setFont(undefined, 'normal');
-    let yCustomer = 64;
+    doc.text('2ND FLOOR,OLD NO.34,NEW NO.21,BOTHRA EMPORIUM VEERAPPAN STREET', 105, 25, { align: 'center' });
+    doc.text('CHENNAI 600079 044-43593474', 105, 29, { align: 'center' });
+    
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'bold');
+    doc.text(`*${bill.billNo}*`, 180, 10, { align: 'right' });
+    doc.text('INVOICE No.:', 15, 40);
+    doc.setFont(undefined, 'normal');
+    doc.text(bill.billNo, 50, 40);
+    doc.setFont(undefined, 'bold');
+    doc.text('BILL DATE', 150, 40);
+    doc.setFont(undefined, 'normal');
+    doc.text(`: ${formattedDate}`, 175, 40);
+
+    // ========== CUSTOMER INFO - BILLED TO & SHIP TO ==========
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'bold');
+    doc.text('Billed To', 15, 50);
+    doc.text('Ship To', 100, 50);
+    
+    doc.setFontSize(7);
+    doc.setFont(undefined, 'normal');
+    let yBilled = 54;
+    doc.text('NAME :', 15, yBilled);
+    doc.setFont(undefined, 'bold');
+    doc.text(customer.name.toUpperCase(), 30, yBilled);
+    
+    yBilled += 4;
+    doc.setFont(undefined, 'normal');
+    doc.text('Address :', 15, yBilled);
+    let yAddr = yBilled;
     if (customer.address1) {
-        doc.text(customer.address1, 15, yCustomer);
-        yCustomer += 4;
+        doc.text(customer.address1, 30, yAddr);
+        yAddr += 3.5;
     }
     if (customer.address2) {
-        doc.text(customer.address2, 15, yCustomer);
-        yCustomer += 4;
+        doc.text(customer.address2, 30, yAddr);
+        yAddr += 3.5;
     }
     if (customer.city) {
-        doc.text(customer.city, 15, yCustomer);
-        yCustomer += 4;
+        doc.text(customer.city, 30, yAddr);
+        yAddr += 3.5;
     }
-    doc.text(`MOB: ${customer.mobile}`, 15, yCustomer);
+    if (customer.state) {
+        doc.text(`${customer.state} - ${customer.state === 'TAMIL NADU' ? '33' : (customer.gstin ? customer.gstin.substring(0, 2) : '')}`, 30, yAddr);
+        yAddr += 3.5;
+    }
+    if (customer.mobile) {
+        doc.text(`MOB: ${customer.mobile}`, 30, yAddr);
+        yAddr += 3.5;
+    }
+    if (customer.gstin) {
+        const pan = customer.gstin.substring(2, 12);
+        doc.text(`PAN NO: ${pan}`, 30, yAddr);
+        yAddr += 3.5;
+        doc.text(`GST NO: ${customer.gstin}`, 30, yAddr);
+    }
+    
+    // Ship To
+    let yShip = 54;
+    doc.text('NAME :', 100, yShip);
+    doc.setFont(undefined, 'bold');
+    doc.text(customer.name.toUpperCase(), 115, yShip);
+    
+    yShip += 4;
+    doc.setFont(undefined, 'normal');
+    doc.text('Address :', 100, yShip);
+    let yShipAddr = yShip;
+    if (customer.address1) {
+        doc.text(customer.address1, 115, yShipAddr);
+        yShipAddr += 3.5;
+    }
+    if (customer.address2) {
+        doc.text(customer.address2, 115, yShipAddr);
+        yShipAddr += 3.5;
+    }
+    if (customer.city) {
+        doc.text(customer.city, 115, yShipAddr);
+        yShipAddr += 3.5;
+    }
 
-    // Items Table
-    const tableStartY = Math.max(yCustomer + 8, 85);
+    // ========== ITEMS TABLE ==========
+    const tableStartY = Math.max(yAddr + 5, yShipAddr + 5, 90);
 
-    const tableData = bill.items.map((item, idx) => [
-        idx + 1,
-        item.name,
-        '711311',
-        totalPCS,
-        item.weight.toFixed(3),
-        item.purity.toFixed(1),
-        item.rate.toFixed(2),
-        item.amount.toFixed(2)
-    ]);
+    const tableData = bill.items.map((item, idx) => {
+        let hsnCode = '711311';
+        const itemNameUpper = (item.name || '').toUpperCase();
+        if (itemNameUpper.includes('ARTICLE') || itemNameUpper.includes('(EF)')) {
+            hsnCode = '711411';
+        }
+        
+        return [
+            idx + 1,
+            item.name || item.shortName || 'SILVER JEWELLERY',
+            hsnCode,
+            (item.pcs || 1),
+            item.weight.toFixed(3),
+            item.purity.toFixed(1),
+            item.rate.toFixed(2),
+            item.amount.toFixed(2)
+        ];
+    });
 
     doc.autoTable({
         startY: tableStartY,
-        head: [['Sl', 'ITEM', 'HSN', 'PCS', 'Weight In Gms', 'Purity', 'Rate', 'TOTAL']],
+        head: [['Sl', 'ITEM', 'HSN', 'PCS', 'Weight In Gms', 'Purity', 'Rate', 'TOT']],
         body: tableData,
         theme: 'grid',
         headStyles: {
@@ -9463,47 +9666,52 @@ function updateMCTypeLabel() {
         margin: { left: 15, right: 15 }
     });
 
-    // Totals
-    const finalY = doc.lastAutoTable.finalY + 10;
-    const cgst = bill.gst / 2;
-    const sgst = bill.gst / 2;
+    // ========== TOTALS SECTION ==========
+    const finalY = doc.lastAutoTable.finalY + 8;
 
     doc.setFontSize(8);
-    doc.setFont(undefined, 'bold');
-    doc.text(`Total PCS: ${totalPCS}`, 15, finalY);
-    doc.text(`${totalWeight.toFixed(3)}`, 50, finalY);
-
+    doc.setFont(undefined, 'normal');
+    doc.text(totalPCS.toString(), 15, finalY);
+    doc.text(totalWeight.toFixed(3), 50, finalY);
+    
     const rightX = 150;
-    doc.text('GST Value:', rightX, finalY);
-    doc.setFont(undefined, 'normal');
-    doc.text(bill.total.toFixed(2), 195, finalY, { align: 'right' });
-
-    doc.setFont(undefined, 'bold');
-    doc.text('CGST@1.50%:', rightX, finalY + 5);
-    doc.setFont(undefined, 'normal');
-    doc.text(cgst.toFixed(2), 195, finalY + 5, { align: 'right' });
-
-    doc.setFont(undefined, 'bold');
-    doc.text('SGST@1.50%:', rightX, finalY + 10);
-    doc.setFont(undefined, 'normal');
-    doc.text(sgst.toFixed(2), 195, finalY + 10, { align: 'right' });
-
+    doc.text('Round off:', rightX, finalY);
+    doc.text(roundOff.toFixed(2), 195, finalY, { align: 'right' });
+    
+    doc.text('GST Value:', rightX, finalY + 5);
+    doc.text(bill.total.toFixed(2), 195, finalY + 5, { align: 'right' });
+    
+    if (isInterState) {
+        doc.text('IGST@3%:', rightX, finalY + 10);
+        doc.text(bill.gst.toFixed(2), 195, finalY + 10, { align: 'right' });
+    } else {
+        doc.text('CGST@1.50%:', rightX, finalY + 10);
+        doc.text(cgst.toFixed(2), 195, finalY + 10, { align: 'right' });
+        
+        doc.text('SGST@1.50%:', rightX, finalY + 15);
+        doc.text(sgst.toFixed(2), 195, finalY + 15, { align: 'right' });
+    }
+    
     doc.setFontSize(10);
     doc.setFont(undefined, 'bold');
-    doc.text('Total Amount:', rightX, finalY + 17);
-    doc.text(bill.netTotal.toFixed(2), 195, finalY + 17, { align: 'right' });
+    const totalY = isInterState ? finalY + 15 : finalY + 20;
+    doc.text('Total Amount:', rightX, totalY);
+    doc.text(bill.netTotal.toFixed(2), 195, totalY, { align: 'right' });
 
-    // Footer
-    const footerY = finalY + 25;
+    // ========== FOOTER ==========
+    const footerY = totalY + 10;
     doc.setFontSize(7);
     doc.setFont(undefined, 'normal');
-    doc.text('BANK NAME: HDFC BANK', 15, footerY);
-    doc.text('AC NAME: JPJEWELLERY', 15, footerY + 4);
-    doc.text('AC NO: 50200016402896', 15, footerY + 8);
-    doc.text('IFSC CODE: HDFC0000214', 15, footerY + 12);
-
+    doc.text('BANK NAME : HDFC BANK', 15, footerY);
+    doc.text('AC NAME : JPJEWELLERY', 15, footerY + 4);
+    doc.text('AC NO : 50200016402896.', 15, footerY + 8);
+    doc.text('IFSC CODE : HDFC0000214.', 15, footerY + 12);
+    doc.text('BRANCH : TIRUPATHI AIR BY PASS', 15, footerY + 16);
+    
+    doc.text('CUSTOMER SIGNATURE', 15, footerY + 22);
+    
     doc.setFont(undefined, 'bold');
-    doc.text('For JP JEWELLERY', 150, footerY + 10);
+    doc.text('For JP JEWELLERY', 150, footerY + 12);
 
     doc.save(`Bill_${bill.billNo}_REPRINT_${formattedDate.replace(/\//g, '-')}.pdf`);
     alert('✅ Bill reprinted successfully!');
@@ -13146,8 +13354,146 @@ function downloadAllCustomerLedgers() {
     }
 
     // Direct barcode printing function (no new window, prints immediately)
+    // ========== TSPL THERMAL LABEL PRINTING ==========
+    /**
+     * Print labels using TSPL commands for TSC/Printronix thermal printers
+     * Matches exact layout from sample label
+     */
+    async function printTSPLLabels(productsToPrint, printerConfig = null) {
+        if (!productsToPrint || productsToPrint.length === 0) return;
+        
+        // Get printer config from localStorage or use defaults
+        if (!printerConfig) {
+            printerConfig = getCachedItem('printerConfig', {
+                type: 'network', // 'network' or 'usb'
+                address: '192.168.1.100', // IP address or COM port
+                port: 9100 // Port for network printers
+            });
+        }
+        
+        // Show printer config dialog if not configured
+        if (!printerConfig.address || printerConfig.address === '192.168.1.100') {
+            const configInput = prompt(
+                'Enter printer configuration:\n\n' +
+                'For Network Printer:\n' +
+                '  Format: network,IP_ADDRESS,PORT\n' +
+                '  Example: network,192.168.1.100,9100\n\n' +
+                'For USB Printer (Windows):\n' +
+                '  Format: usb,COM_PORT\n' +
+                '  Example: usb,COM3\n\n' +
+                'Current config: ' + JSON.stringify(printerConfig),
+                JSON.stringify(printerConfig)
+            );
+            
+            if (!configInput) {
+                alert('Printing cancelled');
+                return;
+            }
+            
+            try {
+                const parts = configInput.split(',');
+                if (parts[0] === 'network') {
+                    printerConfig = {
+                        type: 'network',
+                        address: parts[1] || '192.168.1.100',
+                        port: parseInt(parts[2]) || 9100
+                    };
+                } else if (parts[0] === 'usb') {
+                    printerConfig = {
+                        type: 'usb',
+                        address: parts[1] || 'COM3'
+                    };
+                }
+                setCachedItem('printerConfig', printerConfig);
+            } catch (e) {
+                alert('Invalid printer configuration format');
+                return;
+            }
+        }
+        
+        // Process each product
+        let successCount = 0;
+        let errorCount = 0;
+        
+        for (const product of productsToPrint) {
+            try {
+                // Prepare item data matching sample label format
+                const itemData = {
+                    barcodeNumber: product.barcode || '',
+                    styleCode: product.styleCode || product.shortName || '',
+                    weight: (product.avgWt || product.weight || 0).toFixed(3),
+                    pcs: product.pcs || 1,
+                    companyCode: `MY925${product.mcRate ? Math.round(product.mcRate).toString() : ''}`,
+                    material: product.metalType === 'silver' ? 'STERLING SILVER' : 
+                             product.metalType === 'gold' ? 'GOLD' : 
+                             product.metalType === 'platinum' ? 'PLATINUM' : 'STERLING SILVER'
+                };
+                
+                // Call API to print label
+                const response = await fetch(`${API_BASE}/print/label`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${currentUser.token || ''}`
+                    },
+                    body: JSON.stringify({
+                        itemData: itemData,
+                        printerConfig: printerConfig
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    successCount++;
+                    console.log(`✅ Label printed for ${product.barcode}`);
+                } else {
+                    errorCount++;
+                    console.error(`❌ Failed to print label for ${product.barcode}:`, result.error);
+                }
+                
+                // Small delay between prints
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+            } catch (error) {
+                errorCount++;
+                console.error(`❌ Error printing label for ${product.barcode}:`, error);
+            }
+        }
+        
+        // Show results
+        if (successCount > 0) {
+            alert(`✅ Printed ${successCount} label(s) successfully${errorCount > 0 ? `\n❌ ${errorCount} failed` : ''}`);
+        } else {
+            alert(`❌ Failed to print labels. Please check printer configuration and connection.`);
+        }
+        
+        // Broadcast barcode print event for real-time sync
+        if (socket && isSocketConnected) {
+            productsToPrint.forEach(product => {
+                socket.emit('barcode-print-request', {
+                    tenantCode: currentUser.tenantCode,
+                    barcode: product.barcode,
+                    product: product
+                });
+            });
+        }
+    }
+    
     async function printBarcodesDirect(productsToPrint) {
         if (!productsToPrint || productsToPrint.length === 0) return;
+        
+        // Ask user to choose printing method
+        const useThermal = confirm(
+            'Choose printing method:\n\n' +
+            'OK = Thermal Label Printer (TSPL)\n' +
+            'Cancel = Standard Printer (HTML)'
+        );
+        
+        if (useThermal) {
+            await printTSPLLabels(productsToPrint);
+            return;
+        }
         
         // Create hidden iframe for printing
         const printFrame = document.createElement('iframe');
