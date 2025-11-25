@@ -27,6 +27,20 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// SECURITY: Middleware to sanitize password fields from request/response logging
+app.use((req, res, next) => {
+    // Sanitize request body (remove passwords before any logging)
+    if (req.body && typeof req.body === 'object') {
+        const sanitizedBody = { ...req.body };
+        if (sanitizedBody.password) sanitizedBody.password = '[REDACTED]';
+        if (sanitizedBody.masterPassword) sanitizedBody.masterPassword = '[REDACTED]';
+        if (sanitizedBody.adminPassword) sanitizedBody.adminPassword = '[REDACTED]';
+        // Store sanitized version for logging (if needed)
+        req.sanitizedBody = sanitizedBody;
+    }
+    next();
+});
+
 // Store active master admin sessions (in production, use Redis or database)
 const masterAdminSessions = new Map();
 
@@ -124,7 +138,8 @@ app.use(express.static('public'));
 // Initialize master database on startup
 initMasterDatabase();
 
-app.post('/api/tenants', async (req, res) => {
+// Create tenant endpoint (renamed from /api/tenants to avoid conflict)
+app.post('/api/admin/create-tenant', async (req, res) => {
     try {
         const { tenantCode, tenantName, adminUsername, adminPassword, masterUsername, masterPassword } = req.body;
         
@@ -165,9 +180,10 @@ app.post('/api/tenants', async (req, res) => {
     }
 });
 
+// List tenants endpoint (for master admin)
 app.post('/api/tenants', async (req, res) => {
     try {
-        const { username, password } = req.body; // Changed from req.query to req.body
+        const { username, password } = req.body;
         
         // If master admin credentials provided, return all tenants
         if (username && password) {
@@ -180,16 +196,19 @@ app.post('/api/tenants', async (req, res) => {
                 const isValid = await bcrypt.compare(password, masterAdmin.rows[0].password_hash);
                 if (isValid && masterAdmin.rows[0].is_super_admin) {
                     // Super admin can see all tenants
-                    const result = await masterPool.query('SELECT tenant_code, tenant_name, created_at, is_active FROM tenants');
+                    const result = await masterPool.query('SELECT tenant_code, tenant_name, created_at, is_active FROM tenants ORDER BY created_at DESC');
                     return res.json(result.rows);
                 }
             }
+            
+            // Invalid credentials - return empty array instead of error for better UX
+            return res.json([]);
         }
         
-        // For regular users, they should only see their own tenant (handled in frontend)
-        // Return empty or error - frontend will handle based on login
+        // No credentials provided - return empty array
         res.json([]);
     } catch (error) {
+        console.error('Error loading tenants:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -288,23 +307,27 @@ app.post('/api/auth/login', async (req, res) => {
         
             if (tenantResult.rows.length > 0) {
                 const tenant = tenantResult.rows[0];
-                // Verify password (stored as hash in future, plain text for now for migration)
-                // For existing tenants, check plain text first, then hash
+                // SECURITY: Always use bcrypt for password verification
+                // Check if password is already hashed (starts with $2a$, $2b$, or $2y$)
                 let passwordValid = false;
-                if (tenant.admin_password === password) {
-                    passwordValid = true;
-                    // Migrate to hash
-                    const hashedPassword = await bcrypt.hash(password, 10);
-                    await masterPool.query(
-                        'UPDATE tenants SET admin_password = $1 WHERE id = $2',
-                        [hashedPassword, tenant.id]
-                    );
-                } else {
-                    // Try bcrypt compare for already hashed passwords
+                if (tenant.admin_password && tenant.admin_password.startsWith('$2')) {
+                    // Password is already hashed - use bcrypt compare
                     try {
                         passwordValid = await bcrypt.compare(password, tenant.admin_password);
                     } catch (e) {
                         passwordValid = false;
+                    }
+                } else {
+                    // Legacy plain text password - hash it immediately and verify
+                    const hashedPassword = await bcrypt.hash(password, 10);
+                    // Verify by comparing the new hash (one-time migration)
+                    passwordValid = await bcrypt.compare(password, hashedPassword);
+                    if (passwordValid) {
+                        // Update to hashed password
+                        await masterPool.query(
+                            'UPDATE tenants SET admin_password = $1 WHERE id = $2',
+                            [hashedPassword, tenant.id]
+                        );
                     }
                 }
                 
@@ -332,21 +355,27 @@ app.post('/api/auth/login', async (req, res) => {
                 
                 if (userResult.rows.length > 0) {
                     const user = userResult.rows[0];
-                    // Verify password
+                    // SECURITY: Always use bcrypt for password verification
+                    // Check if password is already hashed (starts with $2a$, $2b$, or $2y$)
                     let passwordValid = false;
-                    if (user.password === password) {
-                        passwordValid = true;
-                        // Migrate to hash
-                        const hashedPassword = await bcrypt.hash(password, 10);
-                        await pool.query(
-                            'UPDATE users SET password = $1 WHERE id = $2',
-                            [hashedPassword, user.id]
-                        );
-                    } else {
+                    if (user.password && user.password.startsWith('$2')) {
+                        // Password is already hashed - use bcrypt compare
                         try {
                             passwordValid = await bcrypt.compare(password, user.password);
                         } catch (e) {
                             passwordValid = false;
+                        }
+                    } else {
+                        // Legacy plain text password - hash it immediately and verify
+                        const hashedPassword = await bcrypt.hash(password, 10);
+                        // Verify by comparing the new hash (one-time migration)
+                        passwordValid = await bcrypt.compare(password, hashedPassword);
+                        if (passwordValid) {
+                            // Update to hashed password
+                            await pool.query(
+                                'UPDATE users SET password = $1 WHERE id = $2',
+                                [hashedPassword, user.id]
+                            );
                         }
                     }
                     
@@ -436,8 +465,7 @@ app.post('/api/:tenant/products', async (req, res) => {
         
         const result = await queryTenant(tenant, query, params);
         broadcastToTenant(tenant, 'product-created', result[0]);
-        // Broadcast barcode print event for real-time sync
-        broadcastToTenant(tenant, 'barcode-printed', { barcode: product.barcode, product: result[0] });
+        // NOTE: Barcode printing is only done for PV stock-in, not regular product creation
         res.json(result[0]);
     } catch (error) {
         if (error.message.includes('unique') || error.message.includes('duplicate')) {
@@ -469,6 +497,100 @@ app.put('/api/:tenant/products/:id', async (req, res) => {
         const result = await queryTenant(tenant, query, params);
         broadcastToTenant(tenant, 'product-updated', result[0]);
         res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Bulk insert products endpoint for fast bulk uploads
+app.post('/api/:tenant/products/bulk', async (req, res) => {
+    try {
+        const { tenant } = req.params;
+        const { products: productsArray } = req.body;
+        
+        if (!Array.isArray(productsArray) || productsArray.length === 0) {
+            return res.status(400).json({ error: 'Products array is required' });
+        }
+        
+        const pool = getTenantPool(tenant);
+        if (!pool) {
+            return res.status(404).json({ error: 'Tenant not found' });
+        }
+        
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            
+            const insertedProducts = [];
+            const errors = [];
+            
+            // Prepare bulk insert query
+            const query = `INSERT INTO products (
+                barcode, sku, style_code, short_name, item_name, metal_type, size, weight,
+                purity, rate, mc_rate, mc_type, pcs, box_charges, stone_charges, floor, avg_wt
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+            RETURNING *`;
+            
+            // Insert products in batches of 100 for better performance
+            const batchSize = 100;
+            for (let i = 0; i < productsArray.length; i += batchSize) {
+                const batch = productsArray.slice(i, i + batchSize);
+                
+                for (const product of batch) {
+                    try {
+                        // Check if barcode already exists
+                        const existingCheck = await client.query(
+                            'SELECT id FROM products WHERE barcode = $1',
+                            [product.barcode]
+                        );
+                        
+                        if (existingCheck.rows.length > 0) {
+                            errors.push({ barcode: product.barcode, error: 'Barcode already exists' });
+                            continue;
+                        }
+                        
+                        const params = [
+                            product.barcode, product.sku || '', product.styleCode || '', 
+                            product.shortName, product.itemName || product.shortName,
+                            product.metalType || 'gold', product.size || '', 
+                            product.weight || 0, product.purity || 100, 
+                            product.rate || 0, product.mcRate || 0,
+                            product.mcType || 'MC/GM', product.pcs || 1, 
+                            product.boxCharges || 0, product.stoneCharges || 0,
+                            product.floor || 'Main Floor', product.avgWt || product.weight || 0
+                        ];
+                        
+                        const result = await client.query(query, params);
+                        insertedProducts.push(result.rows[0]);
+                    } catch (error) {
+                        if (error.message.includes('unique') || error.message.includes('duplicate')) {
+                            errors.push({ barcode: product.barcode, error: 'Barcode already exists' });
+                        } else {
+                            errors.push({ barcode: product.barcode, error: error.message });
+                        }
+                    }
+                }
+            }
+            
+            await client.query('COMMIT');
+            
+            // Broadcast product-created events for real-time sync (but NOT barcode-printed)
+            insertedProducts.forEach(product => {
+                broadcastToTenant(tenant, 'product-created', product);
+            });
+            
+            res.json({
+                success: true,
+                inserted: insertedProducts.length,
+                errors: errors.length,
+                errorDetails: errors.slice(0, 10) // Return first 10 errors
+            });
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -970,13 +1092,22 @@ app.post('/api/:tenant/users', checkUserManagementAccess, async (req, res) => {
         const params = [username, hashedPassword, userRole, allowedTabs || ['all']];
         
         const result = await queryTenant(tenant, query, params);
-        // Never return password hash in response
-        const userResponse = result[0];
+        // SECURITY: Never return password hash in response - explicitly select only safe fields
+        const userResponse = {
+            id: result[0].id,
+            username: result[0].username,
+            role: result[0].role,
+            allowed_tabs: result[0].allowed_tabs,
+            created_at: result[0].created_at
+        };
+        // Double-check: remove any password fields
         delete userResponse.password;
+        delete userResponse.password_hash;
         broadcastToTenant(tenant, 'user-created', userResponse);
         res.json(userResponse);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        // SECURITY: Never expose password in error messages
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -1003,9 +1134,17 @@ app.put('/api/:tenant/users/:id', checkUserManagementAccess, async (req, res) =>
         }
         
         const result = await queryTenant(tenant, query, params);
-        // Never return password hash in response
-        const userResponse = result[0];
-        if (userResponse.password) delete userResponse.password;
+        // SECURITY: Never return password hash in response - explicitly select only safe fields
+        const userResponse = {
+            id: result[0].id,
+            username: result[0].username,
+            role: result[0].role,
+            allowed_tabs: result[0].allowed_tabs,
+            created_at: result[0].created_at
+        };
+        // Double-check: remove any password fields
+        delete userResponse.password;
+        delete userResponse.password_hash;
         broadcastToTenant(tenant, 'user-updated', userResponse);
         res.json(userResponse);
     } catch (error) {

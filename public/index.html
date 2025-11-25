@@ -149,7 +149,7 @@
             </div>
             <div class="col-span-2">
                 <label class="block text-xs font-medium text-gray-700 mb-1">Mobile</label>
-                <input type="text" id="customerMobile" readonly class="w-full px-2 py-1.5 text-xs bg-gray-100 border rounded">
+                <input type="text" id="customerMobile" readonly class="w-full px-2 py-1.5 text-xs bg-gray-100 border rounded" onpaste="return false;" oncopy="return false;" oncut="return false;">
             </div>
             <div class="col-span-2">
                 <label class="block text-xs font-medium text-gray-700 mb-1">Rate Slab</label>
@@ -2253,158 +2253,397 @@
         let socket = null;
         let isSocketConnected = false;
         
-        // Initialize Socket.IO connection
+        // Initialize Socket.IO connection with error handling for cloud/sync
         function initSocketConnection(tenantCode) {
-            if (socket) {
-                socket.disconnect();
-            }
-            
-            // Connect to server using global SOCKET_URL
-            socket = io(window.SOCKET_URL, {
-                transports: ['websocket', 'polling']
-            });
-            
-            socket.on('connect', () => {
-                console.log('✅ Connected to real-time sync server');
-                isSocketConnected = true;
+            try {
+                if (socket) {
+                    socket.disconnect();
+                    socket = null;
+                }
                 
-                // Join tenant room
-                if (tenantCode) {
-                    socket.emit('join-tenant', tenantCode);
-                    console.log(`📱 Joined tenant room: ${tenantCode}`);
+                // Check if Socket.IO is available
+                if (typeof io === 'undefined') {
+                    console.warn('⚠️ Socket.IO not loaded. Real-time sync disabled.');
+                    isSocketConnected = false;
+                    return;
                 }
-            });
-            
-            socket.on('disconnect', () => {
-                console.log('❌ Disconnected from real-time sync server');
+                
+                // Connect to server using global SOCKET_URL
+                socket = io(window.SOCKET_URL, {
+                    transports: ['websocket', 'polling'],
+                    reconnection: true,
+                    reconnectionDelay: 1000,
+                    reconnectionDelayMax: 5000,
+                    reconnectionAttempts: 5,
+                    timeout: 20000
+                });
+                
+                socket.on('connect', () => {
+                    console.log('✅ Connected to real-time sync server');
+                    isSocketConnected = true;
+                    
+                    // Join tenant room
+                    if (tenantCode) {
+                        socket.emit('join-tenant', tenantCode);
+                        console.log(`📱 Joined tenant room: ${tenantCode}`);
+                    }
+                });
+                
+                socket.on('disconnect', (reason) => {
+                    console.log('❌ Disconnected from real-time sync server:', reason);
+                    isSocketConnected = false;
+                });
+                
+                socket.on('connect_error', (error) => {
+                    console.warn('⚠️ Socket connection error:', error.message);
+                    isSocketConnected = false;
+                    // Don't show error to user - sync is optional
+                });
+                
+                socket.on('reconnect', (attemptNumber) => {
+                    isSocketConnected = true;
+                    // Rejoin tenant room after reconnection
+                    if (tenantCode) {
+                        socket.emit('join-tenant', tenantCode);
+                    }
+                });
+                
+                socket.on('reconnect_error', (error) => {
+                    console.warn('⚠️ Reconnection error:', error.message);
+                });
+                
+                socket.on('reconnect_failed', () => {
+                    console.warn('⚠️ Failed to reconnect to sync server. Real-time sync disabled.');
+                    isSocketConnected = false;
+                });
+                
+                // Listen for real-time updates with error handling
+                socket.on('product-created', (data) => {
+                    try {
+                        console.log('📡 Product created:', data);
+                        refreshProducts();
+                    } catch (error) {
+                        console.error('Error handling product-created event:', error);
+                    }
+                });
+                
+                socket.on('product-updated', (data) => {
+                    try {
+                        console.log('📡 Product updated:', data);
+                        refreshProducts();
+                    } catch (error) {
+                        console.error('Error handling product-updated event:', error);
+                    }
+                });
+                
+                socket.on('product-deleted', (data) => {
+                    try {
+                        console.log('📡 Product deleted:', data);
+                        refreshProducts();
+                    } catch (error) {
+                        console.error('Error handling product-deleted event:', error);
+                    }
+                });
+                
+                socket.on('customer-created', (data) => {
+                    try {
+                        console.log('📡 Customer created:', data);
+                        refreshCustomers();
+                    } catch (error) {
+                        console.error('Error handling customer-created event:', error);
+                    }
+                });
+                
+                socket.on('customer-updated', (data) => {
+                    try {
+                        console.log('📡 Customer updated:', data);
+                        refreshCustomers();
+                    } catch (error) {
+                        console.error('Error handling customer-updated event:', error);
+                    }
+                });
+                
+                socket.on('customer-deleted', (data) => {
+                    try {
+                        console.log('📡 Customer deleted:', data);
+                        refreshCustomers();
+                    } catch (error) {
+                        console.error('Error handling customer-deleted event:', error);
+                    }
+                });
+                
+                socket.on('quotation-created', (data) => {
+                    try {
+                        console.log('📡 Quotation created:', data);
+                        refreshQuotations();
+                    } catch (error) {
+                        console.error('Error handling quotation-created event:', error);
+                    }
+                });
+                
+                socket.on('quotation-updated', (data) => {
+                    try {
+                        console.log('📡 Quotation updated:', data);
+                        refreshQuotations();
+                    } catch (error) {
+                        console.error('Error handling quotation-updated event:', error);
+                    }
+                });
+                
+                socket.on('quotation-deleted', (data) => {
+                    try {
+                        console.log('📡 Quotation deleted:', data);
+                        refreshQuotations();
+                    } catch (error) {
+                        console.error('Error handling quotation-deleted event:', error);
+                    }
+                });
+                
+                socket.on('bill-created', (data) => {
+                    try {
+                        console.log('📡 Bill created:', data);
+                        refreshBills();
+                    } catch (error) {
+                        console.error('Error handling bill-created event:', error);
+                    }
+                });
+                
+                socket.on('bill-updated', (data) => {
+                    try {
+                        console.log('📡 Bill updated:', data);
+                        refreshBills();
+                    } catch (error) {
+                        console.error('Error handling bill-updated event:', error);
+                    }
+                });
+                
+                socket.on('bill-deleted', (data) => {
+                    try {
+                        console.log('📡 Bill deleted:', data);
+                        refreshBills();
+                    } catch (error) {
+                        console.error('Error handling bill-deleted event:', error);
+                    }
+                });
+                
+                socket.on('rates-updated', (data) => {
+                    try {
+                        console.log('📡 Rates updated:', data);
+                        refreshRates();
+                    } catch (error) {
+                        console.error('Error handling rates-updated event:', error);
+                    }
+                });
+                
+                socket.on('user-created', (data) => {
+                    try {
+                        console.log('📡 User created:', data);
+                        if (typeof window.renderUserManagement === 'function') {
+                            window.renderUserManagement();
+                        }
+                    } catch (error) {
+                        console.error('Error handling user-created event:', error);
+                    }
+                });
+                
+                socket.on('user-updated', (data) => {
+                    try {
+                        console.log('📡 User updated:', data);
+                        if (typeof window.renderUserManagement === 'function') {
+                            window.renderUserManagement();
+                        }
+                    } catch (error) {
+                        console.error('Error handling user-updated event:', error);
+                    }
+                });
+                
+                socket.on('user-deleted', (data) => {
+                    try {
+                        console.log('📡 User deleted:', data);
+                        if (typeof window.renderUserManagement === 'function') {
+                            window.renderUserManagement();
+                        }
+                    } catch (error) {
+                        console.error('Error handling user-deleted event:', error);
+                    }
+                });
+                
+                // Listen for barcode print events (real-time sync)
+                socket.on('barcode-printed', (data) => {
+                    try {
+                        console.log('📡 Barcode printed on another device:', data.barcode);
+                        // Refresh products to show newly printed barcode
+                        if (typeof refreshProducts === 'function') {
+                            refreshProducts();
+                        }
+                    } catch (error) {
+                        console.error('Error handling barcode-printed event:', error);
+                    }
+                });
+            } catch (error) {
+                console.error('Error initializing socket connection:', error);
                 isSocketConnected = false;
-            });
-            
-            // Listen for real-time updates
-            socket.on('product-created', (data) => {
-                console.log('📡 Product created:', data);
-                refreshProducts();
-            });
-            
-            socket.on('product-updated', (data) => {
-                console.log('📡 Product updated:', data);
-                refreshProducts();
-            });
-            
-            socket.on('product-deleted', (data) => {
-                console.log('📡 Product deleted:', data);
-                refreshProducts();
-            });
-            
-            socket.on('customer-created', (data) => {
-                console.log('📡 Customer created:', data);
-                refreshCustomers();
-            });
-            
-            socket.on('customer-updated', (data) => {
-                console.log('📡 Customer updated:', data);
-                refreshCustomers();
-            });
-            
-            socket.on('customer-deleted', (data) => {
-                console.log('📡 Customer deleted:', data);
-                refreshCustomers();
-            });
-            
-            socket.on('quotation-created', (data) => {
-                console.log('📡 Quotation created:', data);
-                refreshQuotations();
-            });
-            
-            socket.on('quotation-updated', (data) => {
-                console.log('📡 Quotation updated:', data);
-                refreshQuotations();
-            });
-            
-            socket.on('quotation-deleted', (data) => {
-                console.log('📡 Quotation deleted:', data);
-                refreshQuotations();
-            });
-            
-            socket.on('bill-created', (data) => {
-                console.log('📡 Bill created:', data);
-                refreshBills();
-            });
-            
-            socket.on('bill-updated', (data) => {
-                console.log('📡 Bill updated:', data);
-                refreshBills();
-            });
-            
-            socket.on('bill-deleted', (data) => {
-                console.log('📡 Bill deleted:', data);
-                refreshBills();
-            });
-            
-            socket.on('rates-updated', (data) => {
-                console.log('📡 Rates updated:', data);
-                refreshRates();
-            });
-            
-            socket.on('user-created', (data) => {
-                console.log('📡 User created:', data);
-                if (typeof renderUserManagement === 'function') {
-                    renderUserManagement();
-                }
-            });
-            
-            socket.on('user-updated', (data) => {
-                console.log('📡 User updated:', data);
-                if (typeof renderUserManagement === 'function') {
-                    renderUserManagement();
-                }
-            });
-            
-            socket.on('user-deleted', (data) => {
-                console.log('📡 User deleted:', data);
-                if (typeof renderUserManagement === 'function') {
-                    renderUserManagement();
-                }
-            });
-            
-            // Listen for barcode print events (real-time sync)
-            socket.on('barcode-printed', (data) => {
-                console.log('📡 Barcode printed on another device:', data.barcode);
-                // Refresh products to show newly printed barcode
-                if (typeof refreshProducts === 'function') {
-                    refreshProducts();
-                }
-            });
+            }
         }
         
         // Helper functions to refresh data
         function refreshProducts() {
-            if (typeof loadProducts === 'function') {
-                loadProducts();
+            loadProducts();
+        }
+        
+        // Load products from API
+        async function loadProducts() {
+            try {
+                const productsData = await api.getProducts();
+                if (Array.isArray(productsData)) {
+                    products = productsData.map(p => ({
+                        id: p.id,
+                        barcode: p.barcode,
+                        sku: p.sku,
+                        styleCode: p.style_code,
+                        shortName: p.short_name,
+                        itemName: p.item_name,
+                        metalType: p.metal_type,
+                        size: p.size,
+                        weight: parseFloat(p.weight) || 0,
+                        avgWt: parseFloat(p.avg_wt) || parseFloat(p.weight) || 0,
+                        purity: parseFloat(p.purity) || 100,
+                        rate: parseFloat(p.rate) || 0,
+                        mcRate: parseFloat(p.mc_rate) || 0,
+                        mcType: p.mc_type || 'MC/GM',
+                        pcs: parseInt(p.pcs) || 1,
+                        boxCharges: parseFloat(p.box_charges) || 0,
+                        stoneCharges: parseFloat(p.stone_charges) || 0,
+                        floor: p.floor,
+                        isSold: p.is_sold || false
+                    }));
+                    setCachedItem('products', products);
+                    updateProductsTable();
+                }
+            } catch (error) {
+                console.error('Error loading products:', error);
+                // Don't show error to user - just log it
             }
         }
         
         function refreshCustomers() {
-            if (typeof loadCustomers === 'function') {
-                loadCustomers();
-            }
+            loadCustomers();
         }
         
         function refreshQuotations() {
-            if (typeof loadQuotations === 'function') {
-                loadQuotations();
-            }
+            loadQuotations();
         }
         
         function refreshBills() {
-            if (typeof loadBillHistory === 'function') {
-                loadBillHistory();
-            }
+            loadBills();
         }
         
         function refreshRates() {
-            if (typeof loadRates === 'function') {
-                loadRates();
+            loadRates();
+        }
+        
+        // Load customers from API
+        async function loadCustomers() {
+            try {
+                const customersData = await api.getCustomers();
+                if (Array.isArray(customersData)) {
+                    customers = customersData.map(c => ({
+                        id: c.id,
+                        name: c.name,
+                        mobile: c.mobile,
+                        address1: c.address1,
+                        address2: c.address2,
+                        city: c.city,
+                        state: c.state,
+                        pincode: c.pincode,
+                        gstin: c.gstin
+                    }));
+                    setCachedItem('customers', customers);
+                }
+            } catch (error) {
+                console.error('Error loading customers:', error);
+            }
+        }
+        
+        // Load quotations from API
+        async function loadQuotations() {
+            try {
+                const quotationsData = await api.getQuotations();
+                if (Array.isArray(quotationsData)) {
+                    savedQuotations = quotationsData.map(q => ({
+                        id: q.id,
+                        dbId: q.id,
+                        quotationNo: q.quotation_no,
+                        date: q.date,
+                        customer: {
+                            id: q.customer_id,
+                            name: q.customer_name,
+                            mobile: q.customer_mobile
+                        },
+                        items: typeof q.items === 'string' ? JSON.parse(q.items) : q.items,
+                        total: parseFloat(q.total) || 0,
+                        gst: parseFloat(q.gst) || 0,
+                        netTotal: parseFloat(q.net_total) || 0,
+                        discount: parseFloat(q.discount) || 0,
+                        advance: parseFloat(q.advance) || 0,
+                        finalAmount: parseFloat(q.final_amount) || 0,
+                        isBilled: q.is_billed || false,
+                        paymentReceived: q.payment_status === 'paid',
+                        paymentDate: q.payment_date
+                    }));
+                    setCachedItem('savedQuotations', savedQuotations);
+                }
+            } catch (error) {
+                console.error('Error loading quotations:', error);
+            }
+        }
+        
+        // Load bills from API
+        async function loadBills() {
+            try {
+                const billsData = await api.getBills();
+                if (Array.isArray(billsData)) {
+                    savedBills = billsData.map(b => ({
+                        id: b.id,
+                        dbId: b.id,
+                        billNo: b.bill_no,
+                        quotationNo: b.quotation_no,
+                        date: b.date,
+                        customer: {
+                            id: b.customer_id,
+                            name: b.customer_name,
+                            mobile: b.customer_mobile
+                        },
+                        items: typeof b.items === 'string' ? JSON.parse(b.items) : b.items,
+                        total: parseFloat(b.total) || 0,
+                        gst: parseFloat(b.gst) || 0,
+                        netTotal: parseFloat(b.net_total) || 0,
+                        paymentStatus: b.payment_method || 'cash',
+                        paymentMethod: b.payment_method || 'cash'
+                    }));
+                    setCachedItem('savedBills', savedBills);
+                }
+            } catch (error) {
+                console.error('Error loading bills:', error);
+            }
+        }
+        
+        // Load rates from API
+        async function loadRates() {
+            try {
+                const ratesData = await api.getRates();
+                if (ratesData) {
+                    rates = {
+                        gold: parseFloat(ratesData.gold) || 7500,
+                        silver: parseFloat(ratesData.silver) || 156,
+                        platinum: parseFloat(ratesData.platinum) || 3500
+                    };
+                    setCachedItem('rates', rates);
+                    updateRatesDisplay();
+                    console.log('✅ Loaded rates from API');
+                }
+            } catch (error) {
+                console.error('Error loading rates:', error);
             }
         }
         
@@ -2429,7 +2668,7 @@
                 }
             },
             
-            // Generic API request
+            // Generic API request with error handling for cloud/sync
             async request(endpoint, options = {}) {
                 const tenant = this.getTenant();
                 const url = `${API_BASE}/${tenant}${endpoint}`;
@@ -2440,9 +2679,28 @@
                     },
                 };
                 
+                // Create abort controller for timeout (compatible with all browsers)
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+                
                 try {
-                    const response = await fetch(url, { ...defaultOptions, ...options });
-                    const data = await response.json();
+                    const response = await fetch(url, { 
+                        ...defaultOptions, 
+                        ...options,
+                        signal: controller.signal
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    // Handle non-JSON responses
+                    const contentType = response.headers.get('content-type');
+                    let data;
+                    if (contentType && contentType.includes('application/json')) {
+                        data = await response.json();
+                    } else {
+                        const text = await response.text();
+                        throw new Error(text || `HTTP error! status: ${response.status}`);
+                    }
                     
                     if (!response.ok) {
                         throw new Error(data.error || `HTTP error! status: ${response.status}`);
@@ -2450,8 +2708,19 @@
                     
                     return data;
                 } catch (error) {
-                    console.error('API Error:', error);
-                    throw error;
+                    clearTimeout(timeoutId);
+                    
+                    // Handle network errors gracefully for cloud/sync
+                    if (error.name === 'AbortError') {
+                        console.error('API Request timeout:', endpoint);
+                        throw new Error('Request timeout. Please check your connection.');
+                    } else if (error.name === 'TypeError' && (error.message.includes('fetch') || error.message.includes('Failed to fetch'))) {
+                        console.error('API Network error:', endpoint);
+                        throw new Error('Network error. Please check your connection to the server.');
+                    } else {
+                        console.error('API Error:', endpoint, error);
+                        throw error;
+                    }
                 }
             },
             
@@ -2729,7 +2998,9 @@
             if (!select) return;
             
             try {
-                const tenants = await fetch(`/api/tenants/for-user?username=${encodeURIComponent(username)}&tenantCode=${encodeURIComponent(tenantCode || '')}`)
+                // Use API_BASE_URL for cloud compatibility
+                const baseUrl = window.API_BASE_URL ? window.API_BASE_URL.replace('/api', '') : 'http://localhost:3000';
+                const tenants = await fetch(`${baseUrl}/api/tenants/for-user?username=${encodeURIComponent(username)}&tenantCode=${encodeURIComponent(tenantCode || '')}`)
                     .then(r => r.json());
                 
                 select.innerHTML = '<option value="">Select Client...</option>';
@@ -2889,13 +3160,50 @@
             };
         }
 
-        // DOM query cache
+        // Enhanced DOM query cache with invalidation
         const domCache = {};
         function getCachedElement(id) {
             if (!domCache[id]) {
-                domCache[id] = document.getElementById(id);
+                const el = document.getElementById(id);
+                if (el) {
+                    domCache[id] = el;
+                }
             }
             return domCache[id];
+        }
+        
+        // Clear cache for specific element (useful when DOM changes)
+        function clearCachedElement(id) {
+            delete domCache[id];
+        }
+        
+        // Batch DOM reads/writes for better performance
+        function batchDOMUpdates(updates) {
+            // Use requestAnimationFrame for smooth updates
+            requestAnimationFrame(() => {
+                updates.forEach(update => {
+                    try {
+                        const el = getCachedElement(update.id);
+                        if (el) {
+                            if (update.property === 'innerHTML') {
+                                el.innerHTML = update.value;
+                            } else if (update.property === 'textContent') {
+                                el.textContent = update.value;
+                            } else if (update.property === 'value') {
+                                el.value = update.value;
+                            } else if (update.property === 'classList') {
+                                if (update.action === 'add') {
+                                    el.classList.add(...update.value);
+                                } else if (update.action === 'remove') {
+                                    el.classList.remove(...update.value);
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('DOM update error:', e);
+                    }
+                });
+            });
         }
 
         let items = [];
@@ -3209,18 +3517,26 @@ async function showUserManagement() {
         return;
     }
     modal.classList.remove('hidden');
-    await renderUserManagement();
+    await window.renderUserManagement();
 }
 
-async function renderUserManagement() {
+// Make user management functions globally accessible
+window.renderUserManagement = async function() {
     const userListDiv = document.getElementById('userManagementList');
     if (!userListDiv) return;
     
     userListDiv.innerHTML = '<p class="text-gray-500">Loading users...</p>';
     
     try {
-        // Load users from API
-        const apiUsers = await api.getUsers();
+        // Load users from API with error handling for cloud/sync
+        let apiUsers = [];
+        try {
+            apiUsers = await api.getUsers();
+        } catch (apiError) {
+            console.warn('Failed to load users from API:', apiError);
+            // Continue with empty array - will show localStorage users as fallback
+            apiUsers = [];
+        }
         
         // Always show admin and Gaurav if user can manage users
         const canManageUsers = (currentUser.username === 'admin' || 
@@ -3349,7 +3665,7 @@ async function renderUserManagement() {
     }
 }
 
-async function editUser(username) {
+window.editUser = async function(username) {
     // Protected users cannot be edited (except password)
     if (username === 'admin' || username === 'Gaurav') {
         showDialog('Info', 'Protected users cannot be edited. Only their password can be changed.', 'info');
@@ -3357,12 +3673,13 @@ async function editUser(username) {
     }
     
     try {
-        // Try to get user from API first
+        // Try to get user from API first with error handling
         let user = null;
         try {
             const apiUsers = await api.getUsers();
             user = apiUsers.find(u => u.username === username);
-        } catch (e) {
+        } catch (apiError) {
+            console.warn('Failed to load users from API:', apiError);
             // Fallback to localStorage
             user = AUTH_USERS[username];
         }
@@ -3422,7 +3739,7 @@ async function editUser(username) {
                     allowedTabs = tabsInput.split(',').map(t => t.trim()).filter(t => allTabs.includes(t));
                 }
                 
-                // Update via API
+                // Update via API with error handling for cloud/sync
                 try {
                     const updateData = {
                         role: role,
@@ -3434,6 +3751,13 @@ async function editUser(username) {
                     await api.updateUser(username, updateData);
                     showDialog('Success', `User ${username} updated successfully!`, 'success');
                 } catch (apiError) {
+                    console.error('Failed to update user via API:', apiError);
+                    // In cloud/sync setup, show error instead of fallback
+                    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                        showDialog('Error', `Failed to update user: ${apiError.message || 'Network error. Please check your connection.'}`, 'error');
+                        return;
+                    }
+                    // Local fallback only for localhost
                     // Never store passwords in localStorage
                     user.role = role;
                     user.allowedTabs = allowedTabs;
@@ -3444,7 +3768,7 @@ async function editUser(username) {
                     showDialog('Warning', `User ${username} updated locally but password changes not saved. Please use API for secure storage.`, 'warning');
                 }
                 
-                await renderUserManagement();
+                await window.renderUserManagement();
             } catch (e) {
                 // User cancelled
             }
@@ -3454,7 +3778,7 @@ async function editUser(username) {
     }
 }
 
-async function deleteUser(username) {
+window.deleteUser = async function(username) {
     if (username === 'admin' || username === 'Gaurav') {
         showDialog('Error', 'Cannot delete protected users!', 'error');
         return;
@@ -3462,32 +3786,64 @@ async function deleteUser(username) {
     
     showConfirmDialog('Delete User', `Are you sure you want to delete user "${username}"?`, async () => {
         try {
-            // First, find the user by username to get their ID
-            const apiUsers = await api.getUsers();
+            // First, find the user by username to get their ID with error handling
+            let apiUsers = [];
+            try {
+                apiUsers = await api.getUsers();
+            } catch (apiError) {
+                console.warn('Failed to load users from API:', apiError);
+                // Continue with empty array
+            }
             const userToDelete = apiUsers.find(u => u.username === username);
             
             if (userToDelete && userToDelete.id) {
-                // Delete via API using the user ID
-                await api.deleteUser(userToDelete.id);
-                // Also remove from localStorage if exists (cleanup)
-                if (AUTH_USERS[username]) {
-                    delete AUTH_USERS[username];
-                    saveAuthUsers();
+                // Delete via API using the user ID with error handling
+                try {
+                    await api.deleteUser(userToDelete.id);
+                    // Also remove from localStorage if exists (cleanup)
+                    if (AUTH_USERS[username]) {
+                        delete AUTH_USERS[username];
+                        saveAuthUsers();
+                    }
+                    showDialog('Success', `User ${username} deleted successfully!`, 'success');
+                } catch (deleteError) {
+                    console.error('Delete user error:', deleteError);
+                    // In cloud/sync setup, show error instead of fallback
+                    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                        showDialog('Error', `Failed to delete user: ${deleteError.message || 'Network error. Please check your connection.'}`, 'error');
+                        return;
+                    }
+                    // Local fallback only for localhost
+                    if (AUTH_USERS[username]) {
+                        delete AUTH_USERS[username];
+                        saveAuthUsers();
+                        showDialog('Success', `User ${username} deleted (from local storage)!`, 'success');
+                    } else {
+                        showDialog('Error', `Failed to delete user ${username}. Please try again.`, 'error');
+                    }
                 }
-                showDialog('Success', `User ${username} deleted successfully!`, 'success');
             } else {
-                // User not found in API, try localStorage fallback
-                if (AUTH_USERS[username]) {
-                    delete AUTH_USERS[username];
-                    saveAuthUsers();
-                    showDialog('Success', `User ${username} deleted (from local storage)!`, 'success');
+                // User not found in API, try localStorage fallback (only for localhost)
+                if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                    if (AUTH_USERS[username]) {
+                        delete AUTH_USERS[username];
+                        saveAuthUsers();
+                        showDialog('Success', `User ${username} deleted (from local storage)!`, 'success');
+                    } else {
+                        showDialog('Error', `User ${username} not found!`, 'error');
+                    }
                 } else {
-                    showDialog('Error', `User ${username} not found!`, 'error');
+                    showDialog('Error', `User ${username} not found in database!`, 'error');
                 }
             }
         } catch (apiError) {
             console.error('Delete user error:', apiError);
-            // Fallback to localStorage
+            // In cloud/sync setup, show error
+            if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                showDialog('Error', `Failed to delete user: ${apiError.message || 'Network error. Please check your connection.'}`, 'error');
+                return;
+            }
+            // Local fallback only for localhost
             if (AUTH_USERS[username]) {
                 delete AUTH_USERS[username];
                 saveAuthUsers();
@@ -3498,24 +3854,25 @@ async function deleteUser(username) {
         }
         // Always refresh the user list after deletion (with a small delay to ensure API processed)
         setTimeout(async () => {
-            await renderUserManagement();
+            await window.renderUserManagement();
         }, 300);
     });
 }
 
-async function addNewUser() {
+window.addNewUser = async function() {
     try {
         const username = await showInputDialog('Add New User', 'Enter username:', '', 'Enter username');
         if (!username || !username.trim()) return;
         
-        // Check if username exists in API
+        // Check if username exists in API with error handling
         try {
             const apiUsers = await api.getUsers();
             if (apiUsers.find(u => u.username === username)) {
                 showDialog('Error', 'Username already exists!', 'error');
                 return;
             }
-        } catch (e) {
+        } catch (apiError) {
+            console.warn('Failed to check users from API:', apiError);
             // Check localStorage as fallback
             if (AUTH_USERS[username]) {
                 showDialog('Error', 'Username already exists!', 'error');
@@ -3605,7 +3962,7 @@ async function addNewUser() {
                     showDialog('Warning', `User ${username} created locally but password not saved. Please use API for secure storage.`, 'warning');
                 }
                 
-                await renderUserManagement();
+                await window.renderUserManagement();
             } catch (e) {
                 // User cancelled
             }
@@ -3691,6 +4048,8 @@ window.handleLogin = async function() {
             showTab('billing');
             // Load data from API
             await loadDataFromAPI();
+            // Also load products immediately for barcode scanning
+            await loadProducts();
             return;
         }
     } catch (apiError) {
@@ -3855,7 +4214,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (savedUser) {
         try {
             currentUser = savedUser;
-            // Reload AUTH_USERS again to ensure we have latest data
             // No passwords stored in localStorage
             AUTH_USERS = getCachedItem('authUsers', {
                 'admin': { role: 'admin', allowedTabs: ['all'] },
@@ -4113,8 +4471,13 @@ function loadQuotationForBill() {
     document.getElementById('selectedQuotNo').textContent = selectedQuotationForBill.quotationNo;
     document.getElementById('selectedQuotCustomer').textContent = selectedQuotationForBill.customer.name;
     document.getElementById('selectedQuotAmount').textContent = `₹${selectedQuotationForBill.netTotal.toFixed(2)}`;
-    document.getElementById('selectedQuotItems').textContent =
-        selectedQuotationForBill.items.map(item => `${item.name} (${item.weight.toFixed(2)}g)`).join(', ');
+    const selectedQuotItemsEl = getCachedElement('selectedQuotItems');
+    if (selectedQuotItemsEl) {
+        selectedQuotItemsEl.textContent = selectedQuotationForBill.items.map(item => `${item.name} (${item.weight.toFixed(2)}g)`).join(', ');
+        selectedQuotItemsEl.style.backgroundColor = '';
+        selectedQuotItemsEl.style.color = '';
+        selectedQuotItemsEl.classList.remove('bg-blue-100', 'text-blue-600');
+    }
 
     document.getElementById('selectedQuotationDetails').classList.remove('hidden');
 
@@ -4358,8 +4721,14 @@ async function generateSalesBillPDF() {
         if (savedBill && savedBill.id) {
             billRecord.dbId = savedBill.id;
         }
+        // Reload bills from API to ensure sync
+        await loadBills();
     } catch (error) {
         console.error('Failed to save bill to API:', error);
+        // Only show warning in cloud mode
+        if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+            showDialog('Warning', 'Bill saved locally but failed to sync to database. Please check your connection.', 'warning');
+        }
     }
 
     // ✅ AUTOMATIC LEDGER ENTRY FOR SALE
@@ -5131,8 +5500,14 @@ async function generateSalesBillPDF() {
             if (savedBill && savedBill.id) {
                 billRecord.dbId = savedBill.id;
             }
+            // Reload bills from API to ensure sync
+            await loadBills();
         } catch (error) {
             console.error('Failed to save bill to API:', error);
+            // Only show warning in cloud mode
+            if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                showDialog('Warning', 'Bill saved locally but failed to sync to database. Please check your connection.', 'warning');
+            }
         }
 
         // Record ledger entry with Cash-1 type (visible to all)
@@ -5543,11 +5918,14 @@ async function generateSalesBillPDF() {
         // Billing barcode scanner - single registration
         const barcodeInput = document.getElementById('barcodeInput');
         if (barcodeInput && !barcodeInput.dataset.listenerAdded) {
-            barcodeInput.addEventListener('keypress', function (e) {
+            barcodeInput.addEventListener('keypress', async function (e) {
                 if (e.key === 'Enter') {
                     e.preventDefault();
-                    handleBarcodeScan(this.value.trim());
-                    this.value = '';
+                    const barcodeValue = this.value.trim();
+                    if (barcodeValue) {
+                        await handleBarcodeScan(barcodeValue);
+                        this.value = '';
+                    }
                 }
             });
             barcodeInput.dataset.listenerAdded = 'true';
@@ -5673,10 +6051,15 @@ async function generateSalesBillPDF() {
                 if (tab === 'billing') {
                     selectedTabElement = document.getElementById('billingTab');
                     selectedButton = document.getElementById('btnBilling');
+                    // Ensure products are loaded for barcode scanning
+                    if (products.length === 0) {
+                        loadProducts();
+                    }
                 } else if (tab === 'products') {
                     selectedTabElement = document.getElementById('productsTab');
                     selectedButton = document.getElementById('btnProducts');
-                    updateProductsTable();
+                    // Load products from API when tab is shown
+                    loadProducts();
                 } else if (tab === 'customers') {
                     selectedTabElement = document.getElementById('customersTab');
                     selectedButton = document.getElementById('btnCustomers');
@@ -5896,7 +6279,7 @@ async function generateSalesBillPDF() {
             document.getElementById('customerDetailsDisplay').classList.remove('hidden');
             updateRateSlabInfo();
             if (items.length > 0) {
-                recalculateItemsWithRateSlab();
+                recalculateAllItems();
             }
         }
 
@@ -5931,10 +6314,13 @@ async function generateSalesBillPDF() {
             }
             
             function updateRateSlabInfo() {
-                    currentRateSlab = document.getElementById('rateSlab').value;
+                    currentRateSlab = document.getElementById('rateSlab')?.value || 'R';
                     const discount = rateSlabDiscounts[currentRateSlab];
 
-                    document.getElementById('rateSlabDisplay').textContent = currentRateSlab;
+                    const rateSlabDisplay = document.getElementById('rateSlabDisplay');
+                    if (rateSlabDisplay) {
+                        rateSlabDisplay.textContent = currentRateSlab;
+                    }
 
                     const descriptions = {
                         'R': 'Standard Rate',
@@ -5944,7 +6330,10 @@ async function generateSalesBillPDF() {
                         'R4': 'MC Discount ₹15/gm'
                     };
 
-                    document.getElementById('rateSlabDesc').textContent = descriptions[currentRateSlab];
+                    const rateSlabDesc = document.getElementById('rateSlabDesc');
+                    if (rateSlabDesc) {
+                        rateSlabDesc.textContent = descriptions[currentRateSlab] || descriptions['R'];
+                    }
 
                     // Recalculate all items if any exist
                     if (items.length > 0) {
@@ -6131,24 +6520,28 @@ async function generateSalesBillPDF() {
                 return;
             }
 
-            // Only show products when search term is provided
-            if (!searchTerm || searchTerm.length < 2) {
-                tbody.innerHTML = '<tr><td colspan="13" class="text-center py-16 text-gray-500"><div class="text-6xl mb-4">🔍</div><p class="text-lg font-semibold">Search for Products</p><p class="text-sm mt-2">Enter barcode, SKU, style code, or product name to search</p></td></tr>';
-                tableUpdatePending = false;
-                return;
-            }
-
             let displayProducts = products.filter(p => p.isSold !== true);
 
-            // Apply search filter - search by barcode, SKU, style code, or product name
-            displayProducts = displayProducts.filter(product => {
-                return (
-                    (product.barcode && product.barcode.toLowerCase().includes(searchTerm)) ||
-                    (product.sku && product.sku.toLowerCase().includes(searchTerm)) ||
-                    (product.styleCode && product.styleCode.toLowerCase().includes(searchTerm)) ||
-                    (product.shortName && product.shortName.toLowerCase().includes(searchTerm))
-                );
-            });
+            // Apply search filter if search term is provided (at least 2 characters)
+            if (searchTerm && searchTerm.length >= 2) {
+                displayProducts = displayProducts.filter(product => {
+                    return (
+                        (product.barcode && product.barcode.toLowerCase().includes(searchTerm)) ||
+                        (product.sku && product.sku.toLowerCase().includes(searchTerm)) ||
+                        (product.styleCode && product.styleCode.toLowerCase().includes(searchTerm)) ||
+                        (product.shortName && product.shortName.toLowerCase().includes(searchTerm))
+                    );
+                });
+            }
+            // If no search term or less than 2 characters, show all products (or show search prompt if no products)
+            if (!searchTerm || searchTerm.length < 2) {
+                if (displayProducts.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="13" class="text-center py-16 text-gray-500"><div class="text-6xl mb-4">📦</div><p class="text-lg font-semibold">No Products Found</p><p class="text-sm mt-2">Add products using the "Add Product" button or bulk upload</p></td></tr>';
+                    tableUpdatePending = false;
+                    return;
+                }
+                // Show all products if no search term
+            }
 
             // Use DocumentFragment for faster DOM updates
             const fragment = document.createDocumentFragment();
@@ -6214,11 +6607,9 @@ async function generateSalesBillPDF() {
     // Debounced search function
     const debouncedUpdateProductsTable = debounce(updateProductsTable, 300);
     const debouncedSearchAPI = debounce(async function(searchTerm) {
+        // If search term is less than 2 characters, show all products (or empty state)
         if (searchTerm.length < 2) {
-            const tbody = getCachedElement('productsTableBody');
-            if (tbody) {
-                tbody.innerHTML = '<tr><td colspan="13" class="text-center py-16 text-gray-500"><div class="text-6xl mb-4">🔍</div><p class="text-lg font-semibold">Search for Products</p><p class="text-sm mt-2">Enter barcode, SKU, style code, or product name to search</p></td></tr>';
-            }
+            updateProductsTable(); // This will show all products or empty state
             return;
         }
         
@@ -6728,23 +7119,24 @@ async function saveProduct() {
             }
         }
         
-        // Update local cache
-        setCachedItem('products', products);
-        updateProductsTable();
+        // Reload products from API to ensure sync
+        await loadProducts();
         closeModals();
     } catch (error) {
         console.error('Error saving product:', error);
-        showDialog('Error', 'Failed to save product: ' + error.message, 'error');
-        // Fallback to localStorage if API fails
-        if (editIndex !== '') {
-            product.id = products[editIndex].id;
-            products[editIndex] = product;
-        } else {
-            product.id = Date.now();
-            products.push(product);
+        showDialog('Error', 'Failed to save product: ' + (error.message || 'Unknown error'), 'error');
+        // Fallback to localStorage if API fails (only for localhost)
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            if (editIndex !== '') {
+                product.id = products[editIndex].id;
+                products[editIndex] = product;
+            } else {
+                product.id = Date.now();
+                products.push(product);
+            }
+            setCachedItem('products', products);
+            updateProductsTable();
         }
-        setCachedItem('products', products);
-        updateProductsTable();
         closeModals();
     }
 }
@@ -7017,18 +7409,95 @@ function deleteProduct(idx) {
             reader.readAsArrayBuffer(file);
         }
 
-        function confirmBulkUpload() {
+        async function confirmBulkUpload() {
             if (bulkUploadData.length === 0) return;
             const invalidItems = bulkUploadData.filter(item => !item.barcode || !item.shortName);
             if (invalidItems.length > 0) {
                 alert(`Error: ${invalidItems.length} items missing Barcode or Name.`);
                 return;
             }
-            products.push(...bulkUploadData);
-            localStorage.setItem('products', JSON.stringify(products));
-            updateProductsTable();
-            closeModals();
-            alert(`Successfully uploaded ${bulkUploadData.length} products!`);
+            
+            // Show loading message
+            const loadingMsg = document.createElement('div');
+            loadingMsg.id = 'bulkUploadLoading';
+            loadingMsg.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            loadingMsg.innerHTML = `
+                <div class="bg-white p-6 rounded-lg">
+                    <div class="text-center">
+                        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                        <p class="text-lg font-semibold">Saving products to database...</p>
+                        <p class="text-sm text-gray-600 mt-2">Please wait, this may take a moment</p>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(loadingMsg);
+            
+            try {
+                // Prepare all products for bulk insert
+                const productsToInsert = bulkUploadData.map(product => ({
+                    barcode: product.barcode,
+                    sku: product.sku || '',
+                    styleCode: product.styleCode || '',
+                    shortName: product.shortName,
+                    itemName: product.itemName || product.shortName,
+                    metalType: product.metalType || 'gold',
+                    size: product.size || '',
+                    weight: parseFloat(product.weight) || parseFloat(product.avgWt) || 0,
+                    avgWt: parseFloat(product.avgWt) || parseFloat(product.weight) || 0,
+                    purity: parseFloat(product.purity) || 100,
+                    rate: parseFloat(product.rate) || parseFloat(rates[product.metalType || 'gold']) || 0,
+                    mcRate: parseFloat(product.mcRate) || 0,
+                    mcType: product.mcType || 'MC/GM',
+                    pcs: parseInt(product.pcs) || 1,
+                    boxCharges: parseFloat(product.boxCharges) || 0,
+                    stoneCharges: parseFloat(product.stoneCharges) || 0,
+                    floor: product.floor || 'Main Floor',
+                    isSold: false
+                }));
+                
+                // Use bulk insert endpoint for fast upload
+                const tenant = api.getTenant();
+                const API_BASE = window.API_BASE_URL || 'http://localhost:3000/api';
+                const response = await fetch(`${API_BASE}/${tenant}/products/bulk`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ products: productsToInsert })
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Bulk upload failed');
+                }
+                
+                const result = await response.json();
+                const successCount = result.inserted || 0;
+                const errorCount = result.errors || 0;
+                const errors = (result.errorDetails || []).map(e => `Barcode ${e.barcode}: ${e.error}`);
+                
+                // Remove loading message
+                document.body.removeChild(loadingMsg);
+                
+                // Reload products from API to ensure sync
+                await loadProducts();
+                
+                closeModals();
+                
+                // Show success/error summary
+                if (errorCount === 0) {
+                    alert(`✅ Successfully uploaded ${successCount} products to database!`);
+                } else {
+                    const errorSummary = errors.slice(0, 5).join('\n');
+                    const moreErrors = errors.length > 5 ? `\n... and ${errors.length - 5} more errors` : '';
+                    alert(`⚠️ Upload completed with errors:\n\n✅ Saved: ${successCount}\n❌ Errors: ${errorCount}\n\n${errorSummary}${moreErrors}`);
+                }
+            } catch (error) {
+                // Remove loading message
+                if (document.getElementById('bulkUploadLoading')) {
+                    document.body.removeChild(document.getElementById('bulkUploadLoading'));
+                }
+                console.error('Bulk upload error:', error);
+                alert(`❌ Error during bulk upload: ${error.message || 'Unknown error'}\n\nProducts were NOT saved to database. Please try again.`);
+            }
         }
 
         function downloadAllCustomers() {
@@ -7130,26 +7599,99 @@ function deleteProduct(idx) {
             alert(`Successfully uploaded ${bulkUploadCustomerData.length} customers!`);
         }
 
-    function handleBarcodeScan(barcode) {
-        if (!barcode) return;
-        barcode = String(barcode).trim();
+    async function handleBarcodeScan(barcode) {
+        try {
+            if (!barcode) {
+                return;
+            }
+            barcode = String(barcode).trim();
 
-        // Check if product is already sold
-        const soldInfo = isProductSold(barcode);
-        if (soldInfo) {
-            alert(`⚠️ PRODUCT ALREADY SOLD!\n\nBarcode: ${barcode}\nBill No: ${soldInfo.billNo}\nSold Date: ${new Date(soldInfo.soldDate).toLocaleDateString('en-GB')}\n\nThis product cannot be added to quotation.`);
+            // Check if product is already sold
+            const soldInfo = isProductSold(barcode);
+            if (soldInfo) {
+                alert(`⚠️ PRODUCT ALREADY SOLD!\n\nBarcode: ${barcode}\nBill No: ${soldInfo.billNo}\nSold Date: ${new Date(soldInfo.soldDate).toLocaleDateString('en-GB')}\n\nThis product cannot be added to quotation.`);
 
-            const barcodeInput = document.getElementById('barcodeInput');
-            barcodeInput.style.backgroundColor = '#f8d7da';
-            barcodeInput.style.borderColor = '#dc3545';
-            setTimeout(() => {
-                barcodeInput.style.backgroundColor = '';
-                barcodeInput.style.borderColor = '';
-            }, 1000);
-            return;
+                const barcodeInput = document.getElementById('barcodeInput');
+                if (barcodeInput) {
+                    barcodeInput.style.backgroundColor = '#f8d7da';
+                    barcodeInput.style.borderColor = '#dc3545';
+                    setTimeout(() => {
+                        barcodeInput.style.backgroundColor = '';
+                        barcodeInput.style.borderColor = '';
+                    }, 1000);
+                }
+                return;
+            }
+
+        // Try to find product in local array first
+        let product = products.find(p => String(p.barcode).trim().toLowerCase() === barcode.toLowerCase());
+        
+        // If not found locally, try to fetch from API
+        if (!product) {
+            try {
+                console.log(`🔍 Searching for barcode "${barcode}" in API...`);
+                const apiProducts = await api.getProductByBarcode(barcode);
+                console.log(`📦 API returned:`, apiProducts);
+                
+                // Handle both array and single object responses
+                let apiProduct = null;
+                if (Array.isArray(apiProducts)) {
+                    apiProduct = apiProducts.length > 0 ? apiProducts[0] : null;
+                } else if (apiProducts && apiProducts.barcode) {
+                    apiProduct = apiProducts;
+                }
+                
+                if (apiProduct && apiProduct.barcode) {
+                    product = {
+                        id: apiProduct.id,
+                        barcode: apiProduct.barcode,
+                        sku: apiProduct.sku,
+                        styleCode: apiProduct.style_code,
+                        shortName: apiProduct.short_name,
+                        itemName: apiProduct.item_name,
+                        metalType: apiProduct.metal_type,
+                        size: apiProduct.size,
+                        weight: parseFloat(apiProduct.weight) || 0,
+                        avgWt: parseFloat(apiProduct.avg_wt) || parseFloat(apiProduct.weight) || 0,
+                        purity: parseFloat(apiProduct.purity) || 100,
+                        rate: parseFloat(apiProduct.rate) || 0,
+                        mcRate: parseFloat(apiProduct.mc_rate) || 0,
+                        mcType: apiProduct.mc_type || 'MC/GM',
+                        pcs: parseInt(apiProduct.pcs) || 1,
+                        boxCharges: parseFloat(apiProduct.box_charges) || 0,
+                        stoneCharges: parseFloat(apiProduct.stone_charges) || 0,
+                        floor: apiProduct.floor,
+                        isSold: apiProduct.is_sold || false
+                    };
+                    // Add to local products array
+                    products.push(product);
+                    setCachedItem('products', products);
+                } else {
+                    // Product not found - show error
+                    console.warn(`⚠️ Product with barcode "${barcode}" not found in database`);
+                    alert(`⚠️ Product with barcode "${barcode}" not found in database.\n\nPlease add the product first using the Products tab or bulk upload.`);
+                    const barcodeInput = document.getElementById('barcodeInput');
+                    if (barcodeInput) {
+                        barcodeInput.style.backgroundColor = '#fff3cd';
+                        barcodeInput.style.borderColor = '#ffc107';
+                        setTimeout(() => {
+                            barcodeInput.style.backgroundColor = '';
+                            barcodeInput.style.borderColor = '';
+                            barcodeInput.focus();
+                        }, 2000);
+                    }
+                    return;
+                }
+            } catch (error) {
+                console.error('❌ Error fetching product from API:', error);
+                alert(`⚠️ Error fetching product: ${error.message || 'Unknown error'}\n\nPlease check your connection and try again.`);
+                const barcodeInput = document.getElementById('barcodeInput');
+                if (barcodeInput) {
+                    barcodeInput.focus();
+                }
+                return;
+            }
         }
-
-        const product = products.find(p => String(p.barcode).trim().toLowerCase() === barcode.toLowerCase());
 
         if (product) {
             // Check if EXACT SAME BARCODE already exists in current bill
@@ -7213,43 +7755,70 @@ function deleteProduct(idx) {
                 }
             }
 
-            // Auto-populate form
-            document.getElementById('itemSku').value = product.sku || '';
-            document.getElementById('itemStyleCode').value = product.styleCode || '';
-            document.getElementById('itemName').value = product.shortName;
-            document.getElementById('itemSize').value = product.size || '';
-            document.getElementById('itemWeight').value = product.avgWt || '';
-            document.getElementById('itemPurity').value = product.purity;
-            document.getElementById('itemMetalType').value = product.metalType;
+            // Auto-populate form (with null checks)
+            const itemSkuEl = document.getElementById('itemSku');
+            const itemStyleCodeEl = document.getElementById('itemStyleCode');
+            const itemNameEl = document.getElementById('itemName');
+            const itemSizeEl = document.getElementById('itemSize');
+            const itemWeightEl = document.getElementById('itemWeight');
+            const itemPurityEl = document.getElementById('itemPurity');
+            const itemMetalTypeEl = document.getElementById('itemMetalType');
+            const itemRateEl = document.getElementById('itemRate');
+            const itemMcRateEl = document.getElementById('itemMcRate');
+            const itemBoxChargesEl = document.getElementById('itemBoxCharges');
+            const itemStoneChargesEl = document.getElementById('itemStoneCharges');
+            
+            if (itemSkuEl) itemSkuEl.value = product.sku || '';
+            if (itemStyleCodeEl) itemStyleCodeEl.value = product.styleCode || '';
+            if (itemNameEl) itemNameEl.value = product.shortName;
+            if (itemSizeEl) itemSizeEl.value = product.size || '';
+            if (itemWeightEl) itemWeightEl.value = product.avgWt || '';
+            if (itemPurityEl) itemPurityEl.value = product.purity;
+            if (itemMetalTypeEl) itemMetalTypeEl.value = product.metalType;
 
-            const metalRate = rates[product.metalType] || rates.silver;
-            // Limit to 2 decimal places
-            document.getElementById('itemRate').value = parseFloat(parseFloat(metalRate).toFixed(2));
+            const metalRate = rates[product.metalType] || rates.silver || 0;
+            const originalMCRate = product.mcRate || 0;
+            
+            // Get adjusted MC rate (with fallback if function not available)
+            let adjustedMCRate = originalMCRate;
+            try {
+                if (typeof getAdjustedMCRate === 'function') {
+                    adjustedMCRate = getAdjustedMCRate(originalMCRate);
+                } else {
+                    // Fallback: apply rate slab discount manually
+                    const discount = rateSlabDiscounts[currentRateSlab] || 0;
+                    adjustedMCRate = Math.max(0, originalMCRate - discount);
+                }
+            } catch (e) {
+                console.warn('Error calculating adjusted MC rate:', e);
+                adjustedMCRate = originalMCRate;
+            }
+            
+            if (itemRateEl) itemRateEl.value = parseFloat(parseFloat(metalRate).toFixed(2));
+            if (itemMcRateEl) {
+                itemMcRateEl.value = parseFloat(parseFloat(adjustedMCRate).toFixed(2));
+                itemMcRateEl.setAttribute('data-original-mc', originalMCRate);
+            }
+            if (itemBoxChargesEl) itemBoxChargesEl.value = '0';
+            if (itemStoneChargesEl) itemStoneChargesEl.value = '0';
 
-            const originalMCRate = product.mcRate;
-            // Fix rate calculation: mc - 3% (if rate is 152.5, then rate would be 147.92)
-            const adjustedMCRate = getAdjustedMCRate(originalMCRate);
-            // Limit to 2 decimal places
-            document.getElementById('itemMcRate').value = parseFloat(parseFloat(adjustedMCRate).toFixed(2));
-            document.getElementById('itemMcRate').setAttribute('data-original-mc', originalMCRate);
-            document.getElementById('itemBoxCharges').value = '0';
-            document.getElementById('itemStoneCharges').value = '0';
-
-            updateItemAmount();
+            if (typeof updateItemAmount === 'function') {
+                updateItemAmount();
+            }
 
             // AUTO-ADD ITEM IMMEDIATELY
             const item = {
                 barcode: barcode,
                 sku: product.sku || '',
                 styleCode: product.styleCode || '',
-                name: product.shortName,
+                name: product.shortName || 'Unnamed Product',
                 size: product.size || '',
-                weight: product.avgWt || 0,
-                purity: product.purity,
+                weight: parseFloat(product.avgWt) || parseFloat(product.weight) || 0,
+                purity: parseFloat(product.purity) || 100,
                 rate: parseFloat(parseFloat(metalRate).toFixed(2)),
                 mcRate: parseFloat(parseFloat(adjustedMCRate).toFixed(2)),
                 originalMcRate: originalMCRate,
-                metalType: product.metalType,
+                metalType: product.metalType || 'gold',
                 boxCharges: 0,
                 stoneCharges: 0,
                 originalFloor: originalFloor, // Store original floor for restoration
@@ -7265,9 +7834,23 @@ function deleteProduct(idx) {
 }
 
             items.push(item);
-            updateItemsTable();
-            updateSummary();
-            clearItemForm();
+            
+            // Update table and summary
+            if (typeof updateItemsTable === 'function') {
+                updateItemsTable();
+            } else {
+                console.error('❌ updateItemsTable function not found!');
+            }
+            
+            if (typeof updateSummary === 'function') {
+                updateSummary();
+            } else {
+                console.error('❌ updateSummary function not found!');
+            }
+            
+            if (typeof clearItemForm === 'function') {
+                clearItemForm();
+            }
 
             // Scroll to the newly added item
             setTimeout(() => {
@@ -7294,22 +7877,37 @@ function deleteProduct(idx) {
             }, 100);
 
             const barcodeInput = document.getElementById('barcodeInput');
-            barcodeInput.style.backgroundColor = '#d4edda';
-            barcodeInput.style.borderColor = '#28a745';
-            setTimeout(() => {
-                barcodeInput.style.backgroundColor = '';
-                barcodeInput.style.borderColor = '';
-                barcodeInput.focus();
-            }, 300);
+            if (barcodeInput) {
+                barcodeInput.style.backgroundColor = '#d4edda';
+                barcodeInput.style.borderColor = '#28a745';
+                setTimeout(() => {
+                    barcodeInput.style.backgroundColor = '';
+                    barcodeInput.style.borderColor = '';
+                    barcodeInput.focus();
+                }, 300);
+            }
+            
         } else {
-            alert(`⚠️ Product Not Found!\n\nBarcode: ${barcode}\n\nThis product doesn't exist in your inventory.`);
+            console.error(`❌ Product not found after all attempts. Barcode: "${barcode}"`);
+            alert(`⚠️ Product Not Found!\n\nBarcode: ${barcode}\n\nThis product doesn't exist in your inventory.\n\nPlease add the product first using the Products tab or bulk upload.`);
             const barcodeInput = document.getElementById('barcodeInput');
-            barcodeInput.style.backgroundColor = '#f8d7da';
-            barcodeInput.style.borderColor = '#dc3545';
-            setTimeout(() => {
-                barcodeInput.style.backgroundColor = '';
-                barcodeInput.style.borderColor = '';
-            }, 500);
+            if (barcodeInput) {
+                barcodeInput.style.backgroundColor = '#f8d7da';
+                barcodeInput.style.borderColor = '#dc3545';
+                setTimeout(() => {
+                    barcodeInput.style.backgroundColor = '';
+                    barcodeInput.style.borderColor = '';
+                    barcodeInput.focus();
+                }, 500);
+            }
+        }
+        } catch (error) {
+            console.error('Error scanning barcode:', error);
+            alert(`⚠️ Error scanning barcode: ${error.message || 'Unknown error'}`);
+            const barcodeInput = document.getElementById('barcodeInput');
+            if (barcodeInput) {
+                barcodeInput.focus();
+            }
         }
     }
 
@@ -7428,19 +8026,31 @@ function updateMCTypeLabel() {
         }
 
         function addItem() {
+                const itemSkuEl = getCachedElement('itemSku');
+                const itemStyleCodeEl = getCachedElement('itemStyleCode');
+                const itemNameEl = getCachedElement('itemName');
+                const itemSizeEl = getCachedElement('itemSize');
+                const itemWeightEl = getCachedElement('itemWeight');
+                const itemPurityEl = getCachedElement('itemPurity');
+                const itemRateEl = getCachedElement('itemRate');
+                const itemMcRateEl = getCachedElement('itemMcRate');
+                const itemBoxChargesEl = getCachedElement('itemBoxCharges');
+                const itemStoneChargesEl = getCachedElement('itemStoneCharges');
+                const itemMetalTypeEl = getCachedElement('itemMetalType');
+                
                 const item = {
-                    sku: document.getElementById('itemSku').value,
-                    styleCode: document.getElementById('itemStyleCode').value,
-                    name: document.getElementById('itemName').value,
-                    size: document.getElementById('itemSize').value,
-                    weight: parseFloat(document.getElementById('itemWeight').value) || 0,
-                    purity: parseFloat(document.getElementById('itemPurity').value) || 100,
-                    rate: parseFloat(document.getElementById('itemRate').value) || 0,
-                    mcRate: parseFloat(document.getElementById('itemMcRate').value) || 0,
-                    boxCharges: parseFloat(document.getElementById('itemBoxCharges').value) || 0,
-                    stoneCharges: parseFloat(document.getElementById('itemStoneCharges').value) || 0,
-                    originalMcRate: parseFloat(document.getElementById('itemMcRate').getAttribute('data-original-mc')) || parseFloat(document.getElementById('itemMcRate').value) || 0,
-                    metalType: document.getElementById('itemMetalType').value,
+                    sku: itemSkuEl ? itemSkuEl.value : '',
+                    styleCode: itemStyleCodeEl ? itemStyleCodeEl.value : '',
+                    name: itemNameEl ? itemNameEl.value : '',
+                    size: itemSizeEl ? itemSizeEl.value : '',
+                    weight: parseFloat(itemWeightEl ? itemWeightEl.value : 0) || 0,
+                    purity: parseFloat(itemPurityEl ? itemPurityEl.value : 100) || 100,
+                    rate: parseFloat(itemRateEl ? itemRateEl.value : 0) || 0,
+                    mcRate: parseFloat(itemMcRateEl ? itemMcRateEl.value : 0) || 0,
+                    boxCharges: parseFloat(itemBoxChargesEl ? itemBoxChargesEl.value : 0) || 0,
+                    stoneCharges: parseFloat(itemStoneChargesEl ? itemStoneChargesEl.value : 0) || 0,
+                    originalMcRate: parseFloat(itemMcRateEl ? (itemMcRateEl.getAttribute('data-original-mc') || itemMcRateEl.value) : 0) || 0,
+                    metalType: itemMetalTypeEl ? itemMetalTypeEl.value : 'gold',
                     barcode: null // Manual entries don't have barcodes
                 };
 
@@ -7465,54 +8075,70 @@ function updateMCTypeLabel() {
 
 
     function updateItemsTable() {
-        const table = document.getElementById('productsTable');
-        const tbody = document.getElementById('productTableBody');
-        const emptyState = document.getElementById('emptyProductsState');
-        const itemCountSpan = document.getElementById('itemCount');
-        const totalItemsSpan = document.getElementById('totalItems');
+        try {
+            const table = getCachedElement('productsTable');
+            const tbody = getCachedElement('productTableBody');
+            const emptyState = getCachedElement('emptyProductsState');
+            const itemCountSpan = getCachedElement('itemCount');
+            const totalItemsSpan = getCachedElement('totalItems');
 
-        if (!tbody) return;
-
-        tbody.innerHTML = '';
-
-        if (items.length === 0) {
-            table.classList.add('hidden');
-            emptyState.classList.remove('hidden');
-            itemCountSpan.textContent = '0 Items';
-            if (totalItemsSpan) totalItemsSpan.textContent = '0';
-            return;
-        }
-
-        table.classList.remove('hidden');
-        emptyState.classList.add('hidden');
-        itemCountSpan.textContent = `${items.length} Item${items.length > 1 ? 's' : ''}`;
-        if (totalItemsSpan) totalItemsSpan.textContent = items.length;
-
-        items.forEach((item, index) => {
-            const row = document.createElement('tr');
-            row.className = 'border-b hover:bg-blue-50 transition-colors';
-            row.setAttribute('data-item-id', item.id);
-            if (item.barcode) {
-                row.setAttribute('data-barcode', item.barcode);
-                // Apply permanent highlight if double-scanned
-                if (doubleScannedBarcodes.includes(String(item.barcode).toLowerCase())) {
-                    row.classList.add('double-scanned-permanent');
-                    row.style.backgroundColor = '#ffeb3b';
-                    row.style.boxShadow = '0 0 15px rgba(255, 235, 59, 0.8)';
-                }
+            if (!tbody) {
+                console.warn('⚠️ productTableBody not found');
+                return;
             }
 
+            // Use DocumentFragment for batch DOM updates (faster)
+            const fragment = document.createDocumentFragment();
+            
+            if (items.length === 0) {
+                if (table) table.classList.add('hidden');
+                if (emptyState) emptyState.classList.remove('hidden');
+                if (itemCountSpan) itemCountSpan.textContent = '0 Items';
+                if (totalItemsSpan) totalItemsSpan.textContent = '0';
+                tbody.innerHTML = '';
+                return;
+            }
+
+            if (table) table.classList.remove('hidden');
+            if (emptyState) emptyState.classList.add('hidden');
+            if (itemCountSpan) itemCountSpan.textContent = `${items.length} Item${items.length > 1 ? 's' : ''}`;
+            if (totalItemsSpan) totalItemsSpan.textContent = items.length;
+
+            // Pre-compute metal colors map (faster lookup)
             const metalColors = {
                 'gold': 'bg-yellow-100 text-yellow-800',
                 'silver': 'bg-gray-200 text-gray-800',
                 'platinum': 'bg-purple-100 text-purple-800'
             };
+            
+            // Create double-scanned set for O(1) lookup instead of O(n) array search
+            const doubleScannedSet = new Set(doubleScannedBarcodes.map(b => String(b).toLowerCase()));
 
-            const metalColor = metalColors[item.metalType] || 'bg-blue-100 text-blue-800';
-            const boxCharges = item.boxCharges || 0;
-            const stoneCharges = item.stoneCharges || 0;
+            // Build all rows in memory first, then append once (faster)
+            for (let index = 0; index < items.length; index++) {
+                const item = items[index];
+                const row = document.createElement('tr');
+                row.className = 'border-b hover:bg-blue-50 transition-colors';
+                row.setAttribute('data-item-id', item.id);
+                
+                if (item.barcode) {
+                    row.setAttribute('data-barcode', item.barcode);
+                    // O(1) lookup instead of O(n)
+                    if (doubleScannedSet.has(String(item.barcode).toLowerCase())) {
+                        row.classList.add('double-scanned-permanent');
+                        row.style.backgroundColor = '#ffeb3b';
+                        row.style.boxShadow = '0 0 15px rgba(255, 235, 59, 0.8)';
+                    }
+                }
 
-            row.innerHTML = `
+                const metalColor = metalColors[item.metalType] || 'bg-blue-100 text-blue-800';
+                const boxCharges = item.boxCharges || 0;
+                const stoneCharges = item.stoneCharges || 0;
+                const rateFixed = parseFloat(item.rate).toFixed(2);
+                const mcRateFixed = parseFloat(item.mcRate).toFixed(2);
+                const amountFixed = item.amount.toFixed(2);
+
+                row.innerHTML = `
             <td class="px-2 py-3 text-center font-bold text-gray-700 border-r bg-gray-50">${index + 1}</td>
             <td class="px-2 py-3 text-center font-mono text-xs border-r">${item.barcode || '-'}</td>
             <td class="px-3 py-3 text-left font-semibold text-gray-800 border-r">
@@ -7533,18 +8159,18 @@ function updateMCTypeLabel() {
             </td>
             <td class="px-2 py-3 text-center font-semibold border-r">${item.purity}%</td>
             <td class="px-2 py-3 text-right font-semibold border-r bg-yellow-50">
-                <input type="number" step="0.01" value="${parseFloat(item.rate).toFixed(2)}" 
+                <input type="number" step="0.01" value="${rateFixed}" 
                     onchange="editItemRate(${item.id}, this.value)"
                     class="w-20 px-2 py-1 text-center font-bold text-gray-800 border border-yellow-300 rounded focus:ring-2 focus:ring-yellow-500 bg-white">
             </td>
             <td class="px-2 py-3 border-r bg-orange-50">
-                <input type="number" step="0.01" value="${parseFloat(item.mcRate).toFixed(2)}" 
+                <input type="number" step="0.01" value="${mcRateFixed}" 
                     onchange="editItemMCRate(${item.id}, this.value)"
                     class="w-20 px-2 py-1 text-center font-bold text-gray-800 border border-orange-300 rounded focus:ring-2 focus:ring-orange-500 bg-white">
             </td>
             <td class="px-2 py-3 text-right border-r bg-purple-50">₹${boxCharges.toFixed(2)}</td>
             <td class="px-2 py-3 text-right border-r bg-pink-50">₹${stoneCharges.toFixed(2)}</td>
-            <td class="px-2 py-3 text-right font-bold text-green-700 border-r bg-green-50">₹${item.amount.toFixed(2)}</td>
+            <td class="px-2 py-3 text-right font-bold text-green-700 border-r bg-green-50">₹${amountFixed}</td>
             <td class="px-2 py-3 text-center">
                 <button onclick="removeItem(${item.id})" 
                     class="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded transition-all hover:scale-110"
@@ -7554,11 +8180,19 @@ function updateMCTypeLabel() {
             </td>
         `;
 
-            tbody.appendChild(row);
-        });
+                fragment.appendChild(row);
+            }
+            
+            // Single DOM update instead of multiple appends
+            tbody.innerHTML = '';
+            tbody.appendChild(fragment);
+        } catch (error) {
+            console.error('Error in updateItemsTable:', error);
+        }
     }
 
     function editItemWeight(itemId, newWeight) {
+            // Use Map for O(1) lookup if items array is large (cache it)
             const item = items.find(i => i.id === itemId);
             if (!item) return;
 
@@ -7640,14 +8274,25 @@ function updateMCTypeLabel() {
                     }
 
                 function updateSummary() {
-                    const total = items.reduce((sum, item) => sum + item.amount, 0);
+                    // Optimize reduce with for loop for better performance
+                    let total = 0;
+                    let totalWeight = 0;
+                    for (let i = 0; i < items.length; i++) {
+                        total += items[i].amount;
+                        totalWeight += items[i].weight;
+                    }
                     const gst = total * 0.03;
                     const netTotal = total + gst;
-                    const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
-                    document.getElementById('summaryTotal').textContent = `₹${total.toFixed(2)}`;
-                    document.getElementById('summaryGst').textContent = `₹${gst.toFixed(2)}`;
-                    document.getElementById('summaryNetTotal').textContent = `₹${netTotal.toFixed(2)}`;
-                    document.getElementById('summaryTotalWeight').textContent = `${totalWeight.toFixed(2)}g`; 
+                    
+                    const summaryTotalEl = getCachedElement('summaryTotal');
+                    const summaryGstEl = getCachedElement('summaryGst');
+                    const summaryNetTotalEl = getCachedElement('summaryNetTotal');
+                    const summaryTotalWeightEl = getCachedElement('summaryTotalWeight');
+                    
+                    if (summaryTotalEl) summaryTotalEl.textContent = `₹${total.toFixed(2)}`;
+                    if (summaryGstEl) summaryGstEl.textContent = `₹${gst.toFixed(2)}`;
+                    if (summaryNetTotalEl) summaryNetTotalEl.textContent = `₹${netTotal.toFixed(2)}`;
+                    if (summaryTotalWeightEl) summaryTotalWeightEl.textContent = `${totalWeight.toFixed(2)}g`; 
                 }
             
                 function generateQuote() {
@@ -7690,12 +8335,40 @@ function updateMCTypeLabel() {
     const discount = window.cashReceiveDiscount || 0;
     const advance = window.cashReceiveAdvance || 0;
     const finalAmount = netTotal - discount + advance;
-    const quotationNo = `Q${String(quotationCounter).padStart(4, '0')}`;
+    // Check if we're editing an existing quotation
+    const isEditing = window.editingQuotationId !== undefined && window.editingQuotationId !== null;
+    let quotationNo;
+    let quotationRecord;
+    let existingQuotation = null;
+    
+    if (isEditing) {
+        // Find the existing quotation
+        existingQuotation = savedQuotations.find(q => q.id === window.editingQuotationId || q.dbId === window.editingQuotationId);
+        if (existingQuotation) {
+            quotationNo = existingQuotation.quotationNo; // Keep the same quotation number
+            quotationRecord = {
+                id: existingQuotation.id,
+                dbId: existingQuotation.dbId,
+                quotationNo: quotationNo,
+            };
+        } else {
+            // Fallback if quotation not found
+            quotationNo = `Q${String(quotationCounter).padStart(4, '0')}`;
+            quotationRecord = {
+                id: Date.now(),
+                quotationNo: quotationNo,
+            };
+        }
+    } else {
+        quotationNo = `Q${String(quotationCounter).padStart(4, '0')}`;
+        quotationRecord = {
+            id: Date.now(),
+            quotationNo: quotationNo,
+        };
+    }
 
-    // SAVE QUOTATION TO HISTORY
-    const quotationRecord = {
-        id: Date.now(),
-        quotationNo: quotationNo,
+    // Complete the quotation record
+    Object.assign(quotationRecord, {
         date: new Date().toISOString(),
         customer: {
             name: currentCustomer.name,
@@ -7705,9 +8378,9 @@ function updateMCTypeLabel() {
             mobile: currentCustomer.mobile
         },
         items: items.map(item => ({
-    ...item,
-    barcode: item.barcode || null
-})),
+            ...item,
+            barcode: item.barcode || null
+        })),
         total: total,
         gst: gst,
         netTotal: netTotal,
@@ -7715,42 +8388,98 @@ function updateMCTypeLabel() {
         advance: advance,
         finalAmount: finalAmount,
         rateSlab: currentRateSlab,
-        isBilled: false,
+        isBilled: existingQuotation ? existingQuotation.isBilled : false,
         paymentReceived: isCashReceived,
         paymentDate: isCashReceived ? new Date().toISOString() : null
-    };
+    });
 
-    savedQuotations.unshift(quotationRecord);
+    // Update or add quotation
+    if (isEditing && existingQuotation) {
+        // Update existing quotation in array
+        const index = savedQuotations.findIndex(q => q.id === window.editingQuotationId || q.dbId === window.editingQuotationId);
+        if (index >= 0) {
+            savedQuotations[index] = quotationRecord;
+        }
+        // Clear editing flag
+        window.editingQuotationId = null;
+    } else {
+        // Add new quotation
+        savedQuotations.unshift(quotationRecord);
+        quotationCounter++;
+    }
     setCachedItem('savedQuotations', savedQuotations);
 
     // Save quotation to API
     try {
         const customerId = currentCustomer && currentCustomer.id ? currentCustomer.id : null;
-        const savedQuotation = await api.createQuotation({
-            quotationNo: quotationNo,
-            customerId: customerId,
-            customerName: currentCustomer.name,
-            customerMobile: currentCustomer.mobile,
-            items: items.map(item => ({
-                ...item,
-                barcode: item.barcode || null
-            })),
-            total: total,
-            gst: gst,
-            netTotal: netTotal,
-            discount: discount,
-            advance: advance,
-            finalAmount: finalAmount,
-            paymentStatus: isCashReceived ? 'paid' : 'pending',
-            remarks: ''
-        });
-        // Store database ID in quotation record
-        if (savedQuotation && savedQuotation.id) {
-            quotationRecord.dbId = savedQuotation.id;
+        
+        if (isEditing && quotationRecord.dbId) {
+            // Update existing quotation via API
+            const updatedQuotation = await api.updateQuotation(quotationRecord.dbId, {
+                customerId: customerId,
+                customerName: currentCustomer.name,
+                customerMobile: currentCustomer.mobile,
+                items: items.map(item => ({
+                    ...item,
+                    barcode: item.barcode || null
+                })),
+                total: total,
+                gst: gst,
+                netTotal: netTotal,
+                discount: discount,
+                advance: advance,
+                finalAmount: finalAmount,
+                paymentStatus: isCashReceived ? 'paid' : 'pending',
+                remarks: ''
+            });
+            if (updatedQuotation && updatedQuotation.id) {
+                quotationRecord.dbId = updatedQuotation.id;
+            }
+            // Reload quotations to ensure sync
+            await loadQuotations();
+            // Refresh quotations list in Sales Bill dropdown
+            if (typeof refreshQuotationsList === 'function') {
+                refreshQuotationsList();
+            }
+        } else {
+            // Create new quotation via API
+            const savedQuotation = await api.createQuotation({
+                quotationNo: quotationNo,
+                customerId: customerId,
+                customerName: currentCustomer.name,
+                customerMobile: currentCustomer.mobile,
+                items: items.map(item => ({
+                    ...item,
+                    barcode: item.barcode || null
+                })),
+                total: total,
+                gst: gst,
+                netTotal: netTotal,
+                discount: discount,
+                advance: advance,
+                finalAmount: finalAmount,
+                paymentStatus: isCashReceived ? 'paid' : 'pending',
+                remarks: ''
+            });
+            // Store database ID in quotation record
+            if (savedQuotation && savedQuotation.id) {
+                quotationRecord.dbId = savedQuotation.id;
+            }
+            // Reload quotations to ensure sync
+            await loadQuotations();
+            // Refresh quotations list in Sales Bill dropdown
+            if (typeof refreshQuotationsList === 'function') {
+                refreshQuotationsList();
+            }
         }
     } catch (error) {
         console.error('Failed to save quotation to API:', error);
     }
+    
+    // Clear items after saving quotation
+    items = [];
+    updateItemsTable();
+    updateSummary();
 
     // ⭐ IF CASH RECEIVED - RECORD IN LEDGER IMMEDIATELY
     if (isCashReceived) {
@@ -8018,14 +8747,29 @@ function updateMCTypeLabel() {
     
                function clearAll() {
                     if (items.length === 0 || confirm('Clear all items from bill?')) {
+                        // Force clear the items array
                         items = [];
+                        items.length = 0;
+                        // Clear double-scanned barcodes for this session
+                        doubleScannedBarcodes = [];
+                        localStorage.removeItem('doubleScannedBarcodes');
                         updateItemsTable();
                         updateSummary();
                         clearItemForm();
-                        document.getElementById('rateSlab').value = 'R';
+                        const rateSlabEl = getCachedElement('rateSlab');
+                        if (rateSlabEl) {
+                            rateSlabEl.value = 'R';
+                        }
                         currentRateSlab = 'R';
                         updateRateSlabInfo();
-                        document.getElementById('barcodeInput').focus();
+                        const barcodeInput = getCachedElement('barcodeInput');
+                        if (barcodeInput) {
+                            barcodeInput.focus();
+                        }
+                        // Force a re-render to ensure table is cleared
+                        setTimeout(() => {
+                            updateItemsTable();
+                        }, 10);
                     }
                 }
 
@@ -8845,8 +9589,8 @@ function updateMCTypeLabel() {
                                 updateItemsTable();
                                 updateSummary();
 
-                                // Store quotation ID for update
-                                window.editingQuotationId = id;
+                                // Store quotation ID for update (use dbId if available, otherwise use id)
+                                window.editingQuotationId = quotation.dbId || quotation.id;
 
                                 alert(`Quotation ${quotation.quotationNo} loaded for editing. Make your changes and save as a new quotation or update existing.`);
                             }
@@ -12352,8 +13096,11 @@ function closePaymentModal() {
             if (savedPV && savedPV.id) {
                 pvRecord.dbId = savedPV.id;
             }
+            // Reload products from API after PV upload to show new products
+            await loadProducts();
         } catch (error) {
             console.error('Failed to save PV to API:', error);
+            showDialog('Warning', 'PV saved locally but failed to sync to database. Please check your connection.', 'warning');
         }
 
         // ✅ Update metal stocks
@@ -12407,6 +13154,9 @@ function closePaymentModal() {
                 savedProducts.push(product);
             }
         }
+        
+        // Reload products from API to show newly added products
+        await loadProducts();
         
         alert(`✅ PV Created Successfully!\n\nPV Number: ${pvNo}\nProducts Added: ${bulkUploadPVData.length}\nTotal Weight: ${totalWeight.toFixed(2)}g\nTotal Value: ₹${totalValue.toFixed(2)}\n\nStock updated in inventory.`);
 
@@ -13446,7 +14196,6 @@ function downloadAllCustomerLedgers() {
                 
                 if (response.ok && result.success) {
                     successCount++;
-                    console.log(`✅ Label printed for ${product.barcode}`);
                 } else {
                     errorCount++;
                     console.error(`❌ Failed to print label for ${product.barcode}:`, result.error);

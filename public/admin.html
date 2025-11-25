@@ -127,38 +127,38 @@
     <div id="createClientModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
             <h3 class="text-xl font-bold mb-4">Create New Client</h3>
-            <div class="space-y-4">
+            <form onsubmit="event.preventDefault(); createClient();" class="space-y-4">
                 <div>
                     <label class="block text-sm font-medium mb-1">Tenant Code *</label>
-                    <input type="text" id="newTenantCode" placeholder="e.g., client1" 
+                    <input type="text" id="newTenantCode" placeholder="e.g., client1" required
                         class="w-full px-4 py-2 border rounded-lg">
                 </div>
                 <div>
                     <label class="block text-sm font-medium mb-1">Client Name *</label>
-                    <input type="text" id="newTenantName" placeholder="Client Name" 
+                    <input type="text" id="newTenantName" placeholder="Client Name" required
                         class="w-full px-4 py-2 border rounded-lg">
                 </div>
                 <div>
                     <label class="block text-sm font-medium mb-1">Admin Username *</label>
-                    <input type="text" id="newAdminUsername" placeholder="admin" 
+                    <input type="text" id="newAdminUsername" placeholder="admin" required
                         class="w-full px-4 py-2 border rounded-lg">
                 </div>
                 <div>
                     <label class="block text-sm font-medium mb-1">Admin Password *</label>
-                    <input type="password" id="newAdminPassword" placeholder="Password" 
+                    <input type="password" id="newAdminPassword" placeholder="Password" required
                         class="w-full px-4 py-2 border rounded-lg">
                 </div>
                 <div class="flex gap-3">
-                    <button onclick="createClient()" 
+                    <button type="submit"
                         class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
                         Create
                     </button>
-                    <button onclick="closeCreateClientModal()" 
+                    <button type="button" onclick="closeCreateClientModal()" 
                         class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
                         Cancel
                     </button>
                 </div>
-            </div>
+            </form>
         </div>
     </div>
 
@@ -194,24 +194,47 @@
     <script>
         let currentTenant = null;
 
-        // Tab Management - Make function globally accessible
+        // Tab Management - Make function globally accessible with error handling
         window.showAdminTab = function(tabName) {
-            document.querySelectorAll('.admin-tab').forEach(tab => tab.classList.add('hidden'));
-            document.querySelectorAll('[id^="tab"]').forEach(btn => {
-                btn.classList.remove('bg-gray-600');
-                btn.classList.add('bg-gray-400');
-            });
-            
-            document.getElementById(`adminTab${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`).classList.remove('hidden');
-            document.getElementById(`tab${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`).classList.remove('bg-gray-400');
-            document.getElementById(`tab${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`).classList.add('bg-gray-600');
-            
-            if (tabName === 'clients') loadClients();
-            if (tabName === 'monitoring') loadMonitoring();
-            if (tabName === 'apikeys') loadApiKeys();
+            try {
+                // Hide all tabs
+                document.querySelectorAll('.admin-tab').forEach(tab => {
+                    if (tab) tab.classList.add('hidden');
+                });
+                
+                // Reset all tab buttons
+                document.querySelectorAll('[id^="tab"]').forEach(btn => {
+                    if (btn) {
+                        btn.classList.remove('bg-gray-600');
+                        btn.classList.add('bg-gray-400');
+                    }
+                });
+                
+                // Show selected tab
+                const tabId = `adminTab${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`;
+                const tabElement = document.getElementById(tabId);
+                if (tabElement) {
+                    tabElement.classList.remove('hidden');
+                }
+                
+                // Highlight selected tab button
+                const btnId = `tab${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`;
+                const btnElement = document.getElementById(btnId);
+                if (btnElement) {
+                    btnElement.classList.remove('bg-gray-400');
+                    btnElement.classList.add('bg-gray-600');
+                }
+                
+                // Load tab content
+                if (tabName === 'clients' && typeof loadClients === 'function') loadClients();
+                if (tabName === 'monitoring' && typeof loadMonitoring === 'function') loadMonitoring();
+                if (tabName === 'apikeys' && typeof loadApiKeys === 'function') loadApiKeys();
+            } catch (error) {
+                console.error('Error switching admin tab:', error);
+            }
         }
 
-        // Master admin authentication
+        // Master admin authentication - Single declaration
         let masterAdminAuth = {
             username: null,
             password: null
@@ -220,6 +243,11 @@
         // Check if user is authenticated (session token from URL)
         const urlParams = new URLSearchParams(window.location.search);
         const sessionToken = urlParams.get('session');
+        
+        // Set authenticated if session token exists
+        if (sessionToken) {
+            masterAdminAuth = { username: 'Gaurav', password: 'authenticated' };
+        }
         
         function checkMasterAdminAuth() {
             // If we have a session token, user is authenticated via server
@@ -232,14 +260,13 @@
         
         // Prompt for master admin credentials
         async function getMasterAdminCredentials() {
-            // If we have session token, return authenticated (but we still need real password for API calls)
-            // For API calls, we'll need to prompt for password
-            if (sessionToken && masterAdminAuth.username && masterAdminAuth.password) {
-                return masterAdminAuth;
+            // If we have session token, return authenticated
+            if (sessionToken) {
+                return { username: 'Gaurav', password: 'session' };
             }
             
             // If already have credentials, return them
-            if (masterAdminAuth.username && masterAdminAuth.password) {
+            if (masterAdminAuth.username && masterAdminAuth.password && masterAdminAuth.password !== 'session') {
                 return masterAdminAuth;
             }
             
@@ -272,12 +299,17 @@
             }
         }
         
-        // Load Clients (requires master admin)
+        // Load Clients (requires master admin) with error handling
         async function loadClients() {
             if (!checkMasterAdminAuth()) return;
             
             const auth = await getMasterAdminCredentials();
             if (!auth) return;
+            
+            const list = document.getElementById('clientsList');
+            if (!list) return;
+            
+            list.innerHTML = '<p class="text-gray-500">Loading clients...</p>';
             
             try {
                 const response = await fetch('/api/tenants', {
@@ -288,9 +320,22 @@
                         password: auth.password
                     })
                 });
+                
+                // Check if response is OK
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+                    throw new Error(errorData.error || `Failed to load clients: ${response.status}`);
+                }
+                
                 const clients = await response.json();
                 
-                const list = document.getElementById('clientsList');
+                // Ensure clients is an array
+                if (!Array.isArray(clients)) {
+                    console.error('Invalid response format:', clients);
+                    list.innerHTML = '<p class="text-red-600">Error: Invalid response format from server</p>';
+                    return;
+                }
+                
                 if (clients.length === 0) {
                     list.innerHTML = '<p class="text-gray-500">No clients found. Create your first client!</p>';
                     return;
@@ -314,12 +359,12 @@
                     </div>
                 `).join('');
             } catch (error) {
-                document.getElementById('clientsList').innerHTML = 
-                    `<p class="text-red-600">Error loading clients: ${error.message}</p>`;
+                console.error('Error loading clients:', error);
+                list.innerHTML = `<p class="text-red-600">Error loading clients: ${error.message}</p>`;
             }
         }
 
-        // Load Monitoring (requires master admin)
+        // Load Monitoring (requires master admin) with error handling
         async function loadMonitoring() {
             if (!checkMasterAdminAuth()) return;
             
@@ -335,30 +380,56 @@
                         password: auth.password
                     })
                 });
+                
+                // Check if response is OK
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+                    throw new Error(errorData.error || `Failed to load monitoring: ${response.status}`);
+                }
+                
                 const clients = await response.json();
                 
-                document.getElementById('statTotalClients').textContent = clients.length;
-                document.getElementById('statActiveClients').textContent = 
-                    clients.filter(c => c.is_active).length;
-                document.getElementById('statTotalDatabases').textContent = clients.length;
+                // Ensure clients is an array
+                if (!Array.isArray(clients)) {
+                    console.error('Invalid response format:', clients);
+                    clients = [];
+                }
                 
+                const statTotal = document.getElementById('statTotalClients');
+                const statActive = document.getElementById('statActiveClients');
+                const statDatabases = document.getElementById('statTotalDatabases');
                 const activity = document.getElementById('clientActivity');
-                activity.innerHTML = clients.map(client => `
-                    <div class="border rounded-lg p-4">
-                        <div class="flex justify-between items-center">
-                            <div>
-                                <h4 class="font-bold">${client.tenant_name || client.tenant_code}</h4>
-                                <p class="text-sm text-gray-600">Last activity: ${new Date(client.created_at).toLocaleString()}</p>
+                
+                if (statTotal) statTotal.textContent = clients.length;
+                if (statActive) statActive.textContent = clients.filter(c => c.is_active).length;
+                if (statDatabases) statDatabases.textContent = clients.length;
+                
+                if (activity) {
+                    if (clients.length === 0) {
+                        activity.innerHTML = '<p class="text-gray-500">No clients found.</p>';
+                    } else {
+                        activity.innerHTML = clients.map(client => `
+                            <div class="border rounded-lg p-4">
+                                <div class="flex justify-between items-center">
+                                    <div>
+                                        <h4 class="font-bold">${client.tenant_name || client.tenant_code}</h4>
+                                        <p class="text-sm text-gray-600">Last activity: ${new Date(client.created_at).toLocaleString()}</p>
+                                    </div>
+                                    <button onclick="viewClientDatabase('${client.tenant_code}')" 
+                                        class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">
+                                        View Database
+                                    </button>
+                                </div>
                             </div>
-                            <button onclick="viewClientDatabase('${client.tenant_code}')" 
-                                class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">
-                                View Database
-                            </button>
-                        </div>
-                    </div>
-                `).join('');
+                        `).join('');
+                    }
+                }
             } catch (error) {
                 console.error('Error loading monitoring:', error);
+                const activity = document.getElementById('clientActivity');
+                if (activity) {
+                    activity.innerHTML = `<p class="text-red-600">Error loading monitoring: ${error.message}</p>`;
+                }
             }
         }
 
@@ -408,70 +479,6 @@
             }
         }
 
-        // Master Admin Authentication
-        let masterAdminAuth = {
-            username: null,
-            password: null
-        };
-        
-        // Check session from URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const sessionToken = urlParams.get('session');
-        if (sessionToken) {
-            // Session token present - user is authenticated via server
-            masterAdminAuth = { username: 'Gaurav', password: 'authenticated' };
-        }
-        
-        function checkMasterAdminAuth() {
-            // If we have a session token, user is authenticated
-            if (sessionToken) {
-                return true;
-            }
-            // Otherwise check if we have stored credentials
-            return masterAdminAuth.username && masterAdminAuth.password;
-        }
-        
-        // Prompt for master admin credentials
-        async function getMasterAdminCredentials() {
-            // If we have session token, return authenticated
-            if (sessionToken) {
-                return { username: 'Gaurav', password: 'session' };
-            }
-            
-            // If already have credentials, return them
-            if (masterAdminAuth.username && masterAdminAuth.password && masterAdminAuth.password !== 'session') {
-                return masterAdminAuth;
-            }
-            
-            // Prompt for credentials
-            const username = prompt('Enter Master Admin Username:');
-            if (!username) return null;
-            
-            const password = prompt('Enter Master Admin Password:');
-            if (!password) return null;
-            
-            // Verify credentials
-            try {
-                const response = await fetch('/api/auth/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password, tenantCode: '' })
-                });
-                
-                const data = await response.json();
-                if (data.success && data.isMasterAdmin) {
-                    masterAdminAuth = { username, password };
-                    return masterAdminAuth;
-                } else {
-                    alert('Invalid master admin credentials');
-                    return null;
-                }
-            } catch (error) {
-                alert('Error verifying credentials: ' + error.message);
-                return null;
-            }
-        }
-        
         // Create Client - Make functions globally accessible
         window.showCreateClientModal = function() {
             if (!checkMasterAdminAuth()) return;
@@ -485,22 +492,28 @@
         window.createClient = async function() {
             if (!checkMasterAdminAuth()) return;
             
-            const tenantCode = document.getElementById('newTenantCode').value;
-            const tenantName = document.getElementById('newTenantName').value;
-            const adminUsername = document.getElementById('newAdminUsername').value;
-            const adminPassword = document.getElementById('newAdminPassword').value;
+            const tenantCode = document.getElementById('newTenantCode')?.value?.trim();
+            const tenantName = document.getElementById('newTenantName')?.value?.trim();
+            const adminUsername = document.getElementById('newAdminUsername')?.value?.trim();
+            const adminPassword = document.getElementById('newAdminPassword')?.value;
+            
+            if (!tenantCode || !tenantName || !adminUsername || !adminPassword) {
+                alert('Please fill all fields');
+                return;
+            }
+            
             // Get master admin credentials from session or prompt
             const auth = await getMasterAdminCredentials();
             if (!auth) {
                 alert('Master admin authentication required');
                 return;
             }
-            const masterUsername = auth.username;
-            const masterPassword = auth.password;
             
-            if (!tenantCode || !tenantName || !adminUsername || !adminPassword) {
-                alert('Please fill all fields');
-                return;
+            // For session-based auth, we need to prompt for password
+            if (auth.password === 'session' || auth.password === 'authenticated') {
+                const password = prompt('Enter Master Admin Password:');
+                if (!password) return;
+                auth.password = password;
             }
             
             try {
@@ -512,20 +525,32 @@
                         tenantName, 
                         adminUsername, 
                         adminPassword,
-                        masterUsername,
-                        masterPassword
+                        masterUsername: auth.username,
+                        masterPassword: auth.password
                     })
                 });
                 
-                const result = await response.json();
+                // Handle non-JSON responses
+                const contentType = response.headers.get('content-type');
+                let result;
+                if (contentType && contentType.includes('application/json')) {
+                    result = await response.json();
+                } else {
+                    const text = await response.text();
+                    throw new Error(text || `HTTP ${response.status}`);
+                }
+                
                 if (response.ok) {
                     alert('Client created successfully!');
-                    closeCreateClientModal();
-                    loadClients();
+                    window.closeCreateClientModal();
+                    if (typeof loadClients === 'function') {
+                        loadClients();
+                    }
                 } else {
-                    alert('Error: ' + result.error);
+                    alert('Error: ' + (result.error || result.message || 'Unknown error'));
                 }
             } catch (error) {
+                console.error('Error creating client:', error);
                 alert('Error: ' + error.message);
             }
         }
