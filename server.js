@@ -12,6 +12,8 @@ const {
     createTenantDatabase,
     queryTenant 
 } = require('./config/database');
+const TallyIntegration = require('./config/tally-integration');
+const TallySyncService = require('./config/tally-sync-service');
 
 const app = express();
 const server = http.createServer(app);
@@ -809,6 +811,18 @@ app.post('/api/:tenant/bills', async (req, res) => {
         
         const result = await queryTenant(tenant, query, params);
         broadcastToTenant(tenant, 'bill-created', result[0]);
+        
+        // Sync to Tally if enabled
+        try {
+            const tallyService = new TallySyncService(tenant);
+            await tallyService.initialize();
+            if (tallyService.shouldAutoSync()) {
+                await tallyService.syncSalesBill(result[0], true);
+            }
+        } catch (tallyError) {
+            console.error('Tally sync error (non-blocking):', tallyError);
+        }
+        
         res.json(result[0]);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -933,6 +947,23 @@ app.post('/api/:tenant/ledger/transactions', async (req, res) => {
         ];
         
         const result = await queryTenant(tenant, query, params);
+        
+        // Sync to Tally if enabled (for cash entries and payment/receipt)
+        try {
+            const tallyService = new TallySyncService(tenant);
+            await tallyService.initialize();
+            if (tallyService.shouldAutoSync()) {
+                const transactionType = transaction.transactionType || transaction.transaction_type;
+                if (transactionType === 'Cash Received' || transactionType === 'Cash Paid' || transactionType === 'Cash Transfer') {
+                    await tallyService.syncCashEntry(result[0], true);
+                } else if (transactionType === 'Payment Received' || transactionType === 'Payment Made' || transactionType === 'Receipt' || transactionType === 'Payment') {
+                    await tallyService.syncPaymentReceipt(result[0], true);
+                }
+            }
+        } catch (tallyError) {
+            console.error('Tally sync error (non-blocking):', tallyError);
+        }
+        
         res.json(result[0]);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -976,6 +1007,18 @@ app.post('/api/:tenant/purchase-vouchers', async (req, res) => {
         ];
         
         const result = await queryTenant(tenant, query, params);
+        
+        // Sync to Tally if enabled
+        try {
+            const tallyService = new TallySyncService(tenant);
+            await tallyService.initialize();
+            if (tallyService.shouldAutoSync()) {
+                await tallyService.syncPurchaseVoucher(result[0], true);
+            }
+        } catch (tallyError) {
+            console.error('Tally sync error (non-blocking):', tallyError);
+        }
+        
         res.json(result[0]);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -1401,6 +1444,17 @@ app.post('/api/sync/push', async (req, res) => {
         const { tenantCode, table, data } = req.body;
         const pool = getTenantPool(tenantCode);
         
+        // Security: Only allow syncing specific tables
+        const allowedTables = [
+            'products', 'customers', 'quotations', 'bills', 'rates',
+            'ledger_transactions', 'purchase_vouchers', 'rol_data',
+            'users', 'tally_config', 'tally_sync_log'
+        ];
+        
+        if (!allowedTables.includes(table)) {
+            return res.status(403).json({ error: `Table ${table} is not allowed for sync` });
+        }
+        
         // Insert or update data
         for (const row of data) {
             const { id, ...rowData } = row;
@@ -1435,6 +1489,17 @@ app.post('/api/sync/pull', async (req, res) => {
         const { tenantCode, table, lastSync } = req.body;
         const pool = getTenantPool(tenantCode);
         
+        // Security: Only allow syncing specific tables
+        const allowedTables = [
+            'products', 'customers', 'quotations', 'bills', 'rates',
+            'ledger_transactions', 'purchase_vouchers', 'rol_data',
+            'users', 'tally_config', 'tally_sync_log'
+        ];
+        
+        if (!allowedTables.includes(table)) {
+            return res.status(403).json({ error: `Table ${table} is not allowed for sync` });
+        }
+        
         let query = `SELECT * FROM ${table}`;
         if (lastSync) {
             query += ` WHERE updated_at > $1 OR created_at > $1`;
@@ -1444,6 +1509,152 @@ app.post('/api/sync/pull', async (req, res) => {
             const result = await pool.query(query);
             res.json(result.rows);
         }
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ========== TALLY INTEGRATION API ==========
+
+// Get Tally configuration
+app.get('/api/:tenant/tally/config', async (req, res) => {
+    try {
+        const { tenant } = req.params;
+        const tallyService = new TallySyncService(tenant);
+        const result = await tallyService.getConfig();
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Update Tally configuration
+app.put('/api/:tenant/tally/config', async (req, res) => {
+    try {
+        const { tenant } = req.params;
+        const config = req.body;
+        const tallyService = new TallySyncService(tenant);
+        const result = await tallyService.updateConfig(config);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Test Tally connection
+app.post('/api/:tenant/tally/test', async (req, res) => {
+    try {
+        const { tenant } = req.params;
+        const tallyService = new TallySyncService(tenant);
+        const result = await tallyService.testConnection();
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get Tally sync logs
+app.get('/api/:tenant/tally/sync-logs', async (req, res) => {
+    try {
+        const { tenant } = req.params;
+        const { limit = 100, status } = req.query;
+        const tallyService = new TallySyncService(tenant);
+        const logs = await tallyService.getSyncLogs(parseInt(limit), status || null);
+        res.json(logs);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Manual sync - Sales Bill
+app.post('/api/:tenant/tally/sync/sales-bill/:id', async (req, res) => {
+    try {
+        const { tenant, id } = req.params;
+        const pool = getTenantPool(tenant);
+        const billResult = await pool.query('SELECT * FROM bills WHERE id = $1', [id]);
+        
+        if (billResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Bill not found' });
+        }
+        
+        const tallyService = new TallySyncService(tenant);
+        await tallyService.initialize();
+        const result = await tallyService.syncSalesBill(billResult.rows[0], false);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Manual sync - Purchase Voucher
+app.post('/api/:tenant/tally/sync/purchase-voucher/:id', async (req, res) => {
+    try {
+        const { tenant, id } = req.params;
+        const pool = getTenantPool(tenant);
+        const pvResult = await pool.query('SELECT * FROM purchase_vouchers WHERE id = $1', [id]);
+        
+        if (pvResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Purchase voucher not found' });
+        }
+        
+        const tallyService = new TallySyncService(tenant);
+        await tallyService.initialize();
+        const result = await tallyService.syncPurchaseVoucher(pvResult.rows[0], false);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Manual sync - Cash Entry
+app.post('/api/:tenant/tally/sync/cash-entry/:id', async (req, res) => {
+    try {
+        const { tenant, id } = req.params;
+        const pool = getTenantPool(tenant);
+        const transactionResult = await pool.query('SELECT * FROM ledger_transactions WHERE id = $1', [id]);
+        
+        if (transactionResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Transaction not found' });
+        }
+        
+        const tallyService = new TallySyncService(tenant);
+        await tallyService.initialize();
+        const result = await tallyService.syncCashEntry(transactionResult.rows[0], false);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Manual sync - Payment/Receipt
+app.post('/api/:tenant/tally/sync/payment-receipt/:id', async (req, res) => {
+    try {
+        const { tenant, id } = req.params;
+        const pool = getTenantPool(tenant);
+        const transactionResult = await pool.query('SELECT * FROM ledger_transactions WHERE id = $1', [id]);
+        
+        if (transactionResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Transaction not found' });
+        }
+        
+        const tallyService = new TallySyncService(tenant);
+        await tallyService.initialize();
+        const result = await tallyService.syncPaymentReceipt(transactionResult.rows[0], false);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Retry failed syncs
+app.post('/api/:tenant/tally/retry-failed', async (req, res) => {
+    try {
+        const { tenant } = req.params;
+        const { maxRetries = 3 } = req.body;
+        const tallyService = new TallySyncService(tenant);
+        await tallyService.initialize();
+        const results = await tallyService.retryFailedSyncs(maxRetries);
+        res.json({ success: true, results });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

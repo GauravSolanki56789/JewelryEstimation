@@ -92,7 +92,9 @@ async function syncDatabase() {
             'ledger_transactions',
             'purchase_vouchers',
             'rol_data',
-            'users'
+            'users',
+            'tally_config',
+            'tally_sync_log'
         ];
 
         for (const table of tables) {

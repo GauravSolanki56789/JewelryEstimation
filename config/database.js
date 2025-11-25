@@ -272,12 +272,41 @@ async function initTenantSchema(pool) {
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
         
+        // Tally sync configuration
+        `CREATE TABLE IF NOT EXISTS tally_config (
+            id SERIAL PRIMARY KEY,
+            tally_url VARCHAR(255) DEFAULT 'http://localhost:9000',
+            company_name VARCHAR(255),
+            enabled BOOLEAN DEFAULT false,
+            sync_mode VARCHAR(50) DEFAULT 'manual',
+            auto_sync_enabled BOOLEAN DEFAULT false,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`,
+        
+        // Tally sync log
+        `CREATE TABLE IF NOT EXISTS tally_sync_log (
+            id SERIAL PRIMARY KEY,
+            transaction_type VARCHAR(50) NOT NULL,
+            transaction_id INTEGER NOT NULL,
+            transaction_ref VARCHAR(100),
+            sync_status VARCHAR(50) DEFAULT 'pending',
+            sync_attempts INTEGER DEFAULT 0,
+            last_sync_at TIMESTAMP,
+            last_error TEXT,
+            tally_response TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`,
+        
         // Create indexes
         `CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode)`,
         `CREATE INDEX IF NOT EXISTS idx_products_style_code ON products(style_code)`,
         `CREATE INDEX IF NOT EXISTS idx_customers_mobile ON customers(mobile)`,
         `CREATE INDEX IF NOT EXISTS idx_quotations_date ON quotations(date)`,
         `CREATE INDEX IF NOT EXISTS idx_bills_date ON bills(date)`,
+        `CREATE INDEX IF NOT EXISTS idx_tally_sync_log_transaction ON tally_sync_log(transaction_type, transaction_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_tally_sync_log_status ON tally_sync_log(sync_status)`,
     ];
     
     for (const query of queries) {
@@ -288,6 +317,13 @@ async function initTenantSchema(pool) {
     const ratesCheck = await pool.query('SELECT COUNT(*) FROM rates');
     if (parseInt(ratesCheck.rows[0].count) === 0) {
         await pool.query('INSERT INTO rates (gold, silver, platinum) VALUES (7500, 156, 3500)');
+    }
+    
+    // Insert default Tally config if not exists
+    const tallyConfigCheck = await pool.query('SELECT COUNT(*) FROM tally_config');
+    if (parseInt(tallyConfigCheck.rows[0].count) === 0) {
+        await pool.query(`INSERT INTO tally_config (tally_url, company_name, enabled, sync_mode, auto_sync_enabled) 
+            VALUES ('http://localhost:9000', 'Default Company', false, 'manual', false)`);
     }
 }
 
