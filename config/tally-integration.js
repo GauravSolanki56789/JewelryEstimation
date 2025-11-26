@@ -261,6 +261,101 @@ class TallyIntegration {
     }
 
     /**
+     * Generate Tally XML for Sales Return
+     */
+    generateSalesReturnXML(salesReturn) {
+        const items = Array.isArray(creditNote.items) ? creditNote.items : JSON.parse(creditNote.items || '[]');
+        
+        const invoiceItems = items.map((item) => {
+            const itemName = item.itemName || item.shortName || 'Jewelry Item';
+            const quantity = item.pcs || item.quantity || 1;
+            const rate = item.rate || 0;
+            const amount = item.total || (rate * quantity);
+            
+            return `
+                        <INVENTORYENTRIES.LIST>
+                            <STOCKITEMNAME>${this.escapeXML(itemName)}</STOCKITEMNAME>
+                            <RATE>${rate}</RATE>
+                            <AMOUNT>${amount}</AMOUNT>
+                            <ACTUALQTY>${quantity}</ACTUALQTY>
+                            <BILLEDQTY>${quantity}</BILLEDQTY>
+                            <UNIT>PCS</UNIT>
+                            ${item.gst ? `<GSTAPPLICABLE>Yes</GSTAPPLICABLE>` : ''}
+                            ${item.hsn ? `<HSNCODE>${item.hsn}</HSNCODE>` : ''}
+                        </INVENTORYENTRIES.LIST>`;
+        }).join('');
+
+        const salesReturnDate = salesReturn.date ? new Date(salesReturn.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+        const salesReturnNumber = salesReturn.ssr_no || salesReturn.ssrNo || `SSR-${Date.now()}`;
+        const customerName = salesReturn.customer_name || salesReturn.customerName || 'Customer';
+        const netTotal = salesReturn.net_total || salesReturn.netTotal || salesReturn.total || 0;
+        const gst = salesReturn.gst || 0;
+        const cgst = salesReturn.cgst || 0;
+        const sgst = salesReturn.sgst || 0;
+        const originalBillNo = salesReturn.bill_no || salesReturn.billNo || '';
+        const reason = salesReturn.reason || 'Product Return';
+
+        const xml = `<?xml version="1.0"?>
+<ENVELOPE>
+    <HEADER>
+        <VERSION>1</VERSION>
+        <TALLYREQUEST>Import</TALLYREQUEST>
+        <TYPE>Data</TYPE>
+        <ID>Vouchers</ID>
+    </HEADER>
+    <BODY>
+        <DESC>
+            <STATICVARIABLES>
+                <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+            </STATICVARIABLES>
+        </DESC>
+        <DATA>
+            <TALLYMESSAGE>
+                <VOUCHER>
+                    <DATE>${salesReturnDate}</DATE>
+                    <VOUCHERTYPE>Credit Note</VOUCHERTYPE>
+                    <VOUCHERNUMBER>${salesReturnNumber}</VOUCHERNUMBER>
+                    <PARTYNAME>${this.escapeXML(customerName)}</PARTYNAME>
+                    <NARRATION>Sales Return ${salesReturnNumber} - ${this.escapeXML(reason)}${originalBillNo ? ` (Original Bill: ${originalBillNo})` : ''}</NARRATION>
+                    <ALLLEDGERENTRIES.LIST>
+                        <LEDGERNAME>Sales</LEDGERNAME>
+                        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+                        <AMOUNT>${netTotal}</AMOUNT>
+                    </ALLLEDGERENTRIES.LIST>
+                    <ALLLEDGERENTRIES.LIST>
+                        <LEDGERNAME>${this.escapeXML(customerName)}</LEDGERNAME>
+                        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+                        <AMOUNT>${netTotal}</AMOUNT>
+                    </ALLLEDGERENTRIES.LIST>
+                    ${gst > 0 ? `
+                    <ALLLEDGERENTRIES.LIST>
+                        <LEDGERNAME>GST Output</LEDGERNAME>
+                        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+                        <AMOUNT>${gst}</AMOUNT>
+                    </ALLLEDGERENTRIES.LIST>` : ''}
+                    ${cgst > 0 ? `
+                    <ALLLEDGERENTRIES.LIST>
+                        <LEDGERNAME>CGST Output</LEDGERNAME>
+                        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+                        <AMOUNT>${cgst}</AMOUNT>
+                    </ALLLEDGERENTRIES.LIST>` : ''}
+                    ${sgst > 0 ? `
+                    <ALLLEDGERENTRIES.LIST>
+                        <LEDGERNAME>SGST Output</LEDGERNAME>
+                        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+                        <AMOUNT>${sgst}</AMOUNT>
+                    </ALLLEDGERENTRIES.LIST>` : ''}
+                    ${invoiceItems}
+                </VOUCHER>
+            </TALLYMESSAGE>
+        </DATA>
+    </BODY>
+</ENVELOPE>`;
+
+        return xml;
+    }
+
+    /**
      * Generate Tally XML for Payment/Receipt (Accounts Billing)
      */
     generatePaymentReceiptXML(transaction) {
@@ -500,6 +595,29 @@ class TallyIntegration {
                 success: false,
                 type: 'Payment/Receipt',
                 reference: transaction.reference || transaction.bill_no,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Sync Sales Return to Tally
+     */
+    async syncSalesReturn(salesReturn) {
+        try {
+            const xml = this.generateSalesReturnXML(salesReturn);
+            const result = await this.sendToTally(xml);
+            return {
+                success: true,
+                type: 'Sales Return',
+                ssrNo: salesReturn.ssr_no || salesReturn.ssrNo,
+                tallyResponse: result
+            };
+        } catch (error) {
+            return {
+                success: false,
+                type: 'Sales Return',
+                ssrNo: salesReturn.ssr_no || salesReturn.ssrNo,
                 error: error.message
             };
         }

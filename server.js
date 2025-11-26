@@ -382,12 +382,26 @@ app.post('/api/auth/login', async (req, res) => {
                     }
                     
                     if (passwordValid) {
+                        // Ensure allowed_tabs is an array (PostgreSQL TEXT[] returns as array, but handle edge cases)
+                        let allowedTabs = user.allowed_tabs || ['all'];
+                        if (typeof allowedTabs === 'string') {
+                            try {
+                                allowedTabs = JSON.parse(allowedTabs);
+                            } catch (e) {
+                                // If parsing fails, treat as comma-separated string
+                                allowedTabs = allowedTabs.split(',').map(t => t.trim()).filter(t => t);
+                            }
+                        }
+                        if (!Array.isArray(allowedTabs)) {
+                            allowedTabs = ['all'];
+                        }
+                        
                         return res.json({
                             success: true,
                             tenantCode: tenantCode,
                             username: user.username,
                             role: user.role,
-                            allowedTabs: user.allowed_tabs || ['all'],
+                            allowedTabs: allowedTabs,
                             isMasterAdmin: false
                         });
                     }
@@ -440,10 +454,10 @@ app.get('/api/:tenant/products', verifyTenantAccess, async (req, res) => {
 });
 
 app.post('/api/:tenant/products', async (req, res) => {
+    const { tenant } = req.params;
+    const product = req.body;
+    
     try {
-        const { tenant } = req.params;
-        const product = req.body;
-        
         // Check if barcode already exists (conflict prevention)
         if (product.barcode) {
             const existingCheck = await queryTenant(tenant, 'SELECT id FROM products WHERE barcode = $1', [product.barcode]);
@@ -471,7 +485,8 @@ app.post('/api/:tenant/products', async (req, res) => {
         res.json(result[0]);
     } catch (error) {
         if (error.message.includes('unique') || error.message.includes('duplicate')) {
-            return res.status(409).json({ error: `Barcode ${product.barcode} already exists` });
+            const barcode = product?.barcode || req.body?.barcode || 'unknown';
+            return res.status(409).json({ error: `Barcode ${barcode} already exists` });
         }
         res.status(500).json({ error: error.message });
     }
@@ -692,6 +707,113 @@ app.delete('/api/:tenant/customers/:id', async (req, res) => {
     }
 });
 
+// Cleanup duplicate customers endpoint
+app.post('/api/:tenant/customers/cleanup-duplicates', async (req, res) => {
+    try {
+        const { tenant } = req.params;
+        
+        // Find duplicate customers by mobile number
+        // Keep the one with the highest ID (most recent) and delete the rest
+        const findDuplicatesQuery = `
+            WITH duplicates AS (
+                SELECT mobile, 
+                       array_agg(id ORDER BY id DESC) as ids,
+                       COUNT(*) as count
+                FROM customers
+                WHERE mobile IS NOT NULL AND mobile != ''
+                GROUP BY mobile
+                HAVING COUNT(*) > 1
+            )
+            SELECT mobile, ids, count
+            FROM duplicates
+        `;
+        
+        const duplicates = await queryTenant(tenant, findDuplicatesQuery, []);
+        
+        if (duplicates.length === 0) {
+            return res.json({ 
+                success: true, 
+                message: 'No duplicate customers found.',
+                deleted: 0 
+            });
+        }
+        
+        let totalDeleted = 0;
+        const deletedCustomers = [];
+        
+        // Delete duplicates (keep the first ID in the array, which is the highest)
+        for (const dup of duplicates) {
+            const idsToKeep = dup.ids[0]; // Keep the highest ID
+            const idsToDelete = dup.ids.slice(1); // Delete the rest
+            
+            for (const idToDelete of idsToDelete) {
+                // Check if customer is referenced in quotations or bills
+                const checkQuotations = await queryTenant(
+                    tenant, 
+                    'SELECT COUNT(*) as count FROM quotations WHERE customer_id = $1',
+                    [idToDelete]
+                );
+                const checkBills = await queryTenant(
+                    tenant,
+                    'SELECT COUNT(*) as count FROM bills WHERE customer_id = $1',
+                    [idToDelete]
+                );
+                
+                if (checkQuotations[0].count > 0 || checkBills[0].count > 0) {
+                    // Customer is referenced, update references to the kept customer
+                    await queryTenant(
+                        tenant,
+                        'UPDATE quotations SET customer_id = $1 WHERE customer_id = $2',
+                        [idsToKeep, idToDelete]
+                    );
+                    await queryTenant(
+                        tenant,
+                        'UPDATE bills SET customer_id = $1 WHERE customer_id = $2',
+                        [idsToKeep, idToDelete]
+                    );
+                }
+                
+                // Now safe to delete
+                await queryTenant(tenant, 'DELETE FROM customers WHERE id = $1', [idToDelete]);
+                deletedCustomers.push({ id: idToDelete, mobile: dup.mobile });
+                totalDeleted++;
+            }
+        }
+        
+        // Also handle customers with null/empty mobile (if any)
+        const nullMobileQuery = `
+            WITH null_mobiles AS (
+                SELECT id, name, mobile,
+                       ROW_NUMBER() OVER (PARTITION BY name, address1, city ORDER BY id DESC) as rn
+                FROM customers
+                WHERE mobile IS NULL OR mobile = ''
+            )
+            SELECT id, name, mobile
+            FROM null_mobiles
+            WHERE rn > 1
+        `;
+        
+        const nullMobiles = await queryTenant(tenant, nullMobileQuery, []);
+        for (const nm of nullMobiles) {
+            await queryTenant(tenant, 'DELETE FROM customers WHERE id = $1', [nm.id]);
+            deletedCustomers.push({ id: nm.id, name: nm.name, mobile: null });
+            totalDeleted++;
+        }
+        
+        broadcastToTenant(tenant, 'customers-cleaned', { deleted: totalDeleted });
+        
+        res.json({
+            success: true,
+            message: `Cleaned up ${totalDeleted} duplicate customer(s).`,
+            deleted: totalDeleted,
+            details: deletedCustomers.slice(0, 10) // Return first 10 for reference
+        });
+    } catch (error) {
+        console.error('Error cleaning up duplicate customers:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 
 app.get('/api/:tenant/quotations', async (req, res) => {
     try {
@@ -811,6 +933,14 @@ app.post('/api/:tenant/bills', async (req, res) => {
         
         const result = await queryTenant(tenant, query, params);
         broadcastToTenant(tenant, 'bill-created', result[0]);
+        
+        // Update quotation to mark as billed
+        if (bill.quotationId) {
+            await queryTenant(tenant, 
+                `UPDATE quotations SET is_billed = true, bill_no = $1, bill_date = CURRENT_TIMESTAMP WHERE id = $2`,
+                [bill.billNo, bill.quotationId]
+            );
+        }
         
         // Sync to Tally if enabled
         try {
@@ -1306,9 +1436,22 @@ app.get('/api/:tenant/tables', async (req, res) => {
     }
 });
 
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public/index.html'));
+// Error handling middleware - must be before catch-all route
+app.use((err, req, res, next) => {
+    // If it's an API route, return JSON error
+    if (req.path.startsWith('/api/')) {
+        console.error('API Error:', err);
+        res.status(err.status || 500).json({ 
+            error: err.message || 'Internal server error',
+            success: false 
+        });
+    } else {
+        // For non-API routes, pass to next handler
+        next(err);
+    }
 });
+
+// NOTE: Catch-all route moved to end of file (after all API routes)
 
 app.get('/api/update/check', async (req, res) => {
     try {
@@ -1448,7 +1591,7 @@ app.post('/api/sync/push', async (req, res) => {
         const allowedTables = [
             'products', 'customers', 'quotations', 'bills', 'rates',
             'ledger_transactions', 'purchase_vouchers', 'rol_data',
-            'users', 'tally_config', 'tally_sync_log'
+            'users', 'tally_config', 'tally_sync_log', 'sales_returns'
         ];
         
         if (!allowedTables.includes(table)) {
@@ -1493,7 +1636,7 @@ app.post('/api/sync/pull', async (req, res) => {
         const allowedTables = [
             'products', 'customers', 'quotations', 'bills', 'rates',
             'ledger_transactions', 'purchase_vouchers', 'rol_data',
-            'users', 'tally_config', 'tally_sync_log'
+            'users', 'tally_config', 'tally_sync_log', 'sales_returns'
         ];
         
         if (!allowedTables.includes(table)) {
@@ -1646,6 +1789,119 @@ app.post('/api/:tenant/tally/sync/payment-receipt/:id', async (req, res) => {
     }
 });
 
+// Sales Returns API
+app.get('/api/:tenant/sales-returns', async (req, res) => {
+    try {
+        const { tenant } = req.params;
+        const result = await queryTenant(tenant, 'SELECT * FROM sales_returns ORDER BY date DESC');
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/:tenant/sales-returns/:id', async (req, res) => {
+    try {
+        const { tenant, id } = req.params;
+        const result = await queryTenant(tenant, 'SELECT * FROM sales_returns WHERE id = $1', [id]);
+        if (result.length === 0) {
+            return res.status(404).json({ error: 'Sales return not found' });
+        }
+        res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/:tenant/sales-returns', async (req, res) => {
+    try {
+        const { tenant } = req.params;
+        const salesReturn = req.body;
+        
+        const query = `INSERT INTO sales_returns (
+            ssr_no, bill_id, bill_no, quotation_id, customer_id, customer_name, customer_mobile,
+            items, total, gst, cgst, sgst, net_total, reason, remarks
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`;
+        
+        const params = [
+            salesReturn.ssrNo, salesReturn.billId, salesReturn.billNo, salesReturn.quotationId,
+            salesReturn.customerId, salesReturn.customerName, salesReturn.customerMobile,
+            JSON.stringify(salesReturn.items), salesReturn.total,
+            salesReturn.gst || 0, salesReturn.cgst || 0, salesReturn.sgst || 0,
+            salesReturn.netTotal, salesReturn.reason || '', salesReturn.remarks || ''
+        ];
+        
+        const result = await queryTenant(tenant, query, params);
+        broadcastToTenant(tenant, 'sales-return-created', result[0]);
+        
+        // Add to ledger as negative transaction
+        await queryTenant(tenant, `
+            INSERT INTO ledger_transactions (
+                customer_id, transaction_type, amount, description, date,
+                customer_name, customer_mobile, reference, bill_no
+            ) VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, $5, $6, $7, $8)
+        `, [
+            salesReturn.customerId,
+            'Sales Return',
+            -Math.abs(salesReturn.netTotal), // Negative amount
+            `Sales Return ${salesReturn.ssrNo} - ${salesReturn.reason || 'Product Return'}`,
+            salesReturn.customerName,
+            salesReturn.customerMobile,
+            salesReturn.ssrNo,
+            salesReturn.billNo
+        ]);
+        
+        // Sync to Tally if enabled
+        try {
+            const tallyService = new TallySyncService(tenant);
+            await tallyService.initialize();
+            if (tallyService.shouldAutoSync()) {
+                await tallyService.syncSalesReturn(result[0], true);
+            }
+        } catch (tallyError) {
+            console.error('Tally sync error (non-blocking):', tallyError);
+        }
+        
+        res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get bill by bill number for sales return
+app.get('/api/:tenant/bills/by-number/:billNo', async (req, res) => {
+    try {
+        const { tenant, billNo } = req.params;
+        const result = await queryTenant(tenant, 'SELECT * FROM bills WHERE bill_no = $1', [billNo]);
+        if (result.length === 0) {
+            return res.status(404).json({ error: 'Bill not found' });
+        }
+        res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Manual sync - Sales Return
+app.post('/api/:tenant/tally/sync/sales-return/:id', async (req, res) => {
+    try {
+        const { tenant, id } = req.params;
+        const pool = getTenantPool(tenant);
+        const salesReturnResult = await pool.query('SELECT * FROM sales_returns WHERE id = $1', [id]);
+        
+        if (salesReturnResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Sales return not found' });
+        }
+        
+        const tallyService = new TallySyncService(tenant);
+        await tallyService.initialize();
+        const result = await tallyService.syncSalesReturn(salesReturnResult.rows[0], false);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Retry failed syncs
 app.post('/api/:tenant/tally/retry-failed', async (req, res) => {
     try {
@@ -1714,6 +1970,15 @@ app.post('/api/print/label/tspl', async (req, res) => {
         console.error('TSPL generation error:', error);
         res.status(500).json({ error: error.message });
     }
+});
+
+// Catch-all route for non-API routes (MUST BE LAST - after all API routes)
+app.get('*', (req, res) => {
+    // Don't catch API routes
+    if (req.path.startsWith('/api/')) {
+        return res.status(404).json({ error: 'API endpoint not found', success: false });
+    }
+    res.sendFile(path.join(__dirname, 'public/index.html'));
 });
 
 const DOMAIN = process.env.DOMAIN || 'localhost';

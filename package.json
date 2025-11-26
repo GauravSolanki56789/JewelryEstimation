@@ -10,6 +10,7 @@
     "setup-db": "node scripts/setup-database.js",
     "fix-gaurav-password": "node scripts/fix-gaurav-password.js",
     "change-master-password": "node scripts/change-master-password.js",
+    "migrate-sales-returns": "node migrate-sales-returns.js",
     "setup-env": "node setup-env.js",
     "backup-db": "node scripts/backup-database.js",
     "backup-cloud": "node scripts/cloud-backup.js",

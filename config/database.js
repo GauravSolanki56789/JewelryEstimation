@@ -192,6 +192,9 @@ async function initTenantSchema(pool) {
             final_amount DECIMAL(10,2),
             payment_status VARCHAR(50),
             remarks VARCHAR(255),
+            is_billed BOOLEAN DEFAULT false,
+            bill_no VARCHAR(50),
+            bill_date TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
         
@@ -272,16 +275,41 @@ async function initTenantSchema(pool) {
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
         
-        // Tally sync configuration
+        // Tally sync configuration (with encrypted API key)
         `CREATE TABLE IF NOT EXISTS tally_config (
             id SERIAL PRIMARY KEY,
             tally_url VARCHAR(255) DEFAULT 'http://localhost:9000',
             company_name VARCHAR(255),
+            api_key_encrypted TEXT,
+            api_secret_encrypted TEXT,
+            connection_type VARCHAR(50) DEFAULT 'gateway',
             enabled BOOLEAN DEFAULT false,
             sync_mode VARCHAR(50) DEFAULT 'manual',
             auto_sync_enabled BOOLEAN DEFAULT false,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`,
+        
+        // Sales Returns table
+        `CREATE TABLE IF NOT EXISTS sales_returns (
+            id SERIAL PRIMARY KEY,
+            ssr_no VARCHAR(50) UNIQUE NOT NULL,
+            bill_id INTEGER REFERENCES bills(id),
+            bill_no VARCHAR(50) NOT NULL,
+            quotation_id INTEGER REFERENCES quotations(id),
+            customer_id INTEGER REFERENCES customers(id),
+            customer_name VARCHAR(255),
+            customer_mobile VARCHAR(20),
+            date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            items JSONB,
+            total DECIMAL(10,2),
+            gst DECIMAL(10,2),
+            cgst DECIMAL(10,2),
+            sgst DECIMAL(10,2),
+            net_total DECIMAL(10,2),
+            reason TEXT,
+            remarks VARCHAR(255),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
         
         // Tally sync log
@@ -307,6 +335,9 @@ async function initTenantSchema(pool) {
         `CREATE INDEX IF NOT EXISTS idx_bills_date ON bills(date)`,
         `CREATE INDEX IF NOT EXISTS idx_tally_sync_log_transaction ON tally_sync_log(transaction_type, transaction_id)`,
         `CREATE INDEX IF NOT EXISTS idx_tally_sync_log_status ON tally_sync_log(sync_status)`,
+        `CREATE INDEX IF NOT EXISTS idx_sales_returns_bill_no ON sales_returns(bill_no)`,
+        `CREATE INDEX IF NOT EXISTS idx_sales_returns_ssr_no ON sales_returns(ssr_no)`,
+        `CREATE INDEX IF NOT EXISTS idx_quotations_is_billed ON quotations(is_billed)`,
     ];
     
     for (const query of queries) {

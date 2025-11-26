@@ -2,6 +2,7 @@
 // Handles syncing transactions to Tally with retry logic, logging, and cloud sync support
 const TallyIntegration = require('./tally-integration');
 const { getTenantPool, queryTenant } = require('./database');
+const { encrypt, decrypt } = require('./tally-encryption');
 
 class TallySyncService {
     constructor(tenantCode) {
@@ -21,25 +22,38 @@ class TallySyncService {
             if (configResult.rows.length === 0) {
                 // Create default config
                 await pool.query(`
-                    INSERT INTO tally_config (tally_url, company_name, enabled, sync_mode, auto_sync_enabled)
-                    VALUES ('http://localhost:9000', 'Default Company', false, 'manual', false)
+                    INSERT INTO tally_config (tally_url, company_name, enabled, sync_mode, auto_sync_enabled, connection_type)
+                    VALUES ('http://localhost:9000', 'Default Company', false, 'manual', false, 'gateway')
                 `);
                 this.config = {
                     tally_url: 'http://localhost:9000',
                     company_name: 'Default Company',
                     enabled: false,
                     sync_mode: 'manual',
-                    auto_sync_enabled: false
+                    auto_sync_enabled: false,
+                    connection_type: 'gateway',
+                    api_key_encrypted: null,
+                    api_secret_encrypted: null
                 };
             } else {
                 this.config = configResult.rows[0];
+                // Decrypt API keys if present
+                if (this.config.api_key_encrypted) {
+                    this.config.api_key = decrypt(this.config.api_key_encrypted);
+                }
+                if (this.config.api_secret_encrypted) {
+                    this.config.api_secret = decrypt(this.config.api_secret_encrypted);
+                }
             }
 
             this.tallyIntegration = new TallyIntegration({
                 tallyUrl: this.config.tally_url,
                 companyName: this.config.company_name,
                 enabled: this.config.enabled,
-                syncMode: this.config.sync_mode
+                syncMode: this.config.sync_mode,
+                apiKey: this.config.api_key,
+                apiSecret: this.config.api_secret,
+                connectionType: this.config.connection_type || 'gateway'
             });
 
             return true;
@@ -267,6 +281,47 @@ class TallySyncService {
     }
 
     /**
+     * Sync Sales Return to Tally
+     */
+    async syncSalesReturn(salesReturn, autoSync = false) {
+        if (!this.config || !this.config.enabled) {
+            return { success: false, message: 'Tally integration is disabled' };
+        }
+
+        if (autoSync && !this.shouldAutoSync()) {
+            return { success: false, message: 'Auto-sync is disabled' };
+        }
+
+        try {
+            await this.initialize();
+            
+            const result = await this.tallyIntegration.syncSalesReturn(salesReturn);
+            
+            // Log the sync attempt
+            await this.logSync(
+                'sales_return',
+                salesReturn.id,
+                salesReturn.ssr_no || salesReturn.ssrNo,
+                result.success ? 'success' : 'failed',
+                result.error || null,
+                result.tallyResponse || null
+            );
+
+            return result;
+        } catch (error) {
+            await this.logSync(
+                'sales_return',
+                salesReturn.id,
+                salesReturn.ssr_no || salesReturn.ssrNo,
+                'failed',
+                error.message,
+                null
+            );
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
      * Retry failed syncs
      */
     async retryFailedSyncs(maxRetries = 3) {
@@ -305,6 +360,11 @@ class TallySyncService {
                         const transaction = await pool.query('SELECT * FROM ledger_transactions WHERE id = $1', [syncLog.transaction_id]);
                         if (transaction.rows.length > 0) {
                             result = await this.syncPaymentReceipt(transaction.rows[0], false);
+                        }
+                    } else if (syncLog.transaction_type === 'sales_return') {
+                        const salesReturn = await pool.query('SELECT * FROM sales_returns WHERE id = $1', [syncLog.transaction_id]);
+                        if (salesReturn.rows.length > 0) {
+                            result = await this.syncSalesReturn(salesReturn.rows[0], false);
                         }
                     }
 
@@ -365,6 +425,25 @@ class TallySyncService {
     async updateConfig(newConfig) {
         try {
             const pool = getTenantPool(this.tenantCode);
+            
+            // Encrypt API keys if provided
+            let apiKeyEncrypted = null;
+            let apiSecretEncrypted = null;
+            
+            if (newConfig.api_key) {
+                apiKeyEncrypted = encrypt(newConfig.api_key);
+            } else if (this.config && this.config.api_key_encrypted) {
+                // Keep existing encrypted key if not updating
+                apiKeyEncrypted = this.config.api_key_encrypted;
+            }
+            
+            if (newConfig.api_secret) {
+                apiSecretEncrypted = encrypt(newConfig.api_secret);
+            } else if (this.config && this.config.api_secret_encrypted) {
+                // Keep existing encrypted secret if not updating
+                apiSecretEncrypted = this.config.api_secret_encrypted;
+            }
+            
             const result = await pool.query(`
                 UPDATE tally_config 
                 SET tally_url = $1, 
@@ -372,21 +451,32 @@ class TallySyncService {
                     enabled = $3, 
                     sync_mode = $4, 
                     auto_sync_enabled = $5,
+                    connection_type = $6,
+                    api_key_encrypted = $7,
+                    api_secret_encrypted = $8,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = (SELECT id FROM tally_config ORDER BY id DESC LIMIT 1)
-                RETURNING *
+                RETURNING id, tally_url, company_name, enabled, sync_mode, auto_sync_enabled, connection_type, created_at, updated_at
             `, [
-                newConfig.tally_url || this.config.tally_url,
-                newConfig.company_name || this.config.company_name,
-                newConfig.enabled !== undefined ? newConfig.enabled : this.config.enabled,
-                newConfig.sync_mode || this.config.sync_mode,
-                newConfig.auto_sync_enabled !== undefined ? newConfig.auto_sync_enabled : this.config.auto_sync_enabled
+                newConfig.tally_url || this.config?.tally_url || 'http://localhost:9000',
+                newConfig.company_name || this.config?.company_name || 'Default Company',
+                newConfig.enabled !== undefined ? newConfig.enabled : (this.config?.enabled || false),
+                newConfig.sync_mode || this.config?.sync_mode || 'manual',
+                newConfig.auto_sync_enabled !== undefined ? newConfig.auto_sync_enabled : (this.config?.auto_sync_enabled || false),
+                newConfig.connection_type || this.config?.connection_type || 'gateway',
+                apiKeyEncrypted,
+                apiSecretEncrypted
             ]);
 
+            // Don't return encrypted keys in response
+            const safeConfig = { ...result.rows[0] };
+            delete safeConfig.api_key_encrypted;
+            delete safeConfig.api_secret_encrypted;
+            
             this.config = result.rows[0];
             await this.initialize();
             
-            return { success: true, config: this.config };
+            return { success: true, config: safeConfig };
         } catch (error) {
             return { success: false, error: error.message };
         }
@@ -398,7 +488,13 @@ class TallySyncService {
     async getConfig() {
         try {
             await this.initialize();
-            return { success: true, config: this.config };
+            // Return config without encrypted keys
+            const safeConfig = { ...this.config };
+            delete safeConfig.api_key_encrypted;
+            delete safeConfig.api_secret_encrypted;
+            delete safeConfig.api_key;
+            delete safeConfig.api_secret;
+            return { success: true, config: safeConfig };
         } catch (error) {
             return { success: false, error: error.message };
         }

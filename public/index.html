@@ -46,14 +46,16 @@
                 <div class="space-y-5">
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Client / Tenant Code</label>
-                        <input type="text" id="authTenant" required
-                            class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition"
-                            placeholder="Enter your client code (e.g., jpjewellery, testclient1)"
-                            autocomplete="off"
-                            list="tenantSuggestions">
-                        <datalist id="tenantSuggestions">
-                            <!-- Will be populated if master admin -->
-                        </datalist>
+                        <div class="relative">
+                            <input type="text" id="authTenant" required
+                                class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition bg-white"
+                                placeholder="Enter your client code (e.g., jpjewellery, testclient1)"
+                                autocomplete="off"
+                                oninput="showTenantSuggestions()" onfocus="showTenantSuggestions()" onblur="hideTenantSuggestions()">
+                            <div id="tenantSuggestionsDropdown" class="hidden absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                <!-- Suggestions will be populated here -->
+                            </div>
+                        </div>
                         <p class="text-xs text-gray-500 mt-1">💡 Master Admin: Enter "Gaurav" as username to access all clients</p>
                         <p class="text-xs text-gray-500">💡 Regular Users: Enter your client's tenant code</p>
                     </div>
@@ -96,6 +98,9 @@
                             <span id="userManagementBtn" class="hidden">
                                 <button onclick="showUserManagement()" id="btnManageUsers" class="px-3 py-1 bg-white text-amber-600 rounded text-xs hover:bg-amber-50 hidden">👥 Manage Users</button>
                             </span>
+                            <span id="tallyConfigBtn" class="hidden">
+                                <button onclick="showTallyConfig()" id="btnTallyConfig" class="px-3 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700">⚙️ Tally Config</button>
+                            </span>
                             <button onclick="checkForUpdates()" id="btnUpdateSW" class="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">🔄 Update S/w</button>
                             <button onclick="logout()" class="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700">Logout</button>
                         </div>
@@ -112,6 +117,8 @@
                             class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">📊 ROL</button>
                         <button onclick="showTab('salesbill')" id="btnSalesBill"
                             class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">💰Sales Bill</button>
+                        <button onclick="showTab('salesreturn')" id="btnSalesReturn"
+                            class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">↩️ Sales Return</button>
                         <button onclick="showTab('quotations')" id="btnQuotations"
                             class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">📜
                             Quotations</button>
@@ -139,13 +146,15 @@
     <!-- Top Row: Customer Details + Action Buttons -->
     <div class="bg-white p-2 rounded-lg shadow mb-2 flex-shrink-0">
         <div class="grid grid-cols-12 gap-2 items-end">
-            <div class="col-span-3">
+            <div class="col-span-3 relative">
                 <label class="block text-xs font-medium text-gray-700 mb-1">Customer</label>
-                <input type="text" id="customerSelect" list="customerList" 
-                    oninput="handleCustomerInput()" onchange="handleCustomerSelect()"
+                <input type="text" id="customerSelect" 
+                    oninput="handleCustomerInput()" onfocus="showCustomerSuggestions()" onblur="hideCustomerSuggestions()"
                     placeholder="Type or select customer..."
-                    class="w-full px-2 py-1.5 text-xs border-2 border-gray-300 rounded focus:ring-1 focus:ring-amber-500">
-                <datalist id="customerList"></datalist>
+                    class="w-full px-2 py-1.5 text-xs border-2 border-gray-300 rounded focus:ring-1 focus:ring-amber-500 bg-white">
+                <div id="customerSuggestionsDropdown" class="hidden absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    <!-- Suggestions will be populated here -->
+                </div>
             </div>
             <div class="col-span-2">
                 <label class="block text-xs font-medium text-gray-700 mb-1">Mobile</label>
@@ -414,6 +423,7 @@
                         <button onclick="downloadAllCustomers()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-sm">📥 Download All</button>
                         <button onclick="downloadSampleCustomerExcel()" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-bold text-sm">📋 Sample</button>
                         <button onclick="showBulkUploadCustomerModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-sm">📤 Bulk Upload</button>
+                        <button onclick="cleanupDuplicateCustomers()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold text-sm">🧹 Cleanup Duplicates</button>
                         <button onclick="showNewCustomerModal()" class="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-bold text-sm">➕ Add Customer</button>
                     </div>
                 </div>
@@ -441,16 +451,26 @@
         
                 <!-- Style Code Selection Section -->
                 <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border-2 border-blue-200 mb-6">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div class="md:col-span-2">
                             <label class="block text-sm font-medium text-gray-700 mb-2">Select Style Code</label>
-                            <input type="text" id="rolSelectedStyleCode" list="rolStyleCodeList" 
-                                placeholder="Type or select style code to view/upload ROL data..." 
-                                onchange="loadROLForStyleCode()" oninput="loadROLForStyleCode()"
+                            <div class="relative">
+                                <input type="text" id="rolSelectedStyleCode" 
+                                    placeholder="Type or select style code to view/upload ROL data..." 
+                                    onchange="loadROLForStyleCode()" oninput="showROLStyleCodeSuggestions()" onfocus="showROLStyleCodeSuggestions()" onblur="hideROLStyleCodeSuggestions()"
+                                    class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-lg bg-white">
+                                <div id="rolStyleCodeSuggestionsDropdown" class="hidden absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                    <!-- Suggestions will be populated here -->
+                                </div>
+                            </div>
+                        </div>
+                        <div id="rolViewSelector" class="hidden">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">View Mode</label>
+                            <select id="rolViewMode" onchange="switchROLViewMode()"
                                 class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-lg">
-                            <datalist id="rolStyleCodeList">
-                                <!-- Will be populated dynamically -->
-                            </datalist>
+                                <option value="wholesale">📦 Wholesale (Grams)</option>
+                                <option value="retail">🛍️ Retail (Pieces)</option>
+                            </select>
                         </div>
                         <div class="flex items-end">
                             <button onclick="clearROLSelection()"
@@ -519,20 +539,17 @@
 
                 <!-- ROL Items Table (Only shown when style code is selected) -->
                 <div id="rolItemsSection" class="hidden">
-                    <h3 class="text-lg font-bold mb-4">ROL Items for Selected Style Code</h3>
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-bold" id="rolTableTitle">ROL Items for Selected Style Code</h3>
+                        <button onclick="downloadROLReportForStyleCode()"
+                            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-sm">
+                            📥 Download Report
+                        </button>
+                    </div>
                     <div class="overflow-x-auto">
                         <table class="w-full border-collapse border border-gray-300">
-                            <thead class="bg-gray-200">
-                                <tr>
-                                    <th class="px-4 py-3 text-left text-sm font-semibold border">Design (Product Name)</th>
-                                    <th class="px-4 py-3 text-left text-sm font-semibold border">SKU</th>
-                                    <th class="px-4 py-3 text-center text-sm font-semibold border">Size</th>
-                                    <th class="px-4 py-3 text-center text-sm font-semibold border bg-orange-100">ROL Wholesale (gms)</th>
-                                    <th class="px-4 py-3 text-center text-sm font-semibold border bg-orange-100">Available Wholesale (gms)</th>
-                                    <th class="px-4 py-3 text-center text-sm font-semibold border bg-green-100">ROL Retail (pcs)</th>
-                                    <th class="px-4 py-3 text-center text-sm font-semibold border bg-green-100">Available Retail (pcs)</th>
-                                    <th class="px-4 py-3 text-center text-sm font-semibold border">Status</th>
-                                </tr>
+                            <thead class="bg-gray-200" id="rolTableHeader">
+                                <!-- Will be populated based on view mode -->
                             </thead>
                             <tbody id="rolItemsTableBody">
                                 <!-- Will be populated when style code is selected -->
@@ -658,6 +675,135 @@
                     <div class="text-6xl mb-4">📋</div>
                     <h3 class="text-xl font-bold text-gray-700 mb-2">No Quotations Yet</h3>
                     <p class="text-gray-500">Generate your first quotation from the Billing tab</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sales Return Tab -->
+        <div id="salesreturnTab" class="space-y-6 hidden">
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+                <h2 class="text-2xl font-bold mb-6 text-gray-800">↩️ Sales Return</h2>
+                
+                <!-- Bill Number Entry -->
+                <div class="bg-gradient-to-r from-red-50 to-pink-50 p-4 rounded-xl border-2 border-red-200 mb-6">
+                    <div class="flex items-center gap-3 mb-4">
+                        <span class="text-2xl">🔍</span>
+                        <h3 class="font-semibold text-gray-800">Enter Bill Number</h3>
+                    </div>
+                    <div class="flex gap-3">
+                        <input type="text" id="salesReturnBillNo" placeholder="Enter Bill Number (e.g., SCB1002)"
+                            class="flex-1 px-4 py-2 border-2 border-red-300 rounded-lg focus:ring-2 focus:ring-red-500"
+                            onkeypress="if(event.key === 'Enter') loadBillForSalesReturn()">
+                        <button onclick="loadBillForSalesReturn()"
+                            class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold">
+                            Load Bill
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Customer Details (Auto-populated) -->
+                <div id="salesReturnCustomerDetails" class="bg-blue-50 p-4 rounded-xl border-2 border-blue-200 mb-6 hidden">
+                    <h3 class="font-bold text-gray-800 mb-3">Customer Details</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                            <label class="text-sm font-medium text-gray-700">Customer Name</label>
+                            <p class="font-bold" id="srCustomerName">-</p>
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-gray-700">Mobile</label>
+                            <p class="font-bold" id="srCustomerMobile">-</p>
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-gray-700">Bill Number</label>
+                            <p class="font-bold" id="srBillNo">-</p>
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-gray-700">Bill Date</label>
+                            <p class="font-bold" id="srBillDate">-</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Products from Bill -->
+                <div id="salesReturnProductsSection" class="hidden">
+                    <h3 class="text-xl font-bold mb-4">Select Products to Return or Modify</h3>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium mb-2">Return Reason</label>
+                        <textarea id="salesReturnReason" rows="2" placeholder="Enter reason for return..."
+                            class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg"></textarea>
+                    </div>
+                    
+                    <div class="overflow-x-auto mb-6">
+                        <table class="w-full border-collapse">
+                            <thead class="bg-gray-100">
+                                <tr>
+                                    <th class="px-3 py-2 border text-left text-xs">Select</th>
+                                    <th class="px-3 py-2 border text-left text-xs">Item</th>
+                                    <th class="px-3 py-2 border text-center text-xs">PCS</th>
+                                    <th class="px-3 py-2 border text-right text-xs">Weight</th>
+                                    <th class="px-3 py-2 border text-right text-xs">Rate</th>
+                                    <th class="px-3 py-2 border text-right text-xs">MC/gm</th>
+                                    <th class="px-3 py-2 border text-right text-xs">Amount</th>
+                                    <th class="px-3 py-2 border text-center text-xs">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="salesReturnProductsTableBody"></tbody>
+                        </table>
+                    </div>
+
+                    <!-- Summary -->
+                    <div class="bg-gray-50 p-4 rounded-lg mb-6">
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                                <label class="text-sm font-medium text-gray-700">Total Items</label>
+                                <p class="text-xl font-bold" id="srTotalItems">0</p>
+                            </div>
+                            <div>
+                                <label class="text-sm font-medium text-gray-700">Total Amount</label>
+                                <p class="text-xl font-bold" id="srTotalAmount">₹0.00</p>
+                            </div>
+                            <div>
+                                <label class="text-sm font-medium text-gray-700">GST (3%)</label>
+                                <p class="text-xl font-bold" id="srGST">₹0.00</p>
+                            </div>
+                            <div>
+                                <label class="text-sm font-medium text-gray-700">Net Total</label>
+                                <p class="text-2xl font-bold text-red-600" id="srNetTotal">₹0.00</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="flex gap-3">
+                        <button onclick="saveSalesReturn()"
+                            class="flex-1 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold text-lg">
+                            💾 Save Sales Return (SSR)
+                        </button>
+                        <button onclick="clearSalesReturn()"
+                            class="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-bold">
+                            Clear
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Sales Return History -->
+                <div class="mt-8">
+                    <h3 class="text-xl font-bold mb-4">Sales Return History</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full border-collapse">
+                            <thead class="bg-gray-100">
+                                <tr>
+                                    <th class="px-3 py-2 border text-left text-xs">SSR No</th>
+                                    <th class="px-3 py-2 border text-left text-xs">Date</th>
+                                    <th class="px-3 py-2 border text-left text-xs">Bill No</th>
+                                    <th class="px-3 py-2 border text-left text-xs">Customer</th>
+                                    <th class="px-3 py-2 border text-right text-xs">Amount</th>
+                                    <th class="px-3 py-2 border text-center text-xs">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="salesReturnHistoryTableBody"></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1681,6 +1827,14 @@
                         <tbody id="previewTableBody"></tbody>
                     </table>
                 </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Select Floor for Products *</label>
+                    <select id="bulkUploadFloorSelect" 
+                        class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="estimation floor">estimation floor (Default)</option>
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">All products will be assigned to the selected floor</p>
+                </div>
                 <div class="flex gap-3">
                     <button onclick="confirmBulkUpload()"
                         class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">
@@ -1818,6 +1972,113 @@
                 class="w-full px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
                 Cancel
             </button>
+        </div>
+    </div>
+</div>
+
+<!-- Tally Configuration Modal -->
+<div id="tallyConfigModal" class="fixed inset-0 flex items-center justify-center z-50 hidden bg-black bg-opacity-50 p-4">
+    <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-2xl font-bold text-gray-800">⚙️ Tally Prime Integration</h3>
+            <button onclick="closeModals()" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+        </div>
+        
+        <div class="space-y-4">
+            <!-- Connection Type -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Connection Type</label>
+                <select id="tallyConnectionType" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                    <option value="gateway">Tally Gateway (Local - Port 9000)</option>
+                    <option value="cloud">Tally Prime Cloud API</option>
+                </select>
+                <p class="text-xs text-gray-500 mt-1">Select how you connect to Tally Prime</p>
+            </div>
+
+            <!-- Tally URL -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Tally URL</label>
+                <input type="text" id="tallyUrl" placeholder="http://localhost:9000" 
+                    class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                <p class="text-xs text-gray-500 mt-1">For Gateway: http://localhost:9000 (default Tally port)</p>
+            </div>
+
+            <!-- Company Name -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Company Name in Tally</label>
+                <input type="text" id="tallyCompanyName" placeholder="Your Company Name" 
+                    class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+            </div>
+
+            <!-- API Key (for Cloud) -->
+            <div id="tallyApiKeySection" class="hidden">
+                <label class="block text-sm font-semibold text-gray-700 mb-2">API Key</label>
+                <input type="password" id="tallyApiKey" placeholder="Enter your Tally API Key" 
+                    class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                <p class="text-xs text-gray-500 mt-1">🔒 Securely encrypted and stored in database</p>
+            </div>
+
+            <!-- API Secret (for Cloud) -->
+            <div id="tallyApiSecretSection" class="hidden">
+                <label class="block text-sm font-semibold text-gray-700 mb-2">API Secret</label>
+                <input type="password" id="tallyApiSecret" placeholder="Enter your Tally API Secret" 
+                    class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                <p class="text-xs text-gray-500 mt-1">🔒 Securely encrypted and stored in database</p>
+            </div>
+
+            <!-- Enable Tally -->
+            <div class="flex items-center gap-3">
+                <input type="checkbox" id="tallyEnabled" class="w-5 h-5">
+                <label for="tallyEnabled" class="text-sm font-semibold text-gray-700">Enable Tally Integration</label>
+            </div>
+
+            <!-- Auto Sync -->
+            <div class="flex items-center gap-3">
+                <input type="checkbox" id="tallyAutoSync" class="w-5 h-5">
+                <label for="tallyAutoSync" class="text-sm font-semibold text-gray-700">Auto-sync transactions to Tally</label>
+                <p class="text-xs text-gray-500">(Sales Bills, Purchases, Cash Entries will sync automatically)</p>
+            </div>
+
+            <!-- Sync Mode -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Sync Mode</label>
+                <select id="tallySyncMode" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                    <option value="manual">Manual (Sync on demand)</option>
+                    <option value="auto">Automatic (Sync immediately)</option>
+                </select>
+            </div>
+
+            <!-- Status -->
+            <div id="tallyStatus" class="p-3 rounded-lg bg-gray-100 hidden">
+                <p class="text-sm font-semibold">Status: <span id="tallyStatusText">Not configured</span></p>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex gap-3 pt-4">
+                <button onclick="testTallyConnection()" 
+                    class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold">
+                    🔍 Test Connection
+                </button>
+                <button onclick="saveTallyConfig()" 
+                    class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">
+                    💾 Save Configuration
+                </button>
+                <button onclick="closeModals()" 
+                    class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                    Cancel
+                </button>
+            </div>
+
+            <!-- Info Box -->
+            <div class="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <h4 class="font-bold text-blue-800 mb-2">📋 Setup Instructions:</h4>
+                <ol class="text-sm text-blue-700 space-y-1 list-decimal list-inside">
+                    <li><strong>Tally Gateway:</strong> Open Tally → Press F11 → Enable "Tally Gateway" → Set port to 9000</li>
+                    <li><strong>Cloud API:</strong> Get API Key & Secret from your Tally Prime Cloud account</li>
+                    <li>Enter your credentials above and click "Test Connection"</li>
+                    <li>Enable "Auto-sync" to automatically sync all transactions</li>
+                </ol>
+            </div>
         </div>
     </div>
 </div>
@@ -2241,7 +2502,7 @@
 </div>
 
     <script>
-        // Detect environment and set API base URL (global, set once at page load)
+        // Cloud setup: API and Socket.IO URLs
         const isCloud = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
         window.API_BASE_URL = isCloud 
             ? `${window.location.protocol}//${window.location.host}/api`
@@ -2250,239 +2511,51 @@
             ? `${window.location.protocol}//${window.location.host}`
             : 'http://localhost:3000';
         
+        // Real-time sync for cloud setup (Socket.IO)
         let socket = null;
-        let isSocketConnected = false;
         
-        // Initialize Socket.IO connection with error handling for cloud/sync
         function initSocketConnection(tenantCode) {
+            if (!tenantCode || typeof io === 'undefined') return;
+            
             try {
-                if (socket) {
-                    socket.disconnect();
-                    socket = null;
-                }
+                if (socket) socket.disconnect();
                 
-                // Check if Socket.IO is available
-                if (typeof io === 'undefined') {
-                    console.warn('⚠️ Socket.IO not loaded. Real-time sync disabled.');
-                    isSocketConnected = false;
-                    return;
-                }
-                
-                // Connect to server using global SOCKET_URL
                 socket = io(window.SOCKET_URL, {
                     transports: ['websocket', 'polling'],
                     reconnection: true,
                     reconnectionDelay: 1000,
                     reconnectionDelayMax: 5000,
-                    reconnectionAttempts: 5,
-                    timeout: 20000
+                    reconnectionAttempts: 5
                 });
                 
                 socket.on('connect', () => {
-                    console.log('✅ Connected to real-time sync server');
-                    isSocketConnected = true;
-                    
-                    // Join tenant room
-                    if (tenantCode) {
-                        socket.emit('join-tenant', tenantCode);
-                        console.log(`📱 Joined tenant room: ${tenantCode}`);
-                    }
+                    if (tenantCode) socket.emit('join-tenant', tenantCode);
                 });
                 
-                socket.on('disconnect', (reason) => {
-                    console.log('❌ Disconnected from real-time sync server:', reason);
-                    isSocketConnected = false;
+                socket.on('reconnect', () => {
+                    if (tenantCode) socket.emit('join-tenant', tenantCode);
                 });
                 
-                socket.on('connect_error', (error) => {
-                    console.warn('⚠️ Socket connection error:', error.message);
-                    isSocketConnected = false;
-                    // Don't show error to user - sync is optional
-                });
-                
-                socket.on('reconnect', (attemptNumber) => {
-                    isSocketConnected = true;
-                    // Rejoin tenant room after reconnection
-                    if (tenantCode) {
-                        socket.emit('join-tenant', tenantCode);
-                    }
-                });
-                
-                socket.on('reconnect_error', (error) => {
-                    console.warn('⚠️ Reconnection error:', error.message);
-                });
-                
-                socket.on('reconnect_failed', () => {
-                    console.warn('⚠️ Failed to reconnect to sync server. Real-time sync disabled.');
-                    isSocketConnected = false;
-                });
-                
-                // Listen for real-time updates with error handling
-                socket.on('product-created', (data) => {
-                    try {
-                        console.log('📡 Product created:', data);
-                        refreshProducts();
-                    } catch (error) {
-                        console.error('Error handling product-created event:', error);
-                    }
-                });
-                
-                socket.on('product-updated', (data) => {
-                    try {
-                        console.log('📡 Product updated:', data);
-                        refreshProducts();
-                    } catch (error) {
-                        console.error('Error handling product-updated event:', error);
-                    }
-                });
-                
-                socket.on('product-deleted', (data) => {
-                    try {
-                        console.log('📡 Product deleted:', data);
-                        refreshProducts();
-                    } catch (error) {
-                        console.error('Error handling product-deleted event:', error);
-                    }
-                });
-                
-                socket.on('customer-created', (data) => {
-                    try {
-                        console.log('📡 Customer created:', data);
-                        refreshCustomers();
-                    } catch (error) {
-                        console.error('Error handling customer-created event:', error);
-                    }
-                });
-                
-                socket.on('customer-updated', (data) => {
-                    try {
-                        console.log('📡 Customer updated:', data);
-                        refreshCustomers();
-                    } catch (error) {
-                        console.error('Error handling customer-updated event:', error);
-                    }
-                });
-                
-                socket.on('customer-deleted', (data) => {
-                    try {
-                        console.log('📡 Customer deleted:', data);
-                        refreshCustomers();
-                    } catch (error) {
-                        console.error('Error handling customer-deleted event:', error);
-                    }
-                });
-                
-                socket.on('quotation-created', (data) => {
-                    try {
-                        console.log('📡 Quotation created:', data);
-                        refreshQuotations();
-                    } catch (error) {
-                        console.error('Error handling quotation-created event:', error);
-                    }
-                });
-                
-                socket.on('quotation-updated', (data) => {
-                    try {
-                        console.log('📡 Quotation updated:', data);
-                        refreshQuotations();
-                    } catch (error) {
-                        console.error('Error handling quotation-updated event:', error);
-                    }
-                });
-                
-                socket.on('quotation-deleted', (data) => {
-                    try {
-                        console.log('📡 Quotation deleted:', data);
-                        refreshQuotations();
-                    } catch (error) {
-                        console.error('Error handling quotation-deleted event:', error);
-                    }
-                });
-                
-                socket.on('bill-created', (data) => {
-                    try {
-                        console.log('📡 Bill created:', data);
-                        refreshBills();
-                    } catch (error) {
-                        console.error('Error handling bill-created event:', error);
-                    }
-                });
-                
-                socket.on('bill-updated', (data) => {
-                    try {
-                        console.log('📡 Bill updated:', data);
-                        refreshBills();
-                    } catch (error) {
-                        console.error('Error handling bill-updated event:', error);
-                    }
-                });
-                
-                socket.on('bill-deleted', (data) => {
-                    try {
-                        console.log('📡 Bill deleted:', data);
-                        refreshBills();
-                    } catch (error) {
-                        console.error('Error handling bill-deleted event:', error);
-                    }
-                });
-                
-                socket.on('rates-updated', (data) => {
-                    try {
-                        console.log('📡 Rates updated:', data);
-                        refreshRates();
-                    } catch (error) {
-                        console.error('Error handling rates-updated event:', error);
-                    }
-                });
-                
-                socket.on('user-created', (data) => {
-                    try {
-                        console.log('📡 User created:', data);
-                        if (typeof window.renderUserManagement === 'function') {
-                            window.renderUserManagement();
-                        }
-                    } catch (error) {
-                        console.error('Error handling user-created event:', error);
-                    }
-                });
-                
-                socket.on('user-updated', (data) => {
-                    try {
-                        console.log('📡 User updated:', data);
-                        if (typeof window.renderUserManagement === 'function') {
-                            window.renderUserManagement();
-                        }
-                    } catch (error) {
-                        console.error('Error handling user-updated event:', error);
-                    }
-                });
-                
-                socket.on('user-deleted', (data) => {
-                    try {
-                        console.log('📡 User deleted:', data);
-                        if (typeof window.renderUserManagement === 'function') {
-                            window.renderUserManagement();
-                        }
-                    } catch (error) {
-                        console.error('Error handling user-deleted event:', error);
-                    }
-                });
-                
-                // Listen for barcode print events (real-time sync)
-                socket.on('barcode-printed', (data) => {
-                    try {
-                        console.log('📡 Barcode printed on another device:', data.barcode);
-                        // Refresh products to show newly printed barcode
-                        if (typeof refreshProducts === 'function') {
-                            refreshProducts();
-                        }
-                    } catch (error) {
-                        console.error('Error handling barcode-printed event:', error);
-                    }
-                });
+                // Real-time data refresh handlers
+                socket.on('product-created', () => refreshProducts());
+                socket.on('product-updated', () => refreshProducts());
+                socket.on('product-deleted', () => refreshProducts());
+                socket.on('customer-created', () => refreshCustomers());
+                socket.on('customer-updated', () => refreshCustomers());
+                socket.on('customer-deleted', () => refreshCustomers());
+                socket.on('quotation-created', () => refreshQuotations());
+                socket.on('quotation-updated', () => refreshQuotations());
+                socket.on('quotation-deleted', () => refreshQuotations());
+                socket.on('bill-created', () => refreshBills());
+                socket.on('bill-updated', () => refreshBills());
+                socket.on('bill-deleted', () => refreshBills());
+                socket.on('rates-updated', () => refreshRates());
+                socket.on('user-created', () => { if (window.renderUserManagement) window.renderUserManagement(); });
+                socket.on('user-updated', () => { if (window.renderUserManagement) window.renderUserManagement(); });
+                socket.on('user-deleted', () => { if (window.renderUserManagement) window.renderUserManagement(); });
+                socket.on('barcode-printed', () => refreshProducts());
             } catch (error) {
-                console.error('Error initializing socket connection:', error);
-                isSocketConnected = false;
+                console.error('Socket connection error:', error);
             }
         }
         
@@ -2547,7 +2620,19 @@
             try {
                 const customersData = await api.getCustomers();
                 if (Array.isArray(customersData)) {
-                    customers = customersData.map(c => ({
+                    // Remove duplicates by mobile number (keep the one with the latest ID)
+                    const uniqueCustomers = new Map();
+                    customersData.forEach(c => {
+                        const mobile = c.mobile?.trim();
+                        if (mobile) {
+                            const existing = uniqueCustomers.get(mobile);
+                            if (!existing || (c.id && existing.id && c.id > existing.id)) {
+                                uniqueCustomers.set(mobile, c);
+                            }
+                        }
+                    });
+                    
+                    customers = Array.from(uniqueCustomers.values()).map(c => ({
                         id: c.id,
                         name: c.name,
                         mobile: c.mobile,
@@ -2559,9 +2644,15 @@
                         gstin: c.gstin
                     }));
                     setCachedItem('customers', customers);
+                    updateCustomerDropdown();
+                    loadCustomersDisplay();
                 }
             } catch (error) {
                 console.error('Error loading customers:', error);
+                // If API fails, don't use localStorage - just show error
+                if (error.message && !error.message.includes('Network error')) {
+                    showDialog('Error', 'Failed to load customers: ' + error.message, 'error');
+                }
             }
         }
         
@@ -2640,7 +2731,6 @@
                     };
                     setCachedItem('rates', rates);
                     updateRatesDisplay();
-                    console.log('✅ Loaded rates from API');
                 }
             } catch (error) {
                 console.error('Error loading rates:', error);
@@ -2668,7 +2758,7 @@
                 }
             },
             
-            // Generic API request with error handling for cloud/sync
+            // API request handler
             async request(endpoint, options = {}) {
                 const tenant = this.getTenant();
                 const url = `${API_BASE}/${tenant}${endpoint}`;
@@ -2695,22 +2785,46 @@
                     // Handle non-JSON responses
                     const contentType = response.headers.get('content-type');
                     let data;
-                    if (contentType && contentType.includes('application/json')) {
-                        data = await response.json();
-                    } else {
-                        const text = await response.text();
-                        throw new Error(text || `HTTP error! status: ${response.status}`);
+                    
+                    try {
+                        if (contentType && contentType.includes('application/json')) {
+                            data = await response.json();
+                        } else {
+                            // Try to parse as JSON first, if it fails, treat as text
+                            const text = await response.text();
+                            try {
+                                data = JSON.parse(text);
+                            } catch (e) {
+                                // Not JSON - likely HTML error page
+                                console.error('API returned non-JSON response:', text.substring(0, 200));
+                                throw new Error(`Server returned invalid response. Status: ${response.status}`);
+                            }
+                        }
+                    } catch (parseError) {
+                        // If JSON parsing fails, it's likely an HTML error page
+                        if (parseError.message.includes('JSON')) {
+                            const text = await response.text();
+                            console.error('JSON parse error - received HTML:', text.substring(0, 200));
+                            throw new Error(`Server error: Received HTML instead of JSON. Status: ${response.status}`);
+                        }
+                        throw parseError;
                     }
                     
                     if (!response.ok) {
-                        throw new Error(data.error || `HTTP error! status: ${response.status}`);
+                        // Handle 401 Unauthorized - redirect to login
+                        if (response.status === 401) {
+                            console.error('Unauthorized access - redirecting to login');
+                            logout();
+                            throw new Error('Session expired. Please login again.');
+                        }
+                        throw new Error(data.error || data.message || `HTTP error! status: ${response.status}`);
                     }
                     
                     return data;
                 } catch (error) {
                     clearTimeout(timeoutId);
                     
-                    // Handle network errors gracefully for cloud/sync
+                    // Handle network errors
                     if (error.name === 'AbortError') {
                         console.error('API Request timeout:', endpoint);
                         throw new Error('Request timeout. Please check your connection.');
@@ -2776,6 +2890,12 @@
             async deleteCustomer(id) {
                 return this.request(`/customers/${id}`, {
                     method: 'DELETE',
+                });
+            },
+            
+            async cleanupDuplicateCustomers() {
+                return this.request('/customers/cleanup-duplicates', {
+                    method: 'POST',
                 });
             },
             
@@ -2920,24 +3040,58 @@
                 });
             },
             
+            // Sales Returns API
+            async getSalesReturns() {
+                return this.request('/sales-returns');
+            },
+            
+            async getSalesReturn(id) {
+                return this.request(`/sales-returns/${id}`);
+            },
+            
+            async createSalesReturn(salesReturn) {
+                return this.request('/sales-returns', {
+                    method: 'POST',
+                    body: JSON.stringify(salesReturn),
+                });
+            },
+            
+            async getBillByNumber(billNo) {
+                return this.request(`/bills/by-number/${encodeURIComponent(billNo)}`);
+            },
+            
             // Tenants API (for login)
             // SECURITY: Changed to POST to avoid passwords in URL
             async getTenants(username = null, password = null) {
                 try {
                     const url = `${API_BASE.replace('/api', '')}/api/tenants`;
+                    let response;
+                    
                     if (username && password) {
                         // Use POST instead of GET to avoid passwords in URL
-                        const response = await fetch(url, {
+                        response = await fetch(url, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ username, password })
                         });
+                    } else {
+                        // POST without credentials returns empty array
+                        response = await fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({})
+                        });
+                    }
+                    
+                    // Check if response is JSON
+                    const contentType = response.headers.get('content-type');
+                    if (contentType && contentType.includes('application/json')) {
                         const data = await response.json();
                         return data;
                     } else {
-                        const response = await fetch(url);
-                        const data = await response.json();
-                        return data;
+                        // If not JSON, return empty array
+                        console.warn('Tenants API returned non-JSON response');
+                        return [];
                     }
                 } catch (error) {
                     console.error('Error fetching tenants:', error);
@@ -2971,22 +3125,12 @@
         
         // Load tenants on page load (only for master admin preview)
         async function loadTenants() {
-            const datalist = document.getElementById('tenantSuggestions');
-            if (!datalist) return;
-            
-            // Only load if user might be master admin (for autocomplete suggestions)
-            // Regular users will enter their tenant code manually
+            // Store tenants for suggestions dropdown
+            window.tenantList = [];
             try {
                 // Try to get tenants (will return empty for non-admin)
                 const tenants = await api.getTenants();
-                datalist.innerHTML = '';
-                
-                tenants.forEach(tenant => {
-                    const option = document.createElement('option');
-                    option.value = tenant.tenant_code;
-                    option.textContent = `${tenant.tenant_name || tenant.tenant_code} (${tenant.tenant_code})`;
-                    datalist.appendChild(option);
-                });
+                window.tenantList = tenants;
             } catch (error) {
                 console.error('Error loading tenant suggestions:', error);
             }
@@ -3079,7 +3223,6 @@
                     localStorage.setItem('metalPurchases', JSON.stringify([]));
                 }
 
-                console.log('✅ Data integrity check completed');
                 
                 // Update quotation number display on page load
                 if (typeof getNextQuotationNumber === 'function') {
@@ -3263,10 +3406,17 @@ const STATIC_MODAL_IDS = [
     'convertQuotModal',
     'reprintFormatModal',
     'cashEntryModal',
+    'tallyConfigModal',
     'bulkUpdateModal'
 ];
 
 function showDialog(title, message, type = 'info', callback = null) {
+    // Prevent multiple dialogs - close existing one first
+    const existingDialog = document.getElementById('customDialog');
+    if (existingDialog) {
+        existingDialog.remove();
+    }
+    
     const dialog = document.createElement('div');
     dialog.className = 'fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50';
     dialog.id = 'customDialog';
@@ -3283,7 +3433,7 @@ function showDialog(title, message, type = 'info', callback = null) {
             </div>
             <p class="text-gray-700 mb-6">${message}</p>
             <div class="flex justify-end">
-                <button onclick="closeDialog()" class="px-6 py-2 ${btnColor} text-white rounded-lg font-medium">
+                <button id="dialogOkButton" onclick="closeDialog()" class="px-6 py-2 ${btnColor} text-white rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                     OK
                 </button>
             </div>
@@ -3291,6 +3441,39 @@ function showDialog(title, message, type = 'info', callback = null) {
     `;
     
     document.body.appendChild(dialog);
+    
+    // Focus the OK button so Enter key works
+    const okButton = document.getElementById('dialogOkButton');
+    if (okButton) {
+        okButton.focus();
+    }
+    
+    // Handle Enter key to close dialog
+    const handleKeyPress = (e) => {
+        if (e.key === 'Enter' || e.key === 'Escape') {
+            e.preventDefault();
+            e.stopPropagation();
+            closeDialog();
+            if (callback) {
+                callback();
+            }
+        }
+    };
+    
+    dialog.addEventListener('keydown', handleKeyPress);
+    
+    // Also handle Enter on the button itself
+    if (okButton) {
+        okButton.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                closeDialog();
+                if (callback) {
+                    callback();
+                }
+            }
+        });
+    }
     
     if (callback) {
         setTimeout(() => {
@@ -3392,6 +3575,7 @@ function showConfirmDialog(title, message, onConfirm, onCancel = null) {
 function closeDialog() {
     const dialog = document.getElementById('customDialog');
     if (dialog) {
+        // Remove the dialog completely
         dialog.remove();
     }
     window.currentConfirmCallback = null;
@@ -3472,6 +3656,14 @@ function updateTabVisibility() {
                             currentUser.isMasterAdmin === true) &&
                            currentUser.role !== 'employee'; // Explicitly block employees
     
+    // SECURITY: Only admin and Gaurav can access Tally configuration
+    // Employee role CANNOT access Tally configuration
+    const canAccessTally = (currentUser.username === 'admin' || 
+                           currentUser.username === 'Gaurav' || 
+                           currentUser.role === 'admin' || 
+                           currentUser.isMasterAdmin === true) &&
+                          currentUser.role !== 'employee';
+    
     if (userMgmtBtn && userMgmtBtnContainer) {
         if (canManageUsers) {
             userMgmtBtnContainer.classList.remove('hidden');
@@ -3482,20 +3674,239 @@ function updateTabVisibility() {
         }
     }
     
-    const allTabs = ['billing', 'products', 'customers', 'rol', 'quotations', 'salesbill', 'billhistory', 'ledger', 'pv', 'tagsplit', 'tagsearch', 'floor'];
-    const allowedTabs = currentUser.allowedTabs || [];
+    // Show/hide Tally Config button based on permissions
+    const tallyConfigBtn = document.getElementById('btnTallyConfig');
+    const tallyConfigBtnContainer = document.getElementById('tallyConfigBtn');
+    if (tallyConfigBtn && tallyConfigBtnContainer) {
+        if (canAccessTally) {
+            tallyConfigBtnContainer.classList.remove('hidden');
+            tallyConfigBtn.classList.remove('hidden');
+        } else {
+            tallyConfigBtnContainer.classList.add('hidden');
+            tallyConfigBtn.classList.add('hidden');
+        }
+    }
+    
+    const allTabs = ['billing', 'products', 'customers', 'rol', 'quotations', 'salesbill', 'salesreturn', 'billhistory', 'ledger', 'pv', 'tagsplit', 'tagsearch', 'floor'];
+    let allowedTabs = currentUser.allowedTabs || [];
+    
+    // Ensure allowedTabs is an array (handle PostgreSQL TEXT[] format)
+    if (typeof allowedTabs === 'string') {
+        try {
+            allowedTabs = JSON.parse(allowedTabs);
+        } catch (e) {
+            // If parsing fails, treat as comma-separated string
+            allowedTabs = allowedTabs.split(',').map(t => t.trim()).filter(t => t);
+        }
+    }
+    if (!Array.isArray(allowedTabs)) {
+        allowedTabs = [];
+    }
+    
+    console.log('Updating tab visibility. User:', currentUser.username, 'Allowed tabs:', allowedTabs);
+    
+    // Map tab names to button IDs (handles special cases)
+    const tabToButtonId = {
+        'billing': 'btnBilling',
+        'products': 'btnProducts',
+        'customers': 'btnCustomers',
+        'rol': 'btnROL',
+        'quotations': 'btnQuotations',
+        'salesbill': 'btnSalesBill',
+        'salesreturn': 'btnSalesReturn',
+        'billhistory': 'btnBillHistory',
+        'ledger': 'btnLedger',
+        'pv': 'btnPV',
+        'tagsplit': 'btnTagSplit',
+        'tagsearch': 'btnTagSearch',
+        'floor': 'btnFloor'
+    };
     
     allTabs.forEach(tab => {
-        const btnId = 'btn' + tab.charAt(0).toUpperCase() + tab.slice(1);
+        const btnId = tabToButtonId[tab] || ('btn' + tab.charAt(0).toUpperCase() + tab.slice(1));
         const btn = document.getElementById(btnId);
         if (btn) {
-            if (allowedTabs.includes('all') || allowedTabs.includes(tab)) {
+            const hasAccess = allowedTabs.includes('all') || allowedTabs.includes(tab);
+            if (hasAccess) {
                 btn.classList.remove('hidden');
             } else {
                 btn.classList.add('hidden');
+                // Also hide the tab content if it's currently visible
+                const tabElement = document.getElementById(tab + 'Tab');
+                if (tabElement && !tabElement.classList.contains('hidden')) {
+                    tabElement.classList.add('hidden');
+                }
             }
         }
     });
+}
+
+// Tally Configuration Functions
+async function showTallyConfig() {
+    // Check permissions - only admin or super-admin (Gaurav) can access
+    const canAccessTally = (currentUser.username === 'admin' || 
+                           currentUser.username === 'Gaurav' || 
+                           currentUser.role === 'admin' || 
+                           currentUser.isMasterAdmin === true) &&
+                          currentUser.role !== 'employee';
+    
+    if (!canAccessTally) {
+        showDialog('Access Denied', 'Only administrators can configure Tally integration. Employee role does not have access to this feature.', 'error');
+        return;
+    }
+    
+    const modal = document.getElementById('tallyConfigModal');
+    if (!modal) return;
+    
+    modal.classList.remove('hidden');
+    document.getElementById('modalOverlay').classList.remove('hidden');
+    document.getElementById('modalOverlay').classList.add('flex');
+    
+    // Load current configuration
+    try {
+        const tenantCode = currentUser?.tenantCode || getCachedItem('currentTenant', '');
+        if (!tenantCode) {
+            updateTallyStatus('No tenant selected', 'error');
+            return;
+        }
+        
+        const response = await fetch(`/api/${tenantCode}/tally/config`);
+        
+        // Check if response is JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            console.error('Tally config API returned non-JSON:', text.substring(0, 100));
+            updateTallyStatus('Error loading configuration: Invalid response', 'error');
+            return;
+        }
+        
+        const result = await response.json();
+        
+        if (result && result.config) {
+            const config = result.config;
+            document.getElementById('tallyUrl').value = config.tally_url || 'http://localhost:9000';
+            document.getElementById('tallyCompanyName').value = config.company_name || '';
+            document.getElementById('tallyEnabled').checked = config.enabled || false;
+            document.getElementById('tallyAutoSync').checked = config.auto_sync_enabled || false;
+            document.getElementById('tallySyncMode').value = config.sync_mode || 'manual';
+            document.getElementById('tallyConnectionType').value = config.connection_type || 'gateway';
+            
+            // Show/hide API key fields based on connection type
+            toggleTallyApiFields(config.connection_type || 'gateway');
+            
+            updateTallyStatus('Configuration loaded', 'success');
+        } else if (result && result.success === false) {
+            updateTallyStatus('No configuration found', 'info');
+        } else {
+            updateTallyStatus('No configuration found', 'info');
+        }
+    } catch (error) {
+        console.error('Error loading Tally config:', error);
+        updateTallyStatus('Error loading configuration: ' + (error.message || 'Unknown error'), 'error');
+    }
+}
+
+function toggleTallyApiFields(connectionType) {
+    const apiKeySection = document.getElementById('tallyApiKeySection');
+    const apiSecretSection = document.getElementById('tallyApiSecretSection');
+    
+    if (connectionType === 'cloud') {
+        apiKeySection.classList.remove('hidden');
+        apiSecretSection.classList.remove('hidden');
+    } else {
+        apiKeySection.classList.add('hidden');
+        apiSecretSection.classList.add('hidden');
+    }
+}
+
+// Listen for connection type changes
+document.addEventListener('DOMContentLoaded', function() {
+    const connectionTypeSelect = document.getElementById('tallyConnectionType');
+    if (connectionTypeSelect) {
+        connectionTypeSelect.addEventListener('change', function() {
+            toggleTallyApiFields(this.value);
+        });
+    }
+});
+
+async function saveTallyConfig() {
+    try {
+        const tenantCode = currentUser?.tenantCode || getCachedItem('currentTenant', '');
+        const connectionType = document.getElementById('tallyConnectionType').value;
+        
+        const config = {
+            tally_url: document.getElementById('tallyUrl').value,
+            company_name: document.getElementById('tallyCompanyName').value,
+            enabled: document.getElementById('tallyEnabled').checked,
+            auto_sync_enabled: document.getElementById('tallyAutoSync').checked,
+            sync_mode: document.getElementById('tallySyncMode').value,
+            connection_type: connectionType
+        };
+        
+        // Add API keys only if provided and connection type is cloud
+        if (connectionType === 'cloud') {
+            const apiKey = document.getElementById('tallyApiKey').value;
+            const apiSecret = document.getElementById('tallyApiSecret').value;
+            
+            if (apiKey) config.api_key = apiKey;
+            if (apiSecret) config.api_secret = apiSecret;
+        }
+        
+        const response = await fetch(`/api/${tenantCode}/tally/config`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(config)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            updateTallyStatus('✅ Configuration saved successfully!', 'success');
+            // Clear API key fields after saving
+            document.getElementById('tallyApiKey').value = '';
+            document.getElementById('tallyApiSecret').value = '';
+        } else {
+            updateTallyStatus(`❌ Error: ${result.error || 'Failed to save'}`, 'error');
+        }
+    } catch (error) {
+        console.error('Error saving Tally config:', error);
+        updateTallyStatus(`❌ Error: ${error.message}`, 'error');
+    }
+}
+
+async function testTallyConnection() {
+    try {
+        const tenantCode = currentUser?.tenantCode || getCachedItem('currentTenant', '');
+        updateTallyStatus('Testing connection...', 'info');
+        
+        const response = await fetch(`/api/${tenantCode}/tally/test`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            updateTallyStatus('✅ Connection successful! Tally is reachable.', 'success');
+        } else {
+            updateTallyStatus(`❌ Connection failed: ${result.error || result.message || 'Unknown error'}`, 'error');
+        }
+    } catch (error) {
+        console.error('Error testing Tally connection:', error);
+        updateTallyStatus(`❌ Error: ${error.message}`, 'error');
+    }
+}
+
+function updateTallyStatus(message, type) {
+    const statusDiv = document.getElementById('tallyStatus');
+    const statusText = document.getElementById('tallyStatusText');
+    
+    if (!statusDiv || !statusText) return;
+    
+    statusDiv.classList.remove('hidden');
+    statusDiv.className = `p-3 rounded-lg ${type === 'success' ? 'bg-green-100 text-green-800' : type === 'error' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`;
+    statusText.textContent = message;
 }
 
 async function showUserManagement() {
@@ -3528,7 +3939,7 @@ window.renderUserManagement = async function() {
     userListDiv.innerHTML = '<p class="text-gray-500">Loading users...</p>';
     
     try {
-        // Load users from API with error handling for cloud/sync
+        // Load users from API
         let apiUsers = [];
         try {
             apiUsers = await api.getUsers();
@@ -3739,7 +4150,7 @@ window.editUser = async function(username) {
                     allowedTabs = tabsInput.split(',').map(t => t.trim()).filter(t => allTabs.includes(t));
                 }
                 
-                // Update via API with error handling for cloud/sync
+                // Update via API
                 try {
                     const updateData = {
                         role: role,
@@ -3752,7 +4163,7 @@ window.editUser = async function(username) {
                     showDialog('Success', `User ${username} updated successfully!`, 'success');
                 } catch (apiError) {
                     console.error('Failed to update user via API:', apiError);
-                    // In cloud/sync setup, show error instead of fallback
+                    // Show error to user
                     if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
                         showDialog('Error', `Failed to update user: ${apiError.message || 'Network error. Please check your connection.'}`, 'error');
                         return;
@@ -3808,7 +4219,7 @@ window.deleteUser = async function(username) {
                     showDialog('Success', `User ${username} deleted successfully!`, 'success');
                 } catch (deleteError) {
                     console.error('Delete user error:', deleteError);
-                    // In cloud/sync setup, show error instead of fallback
+                    // Show error to user
                     if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
                         showDialog('Error', `Failed to delete user: ${deleteError.message || 'Network error. Please check your connection.'}`, 'error');
                         return;
@@ -3838,7 +4249,7 @@ window.deleteUser = async function(username) {
             }
         } catch (apiError) {
             console.error('Delete user error:', apiError);
-            // In cloud/sync setup, show error
+            // Show error to user
             if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
                 showDialog('Error', `Failed to delete user: ${apiError.message || 'Network error. Please check your connection.'}`, 'error');
                 return;
@@ -4001,13 +4412,31 @@ window.handleLogin = async function() {
         
         if (loginResult.success) {
             // API login successful
+            // Handle both camelCase and snake_case from server
+            let allowedTabs = loginResult.allowedTabs || loginResult.allowed_tabs || [];
+            
+            // Ensure allowedTabs is an array (PostgreSQL TEXT[] might return as string or array)
+            if (typeof allowedTabs === 'string') {
+                try {
+                    allowedTabs = JSON.parse(allowedTabs);
+                } catch (e) {
+                    // If parsing fails, treat as comma-separated string
+                    allowedTabs = allowedTabs.split(',').map(t => t.trim()).filter(t => t);
+                }
+            }
+            if (!Array.isArray(allowedTabs)) {
+                allowedTabs = [];
+            }
+            
             currentUser = {
                 username: loginResult.username,
                 role: loginResult.role || 'user',
-                allowedTabs: loginResult.allowedTabs || ['all'],
+                allowedTabs: allowedTabs, // Don't default to ['all'] - use empty array if not provided
                 tenantCode: loginResult.tenantCode || tenantCode,
                 isMasterAdmin: loginResult.isMasterAdmin || false
             };
+            
+            console.log('User logged in:', currentUser.username, 'Role:', currentUser.role, 'Allowed tabs:', currentUser.allowedTabs);
             
             // If master admin and no tenant code provided, show message
             if (loginResult.isMasterAdmin && !tenantCode) {
@@ -4840,7 +5269,7 @@ async function generateSalesBillPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'a4');
 
-    const formattedDate = date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    const formattedDate = `${String(date.getDate()).padStart(2, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getFullYear()).slice(-2)}`;
     const customer = selectedQuotationForBill.customer;
     const totalWeight = billItems.reduce((sum, item) => sum + item.weight, 0);
     const totalPCS = billItems.reduce((sum, item) => sum + (item.pcs || 1), 0);
@@ -6002,20 +6431,47 @@ async function generateSalesBillPDF() {
                 }
 
         function showTab(tab) {
+                // Check if user has access to this tab FIRST (before any initialization)
+                if (currentUser) {
+                    const allowedTabs = currentUser.allowedTabs || [];
+                    // Ensure allowedTabs is an array
+                    const tabsArray = Array.isArray(allowedTabs) ? allowedTabs : [];
+                    
+                    // Check if user has access (either 'all' or specific tab)
+                    const hasAccess = tabsArray.includes('all') || tabsArray.includes(tab);
+                    
+                    if (!hasAccess) {
+                        const tabNames = {
+                            'billing': 'Billing',
+                            'products': 'Products',
+                            'customers': 'Customers',
+                            'rol': 'ROL',
+                            'quotations': 'Quotations',
+                            'salesbill': 'Sales Bill',
+                            'salesreturn': 'Sales Return',
+                            'billhistory': 'Bill History',
+                            'ledger': 'Ledger',
+                            'pv': 'PV StockIn',
+                            'tagsplit': 'Tag Split/Merge',
+                            'tagsearch': 'Tag Search',
+                            'floor': 'Floor'
+                        };
+                        const tabDisplayName = tabNames[tab] || tab;
+                        showDialog('Access Denied', `You do not have permission to access the "${tabDisplayName}" tab. Please contact your administrator.`, 'error');
+                        console.warn(`Access denied for tab "${tab}". User: ${currentUser.username}, Allowed tabs:`, tabsArray);
+                        return;
+                    }
+                }
+                
                 // Initialize ROL when tab is shown
                 if (tab === 'rol' && typeof initializeROL === 'function') {
                     initializeROL();
-                }
-                // Check if user has access to this tab
-                if (currentUser && !currentUser.allowedTabs.includes('all') && !currentUser.allowedTabs.includes(tab)) {
-                    showDialog('Access Denied', 'You do not have permission to access this tab.', 'error');
-                    return;
                 }
                 
                 // Get all tab elements
                 const allTabs = [
                     'billingTab', 'productsTab', 'customersTab', 'rolTab', 
-                    'quotationsTab', 'salesbillTab', 'billHistoryTab', 
+                    'quotationsTab', 'salesbillTab', 'salesreturnTab', 'billHistoryTab', 
                     'ledgerTab', 'pvTab', 'tagsplitTab', 'tagsearchTab', 'floorTab'
                 ];
                 
@@ -6034,7 +6490,7 @@ async function generateSalesBillPDF() {
                 // Reset all buttons
                 const allButtons = [
                     'btnBilling', 'btnProducts', 'btnCustomers', 'btnROL',
-                    'btnQuotations', 'btnSalesBill', 'btnBillHistory',
+                    'btnQuotations', 'btnSalesBill', 'btnSalesReturn', 'btnBillHistory',
                     'btnLedger', 'btnPV', 'btnTagSplit', 'btnTagSearch', 'btnFloor'
                 ];
                 
@@ -6082,6 +6538,16 @@ async function generateSalesBillPDF() {
                             billInput.focus();
                         }
                     }, 100);
+                } else if (tab === 'salesreturn') {
+                    selectedTabElement = document.getElementById('salesreturnTab');
+                    selectedButton = document.getElementById('btnSalesReturn');
+                    // Load sales return history when tab is shown (only if user is logged in)
+                    if (currentUser && currentUser.tenantCode && typeof loadSalesReturnHistory === 'function') {
+                        // Delay slightly to ensure tab is visible
+                        setTimeout(() => {
+                            loadSalesReturnHistory();
+                        }, 100);
+                    }
                 } else if (tab === 'billhistory') {
                     selectedTabElement = document.getElementById('billHistoryTab');
                     selectedButton = document.getElementById('btnBillHistory');
@@ -6237,19 +6703,65 @@ async function generateSalesBillPDF() {
             }
 
         function updateCustomerDropdown() {
-            const datalist = document.getElementById('customerList');
-            datalist.innerHTML = '';
-            customers.forEach((customer) => {
-                const option = document.createElement('option');
-                option.value = customer.name;
-                option.setAttribute('data-customer-idx', customers.indexOf(customer));
-                datalist.appendChild(option);
-            });
+            // No longer using datalist - using custom dropdown instead
+        }
+
+        function showCustomerSuggestions() {
+            const input = document.getElementById('customerSelect');
+            const dropdown = document.getElementById('customerSuggestionsDropdown');
+            const searchTerm = input.value.toLowerCase().trim();
+            
+            if (!dropdown) return;
+            
+            // Filter customers based on search term
+            const filteredCustomers = customers.filter(c => 
+                c.name.toLowerCase().includes(searchTerm) || 
+                (c.mobile && c.mobile.includes(searchTerm))
+            ).slice(0, 10); // Limit to 10 suggestions
+            
+            dropdown.innerHTML = '';
+            
+            if (filteredCustomers.length === 0 && searchTerm) {
+                dropdown.innerHTML = '<div class="px-4 py-2 text-sm text-gray-500">No customers found</div>';
+            } else if (filteredCustomers.length === 0) {
+                dropdown.innerHTML = '<div class="px-4 py-2 text-sm text-gray-500">Start typing to search customers...</div>';
+            } else {
+                filteredCustomers.forEach(customer => {
+                    const item = document.createElement('div');
+                    item.className = 'px-4 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0';
+                    item.innerHTML = `
+                        <div class="font-medium text-gray-900">${customer.name}</div>
+                        <div class="text-xs text-gray-500">${customer.mobile || 'No mobile'}</div>
+                    `;
+                    item.onclick = () => {
+                        input.value = customer.name;
+                        loadCustomerByObject(customer);
+                        hideCustomerSuggestions();
+                    };
+                    dropdown.appendChild(item);
+                });
+            }
+            
+            dropdown.classList.remove('hidden');
+        }
+
+        function hideCustomerSuggestions() {
+            // Delay to allow click events to fire
+            setTimeout(() => {
+                const dropdown = document.getElementById('customerSuggestionsDropdown');
+                if (dropdown) {
+                    dropdown.classList.add('hidden');
+                }
+            }, 200);
         }
 
         function handleCustomerInput() {
             const input = document.getElementById('customerSelect');
             const customerName = input.value.trim();
+            
+            // Show suggestions as user types
+            showCustomerSuggestions();
+            
             if (!customerName) {
                 document.getElementById('customerDetailsDisplay').classList.add('hidden');
                 document.getElementById('customerMobile').value = '';
@@ -6259,16 +6771,17 @@ async function generateSalesBillPDF() {
             const customer = customers.find(c => c.name.toLowerCase() === customerName.toLowerCase());
             if (customer) {
                 loadCustomerByObject(customer);
+            } else {
+                // Clear customer details if no exact match
+                document.getElementById('customerDetailsDisplay').classList.add('hidden');
+                document.getElementById('customerMobile').value = '';
+                currentCustomer = null;
             }
         }
 
         function handleCustomerSelect() {
-            const input = document.getElementById('customerSelect');
-            const customerName = input.value.trim();
-            const customer = customers.find(c => c.name.toLowerCase() === customerName.toLowerCase());
-            if (customer) {
-                loadCustomerByObject(customer);
-            }
+            // This is now handled by handleCustomerInput and the custom dropdown
+            handleCustomerInput();
         }
 
         function loadCustomerByObject(customer) {
@@ -6394,7 +6907,16 @@ async function generateSalesBillPDF() {
             document.getElementById('addCustomerModal').classList.remove('hidden');
         }
 
+        // Prevent double submission for customers
+        let isSavingCustomer = false;
+        
         async function saveCustomer() {
+            // Prevent double submission
+            if (isSavingCustomer) {
+                console.warn('Customer save already in progress, ignoring duplicate call');
+                return;
+            }
+            
             const customer = {
                 name: document.getElementById('newCustName').value.trim(),
                 address1: document.getElementById('newCustAddress1').value.trim(),
@@ -6412,6 +6934,26 @@ async function generateSalesBillPDF() {
             
             const editIndex = document.getElementById('editCustomerIndex').value;
             const existingCustomer = editIndex !== '' ? customers[editIndex] : null;
+            const isNewCustomer = editIndex === '';
+            
+            // Check for duplicate mobile number in local array (quick check)
+            if (isNewCustomer) {
+                const duplicateCustomer = customers.find(c => c.mobile === customer.mobile);
+                if (duplicateCustomer) {
+                    showDialog('Error', `Customer with mobile ${customer.mobile} already exists!`, 'error');
+                    return;
+                }
+            }
+            
+            // Disable save button and set flag
+            isSavingCustomer = true;
+            const saveButton = document.querySelector('#addCustomerModal button[onclick*="saveCustomer"]');
+            let originalButtonText = '';
+            if (saveButton) {
+                originalButtonText = saveButton.textContent;
+                saveButton.disabled = true;
+                saveButton.textContent = 'Saving...';
+            }
             
             try {
                 if (editIndex !== '' && existingCustomer && existingCustomer.id) {
@@ -6426,24 +6968,28 @@ async function generateSalesBillPDF() {
                     customers.push(customer);
                     showDialog('Success', 'Customer saved to database!', 'success');
                 }
+                // Reload customers from API to ensure sync
+                await loadCustomers();
                 setCachedItem('customers', customers);
                 updateCustomerDropdown();
                 loadCustomersDisplay();
                 closeModals();
             } catch (error) {
                 console.error('API Error:', error);
-                // Fallback to localStorage
-                if (editIndex !== '') {
-                    customers[editIndex] = customer;
-                    showDialog('Warning', 'Customer updated locally. API unavailable.', 'warning');
+                // Don't save to localStorage - show error and let user retry
+                if (error.message && (error.message.includes('already exists') || error.message.includes('duplicate'))) {
+                    showDialog('Error', `Customer with mobile ${customer.mobile} already exists!`, 'error');
                 } else {
-                    customers.push(customer);
-                    showDialog('Warning', 'Customer saved locally. API unavailable.', 'warning');
+                    showDialog('Error', 'Failed to save customer: ' + (error.message || 'Server unavailable. Please check your connection and try again.'), 'error');
                 }
-                setCachedItem('customers', customers);
-                updateCustomerDropdown();
-                loadCustomersDisplay();
-                closeModals();
+                // Don't close modal so user can retry
+            } finally {
+                // Re-enable save button
+                isSavingCustomer = false;
+                if (saveButton) {
+                    saveButton.disabled = false;
+                    saveButton.textContent = originalButtonText || '💾 Save Customer';
+                }
             }
         }
 
@@ -6461,12 +7007,7 @@ async function generateSalesBillPDF() {
                     showDialog('Success', 'Customer deleted from database!', 'success');
                 } catch (error) {
                     console.error('API Error:', error);
-                    // Fallback to localStorage
-                    customers.splice(idx, 1);
-                    setCachedItem('customers', customers);
-                    updateCustomerDropdown();
-                    loadCustomersDisplay();
-                    showDialog('Warning', 'Customer deleted locally. API unavailable.', 'warning');
+                    showDialog('Error', 'Failed to delete customer: ' + (error.message || 'Server unavailable. Please check your connection and try again.'), 'error');
                 }
             } else {
                 // No ID, just delete from local
@@ -6475,6 +7016,26 @@ async function generateSalesBillPDF() {
                 updateCustomerDropdown();
                 loadCustomersDisplay();
                 showDialog('Success', 'Customer deleted!', 'success');
+            }
+        }
+        
+        async function cleanupDuplicateCustomers() {
+            if (!confirm('This will remove duplicate customers (same mobile number).\n\nDuplicates will be merged - keeping the most recent one.\n\nContinue?')) {
+                return;
+            }
+            
+            try {
+                const result = await api.cleanupDuplicateCustomers();
+                if (result.success) {
+                    // Reload customers from API
+                    await loadCustomers();
+                    showDialog('Success', result.message || `Cleaned up ${result.deleted || 0} duplicate customer(s).`, 'success');
+                } else {
+                    showDialog('Error', result.message || 'Failed to cleanup duplicates.', 'error');
+                }
+            } catch (error) {
+                console.error('Error cleaning up duplicates:', error);
+                showDialog('Error', 'Failed to cleanup duplicates: ' + (error.message || 'Unknown error'), 'error');
             }
         }
 
@@ -7046,7 +7607,16 @@ function editProduct(idx) {
     document.getElementById('addProductModal').classList.remove('hidden');
 }
 
+// Prevent double submission
+let isSavingProduct = false;
+
 async function saveProduct() {
+    // Prevent double submission
+    if (isSavingProduct) {
+        console.warn('Product save already in progress, ignoring duplicate call');
+        return;
+    }
+    
     const product = {
         barcode: document.getElementById('newBarcode').value.trim(),
         sku: document.getElementById('newSku').value.trim(),
@@ -7073,8 +7643,25 @@ async function saveProduct() {
         return;
     }
     
+    // Check for duplicate barcode in local products array (quick check)
     const editIndex = document.getElementById('editProductIndex').value;
     const isNewProduct = editIndex === '';
+    
+    if (isNewProduct) {
+        const existingProduct = products.find(p => p.barcode === product.barcode);
+        if (existingProduct) {
+            showDialog('Error', `Product with barcode ${product.barcode} already exists!`, 'error');
+            return;
+        }
+    }
+    
+    // Disable save button and set flag
+    isSavingProduct = true;
+    const saveButton = document.querySelector('#addProductModal button[onclick="saveProduct()"]');
+    if (saveButton) {
+        saveButton.disabled = true;
+        saveButton.textContent = 'Saving...';
+    }
     
     try {
         let savedProduct;
@@ -7124,20 +7711,20 @@ async function saveProduct() {
         closeModals();
     } catch (error) {
         console.error('Error saving product:', error);
-        showDialog('Error', 'Failed to save product: ' + (error.message || 'Unknown error'), 'error');
-        // Fallback to localStorage if API fails (only for localhost)
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-            if (editIndex !== '') {
-                product.id = products[editIndex].id;
-                products[editIndex] = product;
-            } else {
-                product.id = Date.now();
-                products.push(product);
-            }
-            setCachedItem('products', products);
-            updateProductsTable();
+        // Check if it's a duplicate error
+        if (error.message && (error.message.includes('already exists') || error.message.includes('duplicate'))) {
+            showDialog('Error', `Product with barcode ${product.barcode} already exists!`, 'error');
+        } else {
+            showDialog('Error', 'Failed to save product: ' + (error.message || 'Unknown error'), 'error');
         }
-        closeModals();
+        // No localStorage fallback - errors are shown to user
+    } finally {
+        // Re-enable save button
+        isSavingProduct = false;
+        if (saveButton) {
+            saveButton.disabled = false;
+            saveButton.textContent = '💾 Save Product';
+        }
     }
 }
 
@@ -7194,13 +7781,32 @@ async function deleteProductFromAPI(productId) {
     });
 }
 
-function deleteProduct(idx) {
-            if (!confirm('Delete this product?')) return;
-            products.splice(idx, 1);
-            localStorage.setItem('products', JSON.stringify(products));
-            updateProductsTable();
-            alert('Product deleted!');
+async function deleteProduct(idx) {
+    if (!confirm('Delete this product?')) return;
+    
+    const product = products[idx];
+    if (!product) {
+        showDialog('Error', 'Product not found', 'error');
+        return;
+    }
+    
+    // If product has an ID, delete from API first
+    if (product.id) {
+        try {
+            await api.deleteProduct(product.id);
+            showDialog('Success', 'Product deleted from database!', 'success');
+        } catch (error) {
+            console.error('Error deleting product from API:', error);
+            showDialog('Error', `Failed to delete product: ${error.message}`, 'error');
+            return; // Don't remove from local array if API deletion failed
         }
+    }
+    
+    // Remove from local array
+    products.splice(idx, 1);
+    setCachedItem('products', products);
+    updateProductsTable();
+}
 
         function downloadAllProducts() {
             if (products.length === 0) {
@@ -7284,6 +7890,8 @@ function deleteProduct(idx) {
             document.getElementById('uploadPreview').classList.add('hidden');
             document.getElementById('excelFileInput').value = '';
             bulkUploadData = [];
+            // Populate floor dropdown when modal opens
+            updateBulkUploadFloorDropdown();
             document.getElementById('modalOverlay').classList.remove('hidden');
             document.getElementById('modalOverlay').classList.add('flex');
             document.getElementById('bulkUploadModal').classList.remove('hidden');
@@ -7401,6 +8009,8 @@ function deleteProduct(idx) {
                         tbody.appendChild(row);
                     });
                     document.getElementById('uploadCount').textContent = bulkUploadData.length;
+                    // Populate floor dropdown
+                    updateBulkUploadFloorDropdown();
                     document.getElementById('uploadPreview').classList.remove('hidden');
                 } catch (error) {
                     alert('Error reading Excel: ' + error.message);
@@ -7433,6 +8043,9 @@ function deleteProduct(idx) {
             document.body.appendChild(loadingMsg);
             
             try {
+                // Get selected floor from dropdown
+                const selectedFloor = document.getElementById('bulkUploadFloorSelect')?.value || 'estimation floor';
+                
                 // Prepare all products for bulk insert
                 const productsToInsert = bulkUploadData.map(product => ({
                     barcode: product.barcode,
@@ -7451,7 +8064,7 @@ function deleteProduct(idx) {
                     pcs: parseInt(product.pcs) || 1,
                     boxCharges: parseFloat(product.boxCharges) || 0,
                     stoneCharges: parseFloat(product.stoneCharges) || 0,
-                    floor: product.floor || 'Main Floor',
+                    floor: selectedFloor, // Use selected floor for all products
                     isSold: false
                 }));
                 
@@ -7584,19 +8197,71 @@ function deleteProduct(idx) {
             reader.readAsArrayBuffer(file);
         }
 
-        function confirmBulkUploadCustomer() {
+        async function confirmBulkUploadCustomer() {
             if (bulkUploadCustomerData.length === 0) return;
             const invalidItems = bulkUploadCustomerData.filter(item => !item.name || !item.mobile);
             if (invalidItems.length > 0) {
-                alert(`Error: ${invalidItems.length} customers missing Name or Mobile.`);
+                showDialog('Error', `${invalidItems.length} customers missing Name or Mobile.`, 'error');
                 return;
             }
-            customers.push(...bulkUploadCustomerData);
-            setCachedItem('customers', customers);
-            updateCustomerDropdown();
-            loadCustomersDisplay();
-            closeModals();
-            alert(`Successfully uploaded ${bulkUploadCustomerData.length} customers!`);
+            
+            // Disable button during upload
+            const uploadButton = document.querySelector('#bulkUploadCustomerModal button[onclick*="confirmBulkUploadCustomer"]');
+            if (uploadButton) {
+                uploadButton.disabled = true;
+                uploadButton.textContent = 'Uploading...';
+            }
+            
+            try {
+                let successCount = 0;
+                let errorCount = 0;
+                const errors = [];
+                
+                // Upload each customer via API
+                for (const customer of bulkUploadCustomerData) {
+                    try {
+                        // Check for duplicate mobile in local array first
+                        const existingCustomer = customers.find(c => c.mobile === customer.mobile);
+                        if (existingCustomer) {
+                            errorCount++;
+                            errors.push(`Mobile ${customer.mobile} already exists`);
+                            continue;
+                        }
+                        
+                        // Create via API
+                        const saved = await api.createCustomer(customer);
+                        customer.id = saved.id;
+                        customers.push(customer);
+                        successCount++;
+                    } catch (error) {
+                        errorCount++;
+                        if (error.message && (error.message.includes('already exists') || error.message.includes('duplicate'))) {
+                            errors.push(`Mobile ${customer.mobile} already exists`);
+                        } else {
+                            errors.push(`Failed to save ${customer.name} (${customer.mobile}): ${error.message || 'Unknown error'}`);
+                        }
+                    }
+                }
+                
+                // Reload customers from API to ensure sync
+                await loadCustomers();
+                
+                closeModals();
+                
+                if (errorCount === 0) {
+                    showDialog('Success', `Successfully uploaded ${successCount} customers!`, 'success');
+                } else {
+                    showDialog('Warning', `Uploaded ${successCount} customers. ${errorCount} failed:\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? '\n...' : ''}`, 'warning');
+                }
+            } catch (error) {
+                console.error('Bulk upload error:', error);
+                showDialog('Error', 'Failed to upload customers: ' + (error.message || 'Unknown error'), 'error');
+            } finally {
+                if (uploadButton) {
+                    uploadButton.disabled = false;
+                    uploadButton.textContent = '✅ Confirm Upload';
+                }
+            }
         }
 
     async function handleBarcodeScan(barcode) {
@@ -8546,7 +9211,7 @@ function updateMCTypeLabel() {
     doc.setFont(undefined, 'bold');
     doc.text('Date:', 160, 20);
     doc.setFont(undefined, 'normal');
-    doc.text(date, 180, 20);
+    doc.text(formattedDate, 180, 20);
     
     // Payment status indicator
     if (isCashReceived) {
@@ -8647,41 +9312,43 @@ function updateMCTypeLabel() {
         margin: { left: 15, right: 14 }
     });
 
-    // Grand Total section - EXACT FORMAT MATCHING REFERENCE PDFs
+    // Grand Total section - EXACT FORMAT MATCHING REFERENCE PDFs (Q8862.pdf, Q8925.pdf)
     const finalY = doc.lastAutoTable.finalY + 8;
+
+    // totalMC is already calculated above, reuse it
 
     // Grand Total row - matching reference format exactly
     doc.setFontSize(8);
     doc.setFont(undefined, 'bold');
-    doc.text('GRAND TOTAL', 15, finalY + 5);
+    doc.text('GRAND TOTAL', 15, finalY);
     
-    // PCS count
+    // PCS count (in PCS column)
     doc.setFont(undefined, 'normal');
-    doc.text(totalPCS.toString(), 50, finalY + 5);
+    doc.text(totalPCS.toString(), 50, finalY);
     
-    // Empty space
-    doc.text('', 70, finalY + 5);
+    // Empty columns for STYLE CODE, Short Name, SIZE
+    // Total weight in NET.WT column (right aligned)
+    doc.text(grandTotalWeight, 90, finalY, { align: 'right' });
     
-    // Total weight
-    doc.text(grandTotalWeight, 90, finalY + 5);
-    
+    // Empty columns for %, Purs, AVG.WT, Box, MC/gm, RATE
     // Grand Total amount (right aligned in Amount column)
-    doc.text(total.toFixed(2), 195, finalY + 5, { align: 'right' });
+    doc.text(total.toFixed(2), 195, finalY, { align: 'right' });
 
-    // GST row (empty cells except amount)
+    // Empty row (matching reference format)
+    doc.text('', 15, finalY + 5);
+    
+    // MC and TOTAL row - matching reference format exactly
+    // Position: MC: [amount] | TOTAL [amount] (right aligned)
+    doc.setFont(undefined, 'normal');
+    doc.text(`MC: ${totalMC.toFixed(2)}`, 140, finalY + 5, { align: 'right' });
+    doc.text(`TOTAL ${total.toFixed(2)}`, 195, finalY + 5, { align: 'right' });
+
+    // Empty row
     doc.text('', 15, finalY + 10);
-    doc.text('', 50, finalY + 10);
-    doc.text('', 70, finalY + 10);
-    doc.text('', 90, finalY + 10);
-    doc.text(gst.toFixed(2), 195, finalY + 10, { align: 'right' });
-
-    // Final Total row (empty cells except amount)
-    doc.text('', 15, finalY + 15);
-    doc.text('', 50, finalY + 15);
-    doc.text('', 70, finalY + 15);
-    doc.text('', 90, finalY + 15);
+    
+    // NET TOTAL row - matching reference format exactly
     doc.setFont(undefined, 'bold');
-    doc.text(netTotal.toFixed(2), 195, finalY + 15, { align: 'right' });
+    doc.text(`NET TOTAL ${netTotal.toFixed(2)}`, 195, finalY + 10, { align: 'right' });
 
     // Add discount and advance if applicable (below final total, before footer)
     let yOffset = finalY + 20;
@@ -8723,7 +9390,7 @@ function updateMCTypeLabel() {
     doc.text('COUNT BY', 80, footerY);
     doc.text('CHECKED BY', 145, footerY);
 
-    doc.save(`Quotation_${quotationNo}_${date.replace(/\//g, '-')}.pdf`);
+    doc.save(`Quotation_${quotationNo}_${formattedDate.replace(/\//g, '-')}.pdf`);
 
     // Update quotation number for next quotation
     const nextQuotationNumber = getNextQuotationNumber();
@@ -8999,17 +9666,102 @@ function updateMCTypeLabel() {
                 // ========== ROL MANAGEMENT FUNCTIONS (Style-Code Based) ==========
 
                     function initializeROL() {
-                            // Populate style code datalist
-                            const styleCodeList = document.getElementById('rolStyleCodeList');
-                            if (styleCodeList) {
-                                styleCodeList.innerHTML = '';
-                                const uniqueStyleCodes = [...new Set(products.map(p => p.styleCode).filter(s => s && s.trim() !== ''))];
-                                uniqueStyleCodes.sort().forEach(styleCode => {
-                                    const option = document.createElement('option');
-                                    option.value = styleCode;
-                                    styleCodeList.appendChild(option);
+                            // Style code suggestions are now handled by custom dropdown
+                            // No need to populate datalist anymore
+                        }
+                        
+                        function showROLStyleCodeSuggestions() {
+                            const input = document.getElementById('rolSelectedStyleCode');
+                            const dropdown = document.getElementById('rolStyleCodeSuggestionsDropdown');
+                            if (!input || !dropdown) return;
+                            
+                            const searchTerm = input.value.toLowerCase().trim();
+                            const uniqueStyleCodes = [...new Set(products.map(p => p.styleCode).filter(s => s && s.trim() !== ''))];
+                            
+                            // Filter style codes based on search term
+                            const filtered = uniqueStyleCodes.filter(code => 
+                                code.toLowerCase().includes(searchTerm)
+                            ).slice(0, 15).sort();
+                            
+                            dropdown.innerHTML = '';
+                            
+                            if (filtered.length === 0 && searchTerm) {
+                                dropdown.innerHTML = '<div class="px-4 py-2 text-sm text-gray-500">No style codes found</div>';
+                            } else if (filtered.length === 0) {
+                                dropdown.innerHTML = '<div class="px-4 py-2 text-sm text-gray-500">Start typing to search style codes...</div>';
+                            } else {
+                                filtered.forEach(styleCode => {
+                                    const item = document.createElement('div');
+                                    item.className = 'px-4 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0';
+                                    item.textContent = styleCode;
+                                    item.onclick = () => {
+                                        input.value = styleCode;
+                                        loadROLForStyleCode();
+                                        hideROLStyleCodeSuggestions();
+                                    };
+                                    dropdown.appendChild(item);
                                 });
                             }
+                            
+                            dropdown.classList.remove('hidden');
+                        }
+                        
+                        function hideROLStyleCodeSuggestions() {
+                            setTimeout(() => {
+                                const dropdown = document.getElementById('rolStyleCodeSuggestionsDropdown');
+                                if (dropdown) {
+                                    dropdown.classList.add('hidden');
+                                }
+                            }, 200);
+                        }
+                        
+                        function showTenantSuggestions() {
+                            const input = document.getElementById('authTenant');
+                            const dropdown = document.getElementById('tenantSuggestionsDropdown');
+                            if (!input || !dropdown) return;
+                            
+                            const searchTerm = input.value.toLowerCase().trim();
+                            const tenants = window.tenantList || [];
+                            
+                            // Filter tenants based on search term
+                            const filtered = tenants.filter(tenant => {
+                                const code = (tenant.tenant_code || '').toLowerCase();
+                                const name = (tenant.tenant_name || '').toLowerCase();
+                                return code.includes(searchTerm) || name.includes(searchTerm);
+                            }).slice(0, 10);
+                            
+                            dropdown.innerHTML = '';
+                            
+                            if (filtered.length === 0 && searchTerm) {
+                                dropdown.innerHTML = '<div class="px-4 py-2 text-sm text-gray-500">No tenants found</div>';
+                            } else if (filtered.length === 0) {
+                                dropdown.innerHTML = '<div class="px-4 py-2 text-sm text-gray-500">Start typing to search tenants...</div>';
+                            } else {
+                                filtered.forEach(tenant => {
+                                    const item = document.createElement('div');
+                                    item.className = 'px-4 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0';
+                                    item.innerHTML = `
+                                        <div class="font-medium text-gray-900">${tenant.tenant_name || tenant.tenant_code}</div>
+                                        <div class="text-xs text-gray-500">${tenant.tenant_code}</div>
+                                    `;
+                                    item.onclick = () => {
+                                        input.value = tenant.tenant_code;
+                                        hideTenantSuggestions();
+                                    };
+                                    dropdown.appendChild(item);
+                                });
+                            }
+                            
+                            dropdown.classList.remove('hidden');
+                        }
+                        
+                        function hideTenantSuggestions() {
+                            setTimeout(() => {
+                                const dropdown = document.getElementById('tenantSuggestionsDropdown');
+                                if (dropdown) {
+                                    dropdown.classList.add('hidden');
+                                }
+                            }, 200);
                         }
 
                     function loadROLForStyleCode() {
@@ -9023,7 +9775,73 @@ function updateMCTypeLabel() {
                         }
 
                         currentSelectedROLStyleCode = selectedStyleCode;
+                        
+                        // Get all products matching this style code (case-insensitive, trim whitespace)
+                        const normalizedStyleCode = selectedStyleCode.trim().toUpperCase();
+                        const styleCodeProducts = products.filter(p => {
+                            if (!p.styleCode || p.isSold) return false;
+                            const productStyleCode = (p.styleCode || '').trim().toUpperCase();
+                            return productStyleCode === normalizedStyleCode;
+                        });
+                        
+                        console.log(`Found ${styleCodeProducts.length} products for style code: ${selectedStyleCode}`);
+                        
+                        // Get ROL data for this style code
                         const rolStyleData = rolData[selectedStyleCode] || { items: [] };
+                        
+                        // Calculate available stock from products for each SKU+Size combination
+                        const skuStockMap = {};
+                        
+                        styleCodeProducts.forEach(product => {
+                            if (!product.isSold) {
+                                // Normalize SKU and size for matching
+                                const sku = (product.sku || '').trim();
+                                const size = (product.size || '').trim();
+                                const key = `${sku}_${size}`;
+                                
+                                if (!skuStockMap[key]) {
+                                    skuStockMap[key] = {
+                                        sku: sku,
+                                        size: size,
+                                        availableWholesale: 0, // grams
+                                        availableRetail: 0 // pieces
+                                    };
+                                }
+                                
+                                // Get product weight (prefer weight, fallback to avgWt)
+                                const productWeight = parseFloat(product.weight || product.avgWt || 0);
+                                // Get product pieces (default to 1 if not specified)
+                                const productPcs = parseInt(product.pcs || 1);
+                                
+                                // Add to wholesale (sum of weights in grams)
+                                skuStockMap[key].availableWholesale += productWeight;
+                                // Add to retail (sum of pieces)
+                                skuStockMap[key].availableRetail += productPcs;
+                                
+                                console.log(`Product ${product.barcode}: SKU=${sku}, Size=${size}, Weight=${productWeight}g, PCS=${productPcs}, Key=${key}`);
+                            }
+                        });
+                        
+                        console.log('SKU Stock Map:', skuStockMap);
+                        
+                        // Update ROL items with calculated available stock
+                        rolStyleData.items.forEach(item => {
+                            // Normalize SKU and size for matching
+                            const itemSku = (item.sku || '').trim();
+                            const itemSize = (item.size || '').trim();
+                            const key = `${itemSku}_${itemSize}`;
+                            
+                            if (skuStockMap[key]) {
+                                item.availableWholesale = skuStockMap[key].availableWholesale;
+                                item.availableRetail = skuStockMap[key].availableRetail;
+                                console.log(`ROL Item matched: ${itemSku}_${itemSize} - Available: ${item.availableWholesale}g (wholesale), ${item.availableRetail} pcs (retail)`);
+                            } else {
+                                // If no products found, set to 0
+                                item.availableWholesale = 0;
+                                item.availableRetail = 0;
+                                console.log(`ROL Item NOT matched: ${itemSku}_${itemSize} - No products found`);
+                            }
+                        });
 
                         // Calculate totals for wholesale (weight in gms) and retail (pieces)
                         let totalWholesaleROL = 0;
@@ -9054,49 +9872,124 @@ function updateMCTypeLabel() {
                         getCachedElement('rolRetailStatus').textContent = retailRequired > 0 ? 'REORDER' : 'OK';
                         getCachedElement('rolRetailStatus').className = retailRequired > 0 ? 'text-2xl font-bold text-yellow-300' : 'text-2xl font-bold';
 
-                        // Show counters and items section, hide empty state
+                        // Show counters, view selector, and items section, hide empty state
                         getCachedElement('rolCountersSection').classList.remove('hidden');
+                        getCachedElement('rolViewSelector').classList.remove('hidden');
                         getCachedElement('rolItemsSection').classList.remove('hidden');
                         getCachedElement('rolEmptyState').classList.add('hidden');
 
-                        // Update items table
+                        // Update table based on current view mode
+                        switchROLViewMode();
+                    }
+                    
+                    function switchROLViewMode() {
+                        const viewMode = document.getElementById('rolViewMode')?.value || 'wholesale';
+                        const styleCode = currentSelectedROLStyleCode;
+                        
+                        if (!styleCode) return;
+                        
+                        const rolStyleData = rolData[styleCode] || { items: [] };
                         const tbody = getCachedElement('rolItemsTableBody');
+                        const thead = getCachedElement('rolTableHeader');
+                        const title = getCachedElement('rolTableTitle');
+                        
+                        if (!tbody || !thead) return;
+                        
                         tbody.innerHTML = '';
-
+                        thead.innerHTML = '';
+                        
                         if (rolStyleData.items.length === 0) {
-                            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-gray-500">No ROL items found for this style code. Upload ROL data to get started.</td></tr>';
+                            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500">No ROL items found for this style code. Upload ROL data to get started.</td></tr>';
                             return;
                         }
-
-                        rolStyleData.items.forEach(item => {
-                            const wholesaleRequired = Math.max(0, (parseFloat(item.rolWholesale || 0) - parseFloat(item.availableWholesale || 0)));
-                            const retailRequired = Math.max(0, (parseFloat(item.rolRetail || 0) - parseFloat(item.availableRetail || 0)));
-                            const needsReorder = wholesaleRequired > 0 || retailRequired > 0;
-
-                            const row = document.createElement('tr');
-                            row.className = needsReorder ? 'border-b hover:bg-red-50 bg-red-50' : 'border-b hover:bg-green-50';
+                        
+                        if (viewMode === 'wholesale') {
+                            // Wholesale view - show grams
+                            title.textContent = `ROL Items - Wholesale (Grams) - ${styleCode}`;
                             
-                            const statusBadge = needsReorder
-                                ? '<span class="px-2 py-1 bg-red-600 text-white text-xs rounded-full font-bold">REORDER</span>'
-                                : '<span class="px-2 py-1 bg-green-600 text-white text-xs rounded-full font-bold">OK</span>';
-
-                            row.innerHTML = `
-                                <td class="px-4 py-3 border font-medium">${item.design || '-'}</td>
-                                <td class="px-4 py-3 border">${item.sku || '-'}</td>
-                                <td class="px-4 py-3 border text-center">${item.size || '-'}</td>
-                                <td class="px-4 py-3 border text-center bg-orange-50 font-bold">${parseFloat(item.rolWholesale || 0).toFixed(2)}</td>
-                                <td class="px-4 py-3 border text-center bg-orange-50 ${wholesaleRequired > 0 ? 'text-red-600' : 'text-green-600'}">${parseFloat(item.availableWholesale || 0).toFixed(2)}</td>
-                                <td class="px-4 py-3 border text-center bg-green-50 font-bold">${parseFloat(item.rolRetail || 0)}</td>
-                                <td class="px-4 py-3 border text-center bg-green-50 ${retailRequired > 0 ? 'text-red-600' : 'text-green-600'}">${parseFloat(item.availableRetail || 0)}</td>
-                                <td class="px-4 py-3 border text-center">${statusBadge}</td>
+                            thead.innerHTML = `
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-sm font-semibold border">Design (Product Name)</th>
+                                    <th class="px-4 py-3 text-left text-sm font-semibold border">SKU</th>
+                                    <th class="px-4 py-3 text-center text-sm font-semibold border">Size</th>
+                                    <th class="px-4 py-3 text-center text-sm font-semibold border bg-orange-100">ROL (gms)</th>
+                                    <th class="px-4 py-3 text-center text-sm font-semibold border bg-orange-100">Available (gms)</th>
+                                    <th class="px-4 py-3 text-center text-sm font-semibold border bg-red-100">Required (gms)</th>
+                                    <th class="px-4 py-3 text-center text-sm font-semibold border">Status</th>
+                                </tr>
                             `;
-                            tbody.appendChild(row);
-                        });
+                            
+                            rolStyleData.items.forEach(item => {
+                                const rol = parseFloat(item.rolWholesale || 0);
+                                const available = parseFloat(item.availableWholesale || 0);
+                                const required = Math.max(0, rol - available);
+                                const needsReorder = required > 0;
+
+                                const row = document.createElement('tr');
+                                row.className = needsReorder ? 'border-b hover:bg-red-50 bg-red-50' : 'border-b hover:bg-green-50';
+                                
+                                const statusBadge = needsReorder
+                                    ? '<span class="px-2 py-1 bg-red-600 text-white text-xs rounded-full font-bold">REORDER</span>'
+                                    : '<span class="px-2 py-1 bg-green-600 text-white text-xs rounded-full font-bold">OK</span>';
+
+                                row.innerHTML = `
+                                    <td class="px-4 py-3 border font-medium">${item.design || '-'}</td>
+                                    <td class="px-4 py-3 border font-mono">${item.sku || '-'}</td>
+                                    <td class="px-4 py-3 border text-center">${item.size || '-'}</td>
+                                    <td class="px-4 py-3 border text-center bg-orange-50 font-bold">${rol.toFixed(2)}</td>
+                                    <td class="px-4 py-3 border text-center bg-orange-50 ${required > 0 ? 'text-red-600' : 'text-green-600'} font-semibold">${available.toFixed(2)}</td>
+                                    <td class="px-4 py-3 border text-center bg-red-50 font-bold text-red-700">${required.toFixed(2)}</td>
+                                    <td class="px-4 py-3 border text-center">${statusBadge}</td>
+                                `;
+                                tbody.appendChild(row);
+                            });
+                        } else {
+                            // Retail view - show pieces
+                            title.textContent = `ROL Items - Retail (Pieces) - ${styleCode}`;
+                            
+                            thead.innerHTML = `
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-sm font-semibold border">Design (Product Name)</th>
+                                    <th class="px-4 py-3 text-left text-sm font-semibold border">SKU</th>
+                                    <th class="px-4 py-3 text-center text-sm font-semibold border">Size</th>
+                                    <th class="px-4 py-3 text-center text-sm font-semibold border bg-green-100">ROL (pcs)</th>
+                                    <th class="px-4 py-3 text-center text-sm font-semibold border bg-green-100">Available (pcs)</th>
+                                    <th class="px-4 py-3 text-center text-sm font-semibold border bg-red-100">Required (pcs)</th>
+                                    <th class="px-4 py-3 text-center text-sm font-semibold border">Status</th>
+                                </tr>
+                            `;
+                            
+                            rolStyleData.items.forEach(item => {
+                                const rol = parseFloat(item.rolRetail || 0);
+                                const available = parseFloat(item.availableRetail || 0);
+                                const required = Math.max(0, rol - available);
+                                const needsReorder = required > 0;
+
+                                const row = document.createElement('tr');
+                                row.className = needsReorder ? 'border-b hover:bg-red-50 bg-red-50' : 'border-b hover:bg-green-50';
+                                
+                                const statusBadge = needsReorder
+                                    ? '<span class="px-2 py-1 bg-red-600 text-white text-xs rounded-full font-bold">REORDER</span>'
+                                    : '<span class="px-2 py-1 bg-green-600 text-white text-xs rounded-full font-bold">OK</span>';
+
+                                row.innerHTML = `
+                                    <td class="px-4 py-3 border font-medium">${item.design || '-'}</td>
+                                    <td class="px-4 py-3 border font-mono">${item.sku || '-'}</td>
+                                    <td class="px-4 py-3 border text-center">${item.size || '-'}</td>
+                                    <td class="px-4 py-3 border text-center bg-green-50 font-bold">${rol}</td>
+                                    <td class="px-4 py-3 border text-center bg-green-50 ${required > 0 ? 'text-red-600' : 'text-green-600'} font-semibold">${available}</td>
+                                    <td class="px-4 py-3 border text-center bg-red-50 font-bold text-red-700">${required}</td>
+                                    <td class="px-4 py-3 border text-center">${statusBadge}</td>
+                                `;
+                                tbody.appendChild(row);
+                            });
+                        }
                     }
 
                     function clearROLSelection() {
                         currentSelectedROLStyleCode = null;
                         getCachedElement('rolSelectedStyleCode').value = '';
+                        getCachedElement('rolViewSelector').classList.add('hidden');
                         getCachedElement('rolCountersSection').classList.add('hidden');
                         getCachedElement('rolItemsSection').classList.add('hidden');
                         getCachedElement('rolEmptyState').classList.remove('hidden');
@@ -9280,42 +10173,89 @@ function updateMCTypeLabel() {
                                 return;
                             }
 
+                            const viewMode = document.getElementById('rolViewMode')?.value || 'wholesale';
                             const date = new Date().toLocaleDateString('en-GB');
                             const wb = XLSX.utils.book_new();
 
-                            // Create data
-                            const tableData = styleData.items.map((item, idx) => ({
-                                '#': idx + 1,
-                                'Style Code': currentSelectedROLStyleCode,
-                                'Design (Product Name)': item.design || '-',
-                                'SKU': item.sku || '-',
-                                'Size': item.size || '-',
-                                'ROL Wholesale (gms)': parseFloat(item.rolWholesale || 0).toFixed(2),
-                                'Available Wholesale (gms)': parseFloat(item.availableWholesale || 0).toFixed(2),
-                                'Required Wholesale (gms)': Math.max(0, parseFloat(item.rolWholesale || 0) - parseFloat(item.availableWholesale || 0)).toFixed(2),
-                                'ROL Retail (pcs)': parseFloat(item.rolRetail || 0),
-                                'Available Retail (pcs)': parseFloat(item.availableRetail || 0),
-                                'Required Retail (pcs)': Math.max(0, parseFloat(item.rolRetail || 0) - parseFloat(item.availableRetail || 0)),
-                                'Status': (Math.max(0, parseFloat(item.rolWholesale || 0) - parseFloat(item.availableWholesale || 0)) > 0 || 
-                                          Math.max(0, parseFloat(item.rolRetail || 0) - parseFloat(item.availableRetail || 0)) > 0) ? 'REORDER NEEDED' : 'OK'
-                            }));
+                            let tableData, tableHeaders, summaryData, fileName;
+                            
+                            if (viewMode === 'wholesale') {
+                                // Wholesale report - grams
+                                tableData = styleData.items.map((item, idx) => {
+                                    const rol = parseFloat(item.rolWholesale || 0);
+                                    const available = parseFloat(item.availableWholesale || 0);
+                                    const required = Math.max(0, rol - available);
+                                    
+                                    return {
+                                        '#': idx + 1,
+                                        'Style Code': currentSelectedROLStyleCode,
+                                        'Design (Product Name)': item.design || '-',
+                                        'SKU': item.sku || '-',
+                                        'Size': item.size || '-',
+                                        'ROL (gms)': rol.toFixed(2),
+                                        'Available (gms)': available.toFixed(2),
+                                        'Required (gms)': required.toFixed(2),
+                                        'Status': required > 0 ? 'REORDER NEEDED' : 'OK'
+                                    };
+                                });
+                                
+                                tableHeaders = ['#', 'Style Code', 'Design (Product Name)', 'SKU', 'Size', 'ROL (gms)', 'Available (gms)', 'Required (gms)', 'Status'];
+                                
+                                const totalRequired = tableData.reduce((sum, item) => sum + parseFloat(item['Required (gms)'] || 0), 0);
+                                const itemsNeedingReorder = tableData.filter(item => item.Status === 'REORDER NEEDED').length;
+                                
+                                summaryData = [
+                                    [''],
+                                    ['SUMMARY'],
+                                    ['Total Items:', tableData.length],
+                                    ['Items Needing Reorder:', itemsNeedingReorder],
+                                    ['Total Required (gms):', totalRequired.toFixed(2)]
+                                ];
+                                
+                                fileName = `ROL_Wholesale_${currentSelectedROLStyleCode}_${date.replace(/\//g, '-')}.xlsx`;
+                            } else {
+                                // Retail report - pieces
+                                tableData = styleData.items.map((item, idx) => {
+                                    const rol = parseFloat(item.rolRetail || 0);
+                                    const available = parseFloat(item.availableRetail || 0);
+                                    const required = Math.max(0, rol - available);
+                                    
+                                    return {
+                                        '#': idx + 1,
+                                        'Style Code': currentSelectedROLStyleCode,
+                                        'Design (Product Name)': item.design || '-',
+                                        'SKU': item.sku || '-',
+                                        'Size': item.size || '-',
+                                        'ROL (pcs)': rol,
+                                        'Available (pcs)': available,
+                                        'Required (pcs)': required,
+                                        'Status': required > 0 ? 'REORDER NEEDED' : 'OK'
+                                    };
+                                });
+                                
+                                tableHeaders = ['#', 'Style Code', 'Design (Product Name)', 'SKU', 'Size', 'ROL (pcs)', 'Available (pcs)', 'Required (pcs)', 'Status'];
+                                
+                                const totalRequired = tableData.reduce((sum, item) => sum + parseFloat(item['Required (pcs)'] || 0), 0);
+                                const itemsNeedingReorder = tableData.filter(item => item.Status === 'REORDER NEEDED').length;
+                                
+                                summaryData = [
+                                    [''],
+                                    ['SUMMARY'],
+                                    ['Total Items:', tableData.length],
+                                    ['Items Needing Reorder:', itemsNeedingReorder],
+                                    ['Total Required (pcs):', totalRequired]
+                                ];
+                                
+                                fileName = `ROL_Retail_${currentSelectedROLStyleCode}_${date.replace(/\//g, '-')}.xlsx`;
+                            }
 
-                            const tableHeaders = Object.keys(tableData[0]);
                             const tableRows = tableData.map(obj => tableHeaders.map(key => obj[key]));
-
-                            // Calculate summary
-                            const totalWholesaleRequired = tableData.reduce((sum, item) => sum + parseFloat(item['Required Wholesale (gms)'] || 0), 0);
-                            const totalRetailRequired = tableData.reduce((sum, item) => sum + parseFloat(item['Required Retail (pcs)'] || 0), 0);
-                            const itemsNeedingReorder = tableData.filter(item => item.Status === 'REORDER NEEDED').length;
 
                             const headerData = [
                                 ['REORDER LEVEL (ROL) REPORT'],
                                 ['Generated:', date],
                                 ['Style Code:', currentSelectedROLStyleCode],
-                                ['Total Items:', tableData.length],
-                                ['Items Needing Reorder:', itemsNeedingReorder],
-                                ['Total Required Wholesale (gms):', totalWholesaleRequired.toFixed(2)],
-                                ['Total Required Retail (pcs):', totalRetailRequired],
+                                ['View Mode:', viewMode === 'wholesale' ? 'Wholesale (Grams)' : 'Retail (Pieces)'],
                                 ['']
                             ];
 
@@ -9331,11 +10271,11 @@ function updateMCTypeLabel() {
 
                             ws['!cols'] = [
                                 { wch: 5 }, { wch: 20 }, { wch: 30 }, { wch: 15 }, { wch: 10 },
-                                { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }
+                                { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }
                             ];
 
                             XLSX.utils.book_append_sheet(wb, ws, 'ROL Report');
-                            XLSX.writeFile(wb, `ROL_Report_${currentSelectedROLStyleCode}_${date.replace(/\//g, '-')}.xlsx`);
+                            XLSX.writeFile(wb, fileName);
                             showDialog('Success', 'ROL Report downloaded successfully!', 'success');
                         }
 
@@ -9415,7 +10355,7 @@ function updateMCTypeLabel() {
     <td class="px-4 py-3 text-right font-bold">₹${quotation.netTotal.toFixed(2)}</td>
     <td class="px-4 py-3 text-center">
         ${quotation.isBilled ?
-                                            `<span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-bold">BILLED</span>` :
+                                            `<span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-bold" title="Bill No: ${quotation.bill_no || 'N/A'}">BILLED</span><br><span class="text-xs text-gray-600">${quotation.bill_no || ''}</span>` :
                                             `<span class="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-bold">PENDING</span>`
                                         }
     </td>
@@ -9676,6 +10616,399 @@ function updateMCTypeLabel() {
                                     showDialog('Success', `Deleted ${before - after} old quotation(s)!`, 'success');
                                 }).catch(() => {});
                             }
+
+                            // ========== SALES RETURN FUNCTIONS ==========
+                            
+                            let currentBillForReturn = null;
+                            let salesReturnItems = [];
+                            let salesReturnHistory = [];
+
+                            async function loadBillForSalesReturn() {
+                                const billNo = document.getElementById('salesReturnBillNo').value.trim();
+                                if (!billNo) {
+                                    showDialog('Error', 'Please enter a bill number', 'error');
+                                    return;
+                                }
+
+                                try {
+                                    const bill = await api.getBillByNumber(billNo);
+                                    currentBillForReturn = bill;
+                                    
+                                    // Populate customer details
+                                    document.getElementById('srCustomerName').textContent = bill.customer_name || '-';
+                                    document.getElementById('srCustomerMobile').textContent = bill.customer_mobile || '-';
+                                    document.getElementById('srBillNo').textContent = bill.bill_no || '-';
+                                    const billDate = bill.date ? new Date(bill.date).toLocaleDateString('en-GB') : '-';
+                                    document.getElementById('srBillDate').textContent = billDate;
+                                    
+                                    document.getElementById('salesReturnCustomerDetails').classList.remove('hidden');
+                                    
+                                    // Load items from bill
+                                    const billItems = typeof bill.items === 'string' ? JSON.parse(bill.items) : bill.items;
+                                    salesReturnItems = billItems.map(item => ({
+                                        ...item,
+                                        selected: false,
+                                        returnType: 'return', // 'return' or 'mc_change'
+                                        newMcRate: item.mcRate || 0,
+                                        originalMcRate: item.mcRate || 0
+                                    }));
+                                    
+                                    updateSalesReturnProductsTable();
+                                    document.getElementById('salesReturnProductsSection').classList.remove('hidden');
+                                    
+                                } catch (error) {
+                                    console.error('Error loading bill:', error);
+                                    showDialog('Error', `Bill not found: ${billNo}`, 'error');
+                                }
+                            }
+
+                            function updateSalesReturnProductsTable() {
+                                const tbody = document.getElementById('salesReturnProductsTableBody');
+                                tbody.innerHTML = '';
+                                
+                                salesReturnItems.forEach((item, idx) => {
+                                    const row = document.createElement('tr');
+                                    row.className = 'border-b hover:bg-gray-50';
+                                    
+                                    const isSelected = item.selected;
+                                    const returnType = item.returnType || 'return';
+                                    const newMcRate = item.newMcRate || item.originalMcRate || 0;
+                                    
+                                    row.innerHTML = `
+                                        <td class="px-3 py-2 border text-center">
+                                            <input type="checkbox" ${isSelected ? 'checked' : ''} 
+                                                onchange="toggleSalesReturnItem(${idx})" 
+                                                class="w-4 h-4">
+                                        </td>
+                                        <td class="px-3 py-2 border text-sm">${item.name || item.itemName || '-'}</td>
+                                        <td class="px-3 py-2 border text-center text-sm">${item.pcs || 1}</td>
+                                        <td class="px-3 py-2 border text-right text-sm">${(item.weight || 0).toFixed(3)}</td>
+                                        <td class="px-3 py-2 border text-right text-sm">₹${(item.rate || 0).toFixed(2)}</td>
+                                        <td class="px-3 py-2 border text-right text-sm">
+                                            <input type="number" step="0.01" value="${newMcRate.toFixed(2)}" 
+                                                onchange="updateSalesReturnMcRate(${idx}, this.value)"
+                                                class="w-20 px-1 py-1 border rounded text-xs" ${!isSelected ? 'disabled' : ''}>
+                                        </td>
+                                        <td class="px-3 py-2 border text-right text-sm font-semibold">₹${(item.amount || 0).toFixed(2)}</td>
+                                        <td class="px-3 py-2 border text-center">
+                                            <select onchange="updateSalesReturnType(${idx}, this.value)" 
+                                                class="text-xs px-2 py-1 border rounded" ${!isSelected ? 'disabled' : ''}>
+                                                <option value="return" ${returnType === 'return' ? 'selected' : ''}>Return</option>
+                                                <option value="mc_change" ${returnType === 'mc_change' ? 'selected' : ''}>MC Change</option>
+                                            </select>
+                                        </td>
+                                    `;
+                                    
+                                    tbody.appendChild(row);
+                                });
+                                
+                                calculateSalesReturnTotal();
+                            }
+
+                            function toggleSalesReturnItem(idx) {
+                                salesReturnItems[idx].selected = !salesReturnItems[idx].selected;
+                                if (!salesReturnItems[idx].selected) {
+                                    salesReturnItems[idx].returnType = 'return';
+                                    salesReturnItems[idx].newMcRate = salesReturnItems[idx].originalMcRate;
+                                }
+                                updateSalesReturnProductsTable();
+                            }
+
+                            function updateSalesReturnType(idx, type) {
+                                salesReturnItems[idx].returnType = type;
+                                calculateSalesReturnTotal();
+                            }
+
+                            function updateSalesReturnMcRate(idx, value) {
+                                salesReturnItems[idx].newMcRate = parseFloat(value) || 0;
+                                calculateSalesReturnTotal();
+                            }
+
+                            function calculateSalesReturnTotal() {
+                                const selectedItems = salesReturnItems.filter(item => item.selected);
+                                let totalAmount = 0;
+                                
+                                selectedItems.forEach(item => {
+                                    if (item.returnType === 'return') {
+                                        // Full return - subtract full amount
+                                        totalAmount += item.amount || 0;
+                                    } else if (item.returnType === 'mc_change') {
+                                        // MC change - calculate difference
+                                        const originalAmount = item.amount || 0;
+                                        const currentRate = item.rate || 0;
+                                        const weight = item.weight || 0;
+                                        const newAmount = (currentRate + item.newMcRate) * weight;
+                                        const difference = originalAmount - newAmount;
+                                        totalAmount += difference;
+                                    }
+                                });
+                                
+                                const gst = totalAmount * 0.03;
+                                const netTotal = totalAmount + gst;
+                                
+                                document.getElementById('srTotalItems').textContent = selectedItems.length;
+                                document.getElementById('srTotalAmount').textContent = `₹${totalAmount.toFixed(2)}`;
+                                document.getElementById('srGST').textContent = `₹${gst.toFixed(2)}`;
+                                document.getElementById('srNetTotal').textContent = `₹${netTotal.toFixed(2)}`;
+                            }
+
+                            async function saveSalesReturn() {
+                                if (!currentBillForReturn) {
+                                    showDialog('Error', 'Please load a bill first', 'error');
+                                    return;
+                                }
+
+                                const selectedItems = salesReturnItems.filter(item => item.selected);
+                                if (selectedItems.length === 0) {
+                                    showDialog('Error', 'Please select at least one item to return', 'error');
+                                    return;
+                                }
+
+                                const reason = document.getElementById('salesReturnReason').value.trim();
+                                if (!reason) {
+                                    showDialog('Error', 'Please enter a return reason', 'error');
+                                    return;
+                                }
+
+                                // Generate SSR number
+                                const ssrNo = await generateSSRNumber();
+
+                                // Calculate totals
+                                let totalAmount = 0;
+                                const returnItems = selectedItems.map(item => {
+                                    let itemAmount = 0;
+                                    if (item.returnType === 'return') {
+                                        itemAmount = item.amount || 0;
+                                    } else {
+                                        const currentRate = item.rate || 0;
+                                        const weight = item.weight || 0;
+                                        const originalAmount = item.amount || 0;
+                                        const newAmount = (currentRate + item.newMcRate) * weight;
+                                        itemAmount = originalAmount - newAmount;
+                                    }
+                                    totalAmount += itemAmount;
+                                    
+                                    return {
+                                        ...item,
+                                        returnAmount: itemAmount
+                                    };
+                                });
+
+                                const gst = totalAmount * 0.03;
+                                const cgst = gst / 2;
+                                const sgst = gst / 2;
+                                const netTotal = totalAmount + gst;
+
+                                const salesReturn = {
+                                    ssrNo: ssrNo,
+                                    billId: currentBillForReturn.id,
+                                    billNo: currentBillForReturn.bill_no,
+                                    quotationId: currentBillForReturn.quotation_id,
+                                    customerId: currentBillForReturn.customer_id,
+                                    customerName: currentBillForReturn.customer_name,
+                                    customerMobile: currentBillForReturn.customer_mobile,
+                                    items: returnItems,
+                                    total: totalAmount,
+                                    gst: gst,
+                                    cgst: cgst,
+                                    sgst: sgst,
+                                    netTotal: netTotal,
+                                    reason: reason,
+                                    remarks: ''
+                                };
+
+                                try {
+                                    const result = await api.createSalesReturn(salesReturn);
+                                    showDialog('Success', `Sales Return ${ssrNo} saved successfully!`, 'success');
+                                    
+                                    // Clear form
+                                    clearSalesReturn();
+                                    
+                                    // Reload history
+                                    loadSalesReturnHistory();
+                                    
+                                    // Reload ledger if on ledger tab
+                                    if (typeof loadLedgerTransactions === 'function') {
+                                        loadLedgerTransactions();
+                                    }
+                                } catch (error) {
+                                    console.error('Error saving sales return:', error);
+                                    showDialog('Error', `Failed to save sales return: ${error.message}`, 'error');
+                                }
+                            }
+
+                            async function generateSSRNumber() {
+                                try {
+                                    const salesReturns = await api.getSalesReturns();
+                                    const lastSSR = salesReturns
+                                        .filter(sr => sr.ssr_no && sr.ssr_no.startsWith('SSR'))
+                                        .map(sr => {
+                                            const match = sr.ssr_no.match(/SSR(\d+)/);
+                                            return match ? parseInt(match[1]) : 0;
+                                        })
+                                        .sort((a, b) => b - a)[0] || 0;
+                                    
+                                    const nextNum = lastSSR + 1;
+                                    return `SSR${nextNum.toString().padStart(3, '0')}`;
+                                } catch (error) {
+                                    console.error('Error generating SSR number:', error);
+                                    return `SSR${Date.now().toString().slice(-3)}`;
+                                }
+                            }
+
+                            function clearSalesReturn() {
+                                currentBillForReturn = null;
+                                salesReturnItems = [];
+                                document.getElementById('salesReturnBillNo').value = '';
+                                document.getElementById('salesReturnReason').value = '';
+                                document.getElementById('salesReturnCustomerDetails').classList.add('hidden');
+                                document.getElementById('salesReturnProductsSection').classList.add('hidden');
+                                document.getElementById('srTotalItems').textContent = '0';
+                                document.getElementById('srTotalAmount').textContent = '₹0.00';
+                                document.getElementById('srGST').textContent = '₹0.00';
+                                document.getElementById('srNetTotal').textContent = '₹0.00';
+                            }
+
+                            async function loadSalesReturnHistory() {
+                                try {
+                                    // Only load if user is logged in and tenant is set
+                                    if (!currentUser || !currentUser.tenantCode) {
+                                        console.warn('Cannot load sales return history: User not logged in or tenant not set');
+                                        return;
+                                    }
+                                    salesReturnHistory = await api.getSalesReturns();
+                                    updateSalesReturnHistoryTable();
+                                } catch (error) {
+                                    // Only log error, don't show to user if it's a 404 or endpoint not found
+                                    if (error.message && error.message.includes('endpoint not found')) {
+                                        console.warn('Sales returns endpoint not available yet');
+                                    } else {
+                                        console.error('Error loading sales return history:', error);
+                                    }
+                                }
+                            }
+
+                            function updateSalesReturnHistoryTable() {
+                                const tbody = document.getElementById('salesReturnHistoryTableBody');
+                                tbody.innerHTML = '';
+                                
+                                if (salesReturnHistory.length === 0) {
+                                    tbody.innerHTML = '<tr><td colspan="6" class="px-3 py-2 border text-center text-gray-500">No sales returns yet</td></tr>';
+                                    return;
+                                }
+                                
+                                salesReturnHistory.forEach(sr => {
+                                    const row = document.createElement('tr');
+                                    row.className = 'border-b hover:bg-gray-50';
+                                    const date = sr.date ? new Date(sr.date).toLocaleDateString('en-GB') : '-';
+                                    
+                                    row.innerHTML = `
+                                        <td class="px-3 py-2 border text-sm font-mono font-bold text-red-600">${sr.ssr_no || '-'}</td>
+                                        <td class="px-3 py-2 border text-sm">${date}</td>
+                                        <td class="px-3 py-2 border text-sm">${sr.bill_no || '-'}</td>
+                                        <td class="px-3 py-2 border text-sm">${sr.customer_name || '-'}</td>
+                                        <td class="px-3 py-2 border text-right text-sm font-semibold text-red-600">₹${(sr.net_total || 0).toFixed(2)}</td>
+                                        <td class="px-3 py-2 border text-center">
+                                            <button onclick="viewSalesReturn(${sr.id})" class="text-blue-600 hover:text-blue-800 mr-2" title="View">👁️</button>
+                                            <button onclick="printSalesReturnPDF(${sr.id})" class="text-green-600 hover:text-green-800 mr-2" title="Print">🖨️</button>
+                                            <button onclick="sendSalesReturnToWhatsApp(${sr.id})" class="text-green-600 hover:text-green-800" title="WhatsApp">📱</button>
+                                        </td>
+                                    `;
+                                    
+                                    tbody.appendChild(row);
+                                });
+                            }
+
+                            async function viewSalesReturn(id) {
+                                // Implementation for viewing sales return details
+                                const sr = salesReturnHistory.find(s => s.id === id);
+                                if (!sr) {
+                                    showDialog('Error', 'Sales return not found', 'error');
+                                    return;
+                                }
+                                
+                                // Show details in a modal or alert
+                                const items = typeof sr.items === 'string' ? JSON.parse(sr.items) : sr.items;
+                                const itemsList = items.map((item, idx) => 
+                                    `${idx + 1}. ${item.name || item.itemName} - ₹${(item.returnAmount || 0).toFixed(2)}`
+                                ).join('\n');
+                                
+                                alert(`Sales Return ${sr.ssr_no}\n\n` +
+                                    `Date: ${new Date(sr.date).toLocaleDateString('en-GB')}\n` +
+                                    `Bill No: ${sr.bill_no}\n` +
+                                    `Customer: ${sr.customer_name}\n` +
+                                    `Reason: ${sr.reason || '-'}\n` +
+                                    `Total: ₹${(sr.total || 0).toFixed(2)}\n` +
+                                    `GST: ₹${(sr.gst || 0).toFixed(2)}\n` +
+                                    `Net Total: ₹${(sr.net_total || 0).toFixed(2)}\n\n` +
+                                    `Items:\n${itemsList}`);
+                            }
+
+                            async function printSalesReturnPDF(id) {
+                                // Implementation for printing sales return PDF
+                                const sr = salesReturnHistory.find(s => s.id === id);
+                                if (!sr) {
+                                    showDialog('Error', 'Sales return not found', 'error');
+                                    return;
+                                }
+                                
+                                // Generate PDF similar to sales bill
+                                generateSalesReturnPDF(sr);
+                            }
+
+                            async function sendSalesReturnToWhatsApp(id) {
+                                // Implementation for sending sales return to WhatsApp
+                                const sr = salesReturnHistory.find(s => s.id === id);
+                                if (!sr) {
+                                    showDialog('Error', 'Sales return not found', 'error');
+                                    return;
+                                }
+                                
+                                // Generate PDF and send via WhatsApp
+                                const pdfBlob = await generateSalesReturnPDFBlob(sr);
+                                const phoneNumber = sr.customer_mobile.replace(/\D/g, '');
+                                const message = encodeURIComponent(`Sales Return ${sr.ssr_no} for Bill ${sr.bill_no}`);
+                                const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
+                                
+                                // Open WhatsApp
+                                window.open(whatsappUrl, '_blank');
+                            }
+
+                            function generateSalesReturnPDF(sr) {
+                                // PDF generation implementation
+                                const { jsPDF } = window.jspdf;
+                                const doc = new jsPDF('p', 'mm', 'a4');
+                                
+                                // Similar to sales bill PDF but for sales return
+                                // Add header, customer details, items table, totals
+                                
+                                doc.save(`SalesReturn_${sr.ssr_no}.pdf`);
+                            }
+
+                            async function generateSalesReturnPDFBlob(sr) {
+                                // Generate PDF as blob for WhatsApp
+                                const { jsPDF } = window.jspdf;
+                                const doc = new jsPDF('p', 'mm', 'a4');
+                                
+                                // Similar implementation to generateSalesReturnPDF
+                                
+                                return doc.output('blob');
+                            }
+
+                            // Load sales return history on tab show
+                            document.addEventListener('DOMContentLoaded', () => {
+                                const salesReturnTab = document.getElementById('salesreturnTab');
+                                if (salesReturnTab) {
+                                    const observer = new MutationObserver((mutations) => {
+                                        mutations.forEach((mutation) => {
+                                            if (!salesReturnTab.classList.contains('hidden')) {
+                                                loadSalesReturnHistory();
+                                            }
+                                        });
+                                    });
+                                    observer.observe(salesReturnTab, { attributes: true, attributeFilter: ['class'] });
+                                }
+                            });
 
                             // Helper functions for printing from view modals
                             async function printQuotationFromView() {
@@ -12016,10 +13349,14 @@ function closeManualTransactionModal() {
             
             <!-- Search and Filter -->
             <div class="bg-gray-50 p-4 rounded-lg mb-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <input type="text" id="customerLedgerSearch" 
                         placeholder="🔍 Search by name or mobile..." 
                         onkeyup="filterCustomerLedgers()"
+                        class="px-4 py-2 border rounded-lg">
+                    <input type="text" id="ssrSearchInput" 
+                        placeholder="🔍 Search by SSR Number (e.g., SSR001)" 
+                        onkeypress="if(event.key === 'Enter') searchBySSR()"
                         class="px-4 py-2 border rounded-lg">
                     <select id="customerLedgerPeriod" onchange="filterCustomerLedgers()"
                         class="px-4 py-2 border rounded-lg">
@@ -12179,7 +13516,39 @@ function filterCustomerLedgers() {
     savedBills = originalBills;
 }
 
-function viewCustomerLedger(customerMobile) {
+async function searchBySSR() {
+    const ssrNo = document.getElementById('ssrSearchInput')?.value.trim();
+    if (!ssrNo) {
+        showDialog('Error', 'Please enter an SSR number', 'error');
+        return;
+    }
+    
+    try {
+        const salesReturns = await api.getSalesReturns();
+        const sr = salesReturns.find(s => s.ssr_no === ssrNo.toUpperCase());
+        
+        if (!sr) {
+            showDialog('Error', `Sales Return ${ssrNo} not found`, 'error');
+            return;
+        }
+        
+        // Find customer and show their ledger
+        const customer = customers.find(c => c.mobile === sr.customer_mobile);
+        if (customer) {
+            viewCustomerLedger(sr.customer_mobile, sr.date);
+        } else {
+            // Show sales return details even if customer not found
+            showDialog('Sales Return Found', 
+                `SSR: ${sr.ssr_no}\nBill: ${sr.bill_no}\nCustomer: ${sr.customer_name}\nAmount: ₹${(sr.net_total || 0).toFixed(2)}`, 
+                'info');
+        }
+    } catch (error) {
+        console.error('Error searching SSR:', error);
+        showDialog('Error', `Failed to search SSR: ${error.message}`, 'error');
+    }
+}
+
+function viewCustomerLedger(customerMobile, highlightDate = null) {
     const container = document.getElementById('ledgerSubtabs');
     
     // Get customer bills
@@ -12193,6 +13562,27 @@ function viewCustomerLedger(customerMobile) {
     const customer = customerBills[0].customer;
     const totalAmount = customerBills.reduce((sum, bill) => sum + bill.netTotal, 0);
     const totalPaid = customerBills.reduce((sum, bill) => sum + (bill.paidAmount || 0), 0);
+    
+    // Get sales returns for this customer
+    let salesReturnsForCustomer = [];
+    try {
+        // Load sales returns from API
+        api.getSalesReturns().then(salesReturns => {
+            salesReturnsForCustomer = salesReturns.filter(sr => sr.customer_mobile === customerMobile);
+            const salesReturnTotal = salesReturnsForCustomer.reduce((sum, sr) => sum + (sr.net_total || 0), 0);
+            const balance = totalAmount - totalPaid - salesReturnTotal; // Subtract sales returns
+            
+            // Update balance display
+            const balanceEl = document.getElementById('customerLedgerBalance');
+            if (balanceEl) {
+                balanceEl.textContent = `₹${Math.abs(balance).toFixed(2)}`;
+                balanceEl.className = balance > 0 ? 'text-lg font-bold mt-2 text-red-600' : 'text-lg font-bold mt-2 text-green-600';
+            }
+        }).catch(err => console.error('Error loading sales returns:', err));
+    } catch (error) {
+        console.error('Error getting sales returns:', error);
+    }
+    
     const balance = totalAmount - totalPaid;
     
     // Get payment transactions for this customer
@@ -12302,7 +13692,7 @@ function viewCustomerLedger(customerMobile) {
     displayCustomerLedgerTransactions(customerMobile, 'month');
 }
 
-function displayCustomerLedgerTransactions(customerMobile, period = 'month') {
+async function displayCustomerLedgerTransactions(customerMobile, period = 'month') {
     const tbody = document.getElementById('customerLedgerTableBody');
     if (!tbody) {
         console.error('Table body not found!');
@@ -12318,8 +13708,18 @@ function displayCustomerLedgerTransactions(customerMobile, period = 'month') {
         txn.customerMobile === customerMobile
     );
     
+    // Get sales returns for this customer
+    let salesReturns = [];
+    try {
+        const allSalesReturns = await api.getSalesReturns();
+        salesReturns = allSalesReturns.filter(sr => sr.customer_mobile === customerMobile);
+    } catch (error) {
+        console.error('Error loading sales returns:', error);
+    }
+    
     console.log('Customer Bills:', customerBills.length);
     console.log('Payments:', paymentTransactions.length);
+    console.log('Sales Returns:', salesReturns.length);
     
     // Filter by period - DEFAULT TO THIS MONTH
     const today = new Date();
@@ -12336,6 +13736,11 @@ function displayCustomerLedgerTransactions(customerMobile, period = 'month') {
             const txnDate = new Date(txn.date);
             return txnDate >= monthStart;
         });
+        
+        salesReturns = salesReturns.filter(sr => {
+            const srDate = new Date(sr.date);
+            return srDate >= monthStart;
+        });
     } else if (period === 'year') {
         const yearStart = new Date(today.getFullYear(), 0, 1);
         customerBills = customerBills.filter(bill => {
@@ -12346,6 +13751,11 @@ function displayCustomerLedgerTransactions(customerMobile, period = 'month') {
         paymentTransactions = paymentTransactions.filter(txn => {
             const txnDate = new Date(txn.date);
             return txnDate >= yearStart;
+        });
+        
+        salesReturns = salesReturns.filter(sr => {
+            const srDate = new Date(sr.date);
+            return srDate >= yearStart;
         });
     }
     
@@ -12373,6 +13783,19 @@ function displayCustomerLedgerTransactions(customerMobile, period = 'month') {
             debit: 0,
             credit: txn.amount,
             transaction: txn
+        });
+    });
+    
+    // Add sales returns as credit (negative debit)
+    salesReturns.forEach(sr => {
+        allTransactions.push({
+            date: new Date(sr.date),
+            type: 'sales_return',
+            particulars: `Sales Return - ${sr.reason || 'Product Return'}`,
+            reference: sr.ssr_no,
+            debit: 0,
+            credit: sr.net_total || 0,
+            salesReturn: sr
         });
     });
     
@@ -12417,7 +13840,7 @@ function displayCustomerLedgerTransactions(customerMobile, period = 'month') {
                 ${txn.type === 'sale' && txn.bill.quotationNo ? `<div class="text-xs text-gray-500">${txn.bill.quotationNo}</div>` : ''}
             </td>
             <td class="px-4 py-3 text-center">
-                <span class="px-2 py-1 rounded text-xs font-semibold ${txn.type === 'sale' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}">
+                <span class="px-2 py-1 rounded text-xs font-semibold ${txn.type === 'sale' ? 'bg-blue-100 text-blue-700' : txn.type === 'sales_return' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}">
                     ${txn.reference}
                 </span>
             </td>
@@ -15121,6 +16544,56 @@ function updateFloorDropdowns() {
             option.textContent = floor;
             toSelect.appendChild(option);
         });
+    }
+    
+    // Also update bulk upload floor dropdown
+    updateBulkUploadFloorDropdown();
+}
+
+function updateBulkUploadFloorDropdown() {
+    const floorSelect = document.getElementById('bulkUploadFloorSelect');
+    if (!floorSelect) return;
+    
+    // Get current value to preserve selection
+    const currentValue = floorSelect.value || 'estimation floor';
+    
+    floorSelect.innerHTML = '';
+    
+    // Add default floor if it exists
+    if (floors.includes('estimation floor')) {
+        const defaultOption = document.createElement('option');
+        defaultOption.value = 'estimation floor';
+        defaultOption.textContent = 'estimation floor (Default)';
+        floorSelect.appendChild(defaultOption);
+    } else if (floors.length > 0) {
+        // If no estimation floor, use first floor as default
+        const defaultOption = document.createElement('option');
+        defaultOption.value = floors[0];
+        defaultOption.textContent = `${floors[0]} (Default)`;
+        floorSelect.appendChild(defaultOption);
+    } else {
+        // Create default floor if none exists
+        const defaultOption = document.createElement('option');
+        defaultOption.value = 'estimation floor';
+        defaultOption.textContent = 'estimation floor (Default)';
+        floorSelect.appendChild(defaultOption);
+    }
+    
+    // Add all other floors
+    floors.forEach(floor => {
+        if (floor !== 'estimation floor') {
+            const option = document.createElement('option');
+            option.value = floor;
+            option.textContent = floor;
+            floorSelect.appendChild(option);
+        }
+    });
+    
+    // Restore previous selection if it still exists
+    if (floors.includes(currentValue)) {
+        floorSelect.value = currentValue;
+    } else {
+        floorSelect.value = floors.includes('estimation floor') ? 'estimation floor' : (floors[0] || 'estimation floor');
     }
 }
 
