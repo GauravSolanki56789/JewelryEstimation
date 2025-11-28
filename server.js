@@ -138,7 +138,17 @@ setInterval(() => {
 app.use(express.static('public'));
 
 // Initialize master database on startup
-initMasterDatabase();
+// Initialize master database (non-blocking - server starts even if DB init fails)
+initMasterDatabase().then(success => {
+    if (success) {
+        console.log('✅ Master database ready');
+    } else {
+        console.log('⚠️ Server started but master database initialization failed. Some features may not work.');
+        console.log('💡 Please check your PostgreSQL connection and restart the server.');
+    }
+}).catch(err => {
+    console.error('❌ Unexpected error during database initialization:', err);
+});
 
 // Create tenant endpoint (renamed from /api/tenants to avoid conflict)
 app.post('/api/admin/create-tenant', async (req, res) => {

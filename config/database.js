@@ -14,56 +14,72 @@ const masterPool = new Pool({
     password: process.env.DB_PASSWORD || 'postgres',
     max: 20,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
+    connectionTimeoutMillis: 10000, // Increased to 10 seconds
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000,
 });
 
-// Initialize master database
-async function initMasterDatabase() {
-    try {
-        await masterPool.query(`
-            CREATE TABLE IF NOT EXISTS tenants (
-                id SERIAL PRIMARY KEY,
-                tenant_code VARCHAR(50) UNIQUE NOT NULL,
-                tenant_name VARCHAR(255) NOT NULL,
-                database_name VARCHAR(100) UNIQUE NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                is_active BOOLEAN DEFAULT true,
-                admin_username VARCHAR(100) NOT NULL,
-                admin_password VARCHAR(255) NOT NULL
-            )
-        `);
-        
-        // Create master admin users table
-        await masterPool.query(`
-            CREATE TABLE IF NOT EXISTS master_admins (
-                id SERIAL PRIMARY KEY,
-                username VARCHAR(100) UNIQUE NOT NULL,
-                password_hash VARCHAR(255) NOT NULL,
-                is_super_admin BOOLEAN DEFAULT false,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
-        
-        const bcrypt = require('bcrypt');
-        const masterAdminCheck = await masterPool.query('SELECT * FROM master_admins WHERE username = $1', ['Gaurav']);
-        if (masterAdminCheck.rows.length === 0) {
-            const tempPassword = await bcrypt.hash('CHANGE_ME_' + Date.now(), 10);
-            await masterPool.query(
-                'INSERT INTO master_admins (username, password_hash, is_super_admin) VALUES ($1, $2, $3)',
-                ['Gaurav', tempPassword, true]
-            );
-            console.log('⚠️ Master admin user created with temporary password. Run "npm run fix-gaurav-password" to set the correct password.');
-        } else {
-            const existingAdmin = masterAdminCheck.rows[0];
-            if (existingAdmin.password_hash && !existingAdmin.password_hash.startsWith('$2')) {
-                console.log('⚠️ Master admin password needs to be hashed. Run "npm run fix-gaurav-password" to fix it.');
+// Initialize master database with retry logic
+async function initMasterDatabase(retries = 3, delay = 2000) {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            // Test connection first
+            await masterPool.query('SELECT 1');
+            
+            await masterPool.query(`
+                CREATE TABLE IF NOT EXISTS tenants (
+                    id SERIAL PRIMARY KEY,
+                    tenant_code VARCHAR(50) UNIQUE NOT NULL,
+                    tenant_name VARCHAR(255) NOT NULL,
+                    database_name VARCHAR(100) UNIQUE NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    is_active BOOLEAN DEFAULT true,
+                    admin_username VARCHAR(100) NOT NULL,
+                    admin_password VARCHAR(255) NOT NULL
+                )
+            `);
+            
+            // Create master admin users table
+            await masterPool.query(`
+                CREATE TABLE IF NOT EXISTS master_admins (
+                    id SERIAL PRIMARY KEY,
+                    username VARCHAR(100) UNIQUE NOT NULL,
+                    password_hash VARCHAR(255) NOT NULL,
+                    is_super_admin BOOLEAN DEFAULT false,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            `);
+            
+            const bcrypt = require('bcrypt');
+            const masterAdminCheck = await masterPool.query('SELECT * FROM master_admins WHERE username = $1', ['Gaurav']);
+            if (masterAdminCheck.rows.length === 0) {
+                const tempPassword = await bcrypt.hash('CHANGE_ME_' + Date.now(), 10);
+                await masterPool.query(
+                    'INSERT INTO master_admins (username, password_hash, is_super_admin) VALUES ($1, $2, $3)',
+                    ['Gaurav', tempPassword, true]
+                );
+                console.log('⚠️ Master admin user created with temporary password. Run "npm run fix-gaurav-password" to set the correct password.');
+            } else {
+                const existingAdmin = masterAdminCheck.rows[0];
+                if (existingAdmin.password_hash && !existingAdmin.password_hash.startsWith('$2')) {
+                    console.log('⚠️ Master admin password needs to be hashed. Run "npm run fix-gaurav-password" to fix it.');
+                }
             }
+            
+            console.log('✅ Master database initialized');
+            return true;
+        } catch (error) {
+            if (attempt === retries) {
+                console.error('❌ Error initializing master database after', retries, 'attempts:', error.message);
+                console.error('💡 Make sure PostgreSQL is running and connection settings are correct in .env file');
+                console.error('💡 Check: DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD');
+                return false;
+            }
+            console.warn(`⚠️ Database connection attempt ${attempt}/${retries} failed. Retrying in ${delay/1000}s...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
         }
-        
-        console.log('✅ Master database initialized');
-    } catch (error) {
-        console.error('❌ Error initializing master database:', error);
     }
+    return false;
 }
 
 // Get or create tenant database connection
@@ -76,6 +92,10 @@ function getTenantPool(tenantCode) {
             user: process.env.DB_USER || 'postgres',
             password: process.env.DB_PASSWORD || 'postgres',
             max: 20,
+            idleTimeoutMillis: 30000,
+            connectionTimeoutMillis: 10000, // Increased to 10 seconds
+            keepAlive: true,
+            keepAliveInitialDelayMillis: 10000,
         });
     }
     return tenantPools[tenantCode];
@@ -90,6 +110,9 @@ async function createTenantDatabase(tenantCode, tenantName, adminUsername, admin
         database: 'postgres', // Connect to postgres database to create new DB
         user: process.env.DB_USER || 'postgres',
         password: process.env.DB_PASSWORD || 'postgres',
+        connectionTimeoutMillis: 10000,
+        keepAlive: true,
+        keepAliveInitialDelayMillis: 10000,
     });
     
     const postgresClient = await postgresPool.connect();
