@@ -67,6 +67,12 @@ async function initMasterDatabase(retries = 3, delay = 2000) {
             }
             
             console.log('✅ Master database initialized');
+            
+            // For Single Tenant / Per-Client Instance model:
+            // Initialize the full schema on the master database as well
+            await initTenantSchema(masterPool);
+            console.log('✅ Full schema initialized on master database');
+
             return true;
         } catch (error) {
             if (attempt === retries) {
@@ -250,14 +256,20 @@ async function initTenantSchema(pool) {
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
         
-        // Users table (passwords will be hashed)
+        // Users table (Google OAuth)
         `CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
-            username VARCHAR(100) UNIQUE NOT NULL,
-            password VARCHAR(255) NOT NULL,
-            role VARCHAR(50) DEFAULT 'user',
+            google_id VARCHAR(255) UNIQUE,
+            email VARCHAR(255) UNIQUE NOT NULL,
+            name VARCHAR(255),
+            role VARCHAR(50) DEFAULT 'employee',
+            account_status VARCHAR(50) DEFAULT 'pending',
+            phone_number VARCHAR(20),
+            dob DATE,
+            company_name VARCHAR(255),
             allowed_tabs TEXT[],
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
         
         // Ledger transactions

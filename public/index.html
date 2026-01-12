@@ -42,41 +42,32 @@
                 <div class="text-xl text-gray-600 mb-6">Jewellery Estimations</div>
                 <div class="h-1 w-24 bg-amber-600 mx-auto"></div>
             </div>
-            <form onsubmit="event.preventDefault(); handleLogin();">
-                <div class="space-y-5">
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">Client / Tenant Code</label>
-                        <div class="relative">
-                            <input type="text" id="authTenant" required
-                                class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition bg-white"
-                                placeholder="Enter your client code (e.g., jpjewellery, testclient1)"
-                                autocomplete="off"
-                                oninput="showTenantSuggestions()" onfocus="showTenantSuggestions()" onblur="hideTenantSuggestions()">
-                            <div id="tenantSuggestionsDropdown" class="hidden absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                                <!-- Suggestions will be populated here -->
-                            </div>
-                        </div>
-                        <p class="text-xs text-gray-500 mt-1">💡 Master Admin: Enter "Gaurav" as username to access all clients</p>
-                        <p class="text-xs text-gray-500">💡 Regular Users: Enter your client's tenant code</p>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">Username</label>
-                        <input type="text" id="authUsername" required
-                            class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition" 
-                            autofocus placeholder="Enter your username">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">Password</label>
-                        <input type="password" id="authPassword" required
-                            class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition" 
-                            onkeypress="if(event.key==='Enter') {event.preventDefault(); handleLogin();}" 
-                            placeholder="Enter your password">
-                    </div>
-                    <button type="submit" class="w-full px-4 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-bold text-lg shadow-lg transition transform hover:scale-105">
-                        Sign In
-                    </button>
-                </div>
-            </form>
+            <div class="space-y-5">
+                <a href="/auth/google" class="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 font-bold text-lg shadow-lg transition transform hover:scale-105">
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-6 h-6" alt="Google">
+                    <span>Sign in with Google</span>
+                </a>
+                <p class="text-xs text-center text-gray-500 mt-4">
+                    Sign in to access your jewelry estimation dashboard.
+                </p>
+            </div>
+            <div id="loginError" class="hidden mt-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm text-center"></div>
+            <script>
+                // Check for URL parameters for errors
+                const urlParams = new URLSearchParams(window.location.search);
+                const error = urlParams.get('error');
+                if (error) {
+                    const errorDiv = document.getElementById('loginError');
+                    errorDiv.classList.remove('hidden');
+                    if (error === 'auth_failed') {
+                        errorDiv.textContent = 'Authentication failed. Please try again.';
+                    } else if (error === 'account_rejected') {
+                        errorDiv.textContent = 'Your account has been rejected. Please contact support.';
+                    } else {
+                        errorDiv.textContent = 'Login error occurred.';
+                    }
+                }
+            </script>
             <div class="mt-6 text-center text-xs text-gray-500">
                 © 2025 Gaurav Softwares. All rights reserved.
             </div>
@@ -4622,13 +4613,12 @@ async function loadDataFromAPI() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', function() {
-    // Reload AUTH_USERS from cache to get latest users
-            // No passwords stored in localStorage
-            AUTH_USERS = getCachedItem('authUsers', {
-                'admin': { role: 'admin', allowedTabs: ['all'] },
-                'Gaurav': { role: 'admin', allowedTabs: ['all'] }
-            });
+document.addEventListener('DOMContentLoaded', async function() {
+    // Reload AUTH_USERS from cache to get latest users (legacy support)
+    AUTH_USERS = getCachedItem('authUsers', {
+        'admin': { role: 'admin', allowedTabs: ['all'] },
+        'Gaurav': { role: 'admin', allowedTabs: ['all'] }
+    });
     
     // Update quotation number on page load
     if (typeof getNextQuotationNumber === 'function') {
@@ -4639,28 +4629,46 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    const savedUser = getCachedItem('currentUser', null);
-    if (savedUser) {
-        try {
-            currentUser = savedUser;
-            // No passwords stored in localStorage
-            AUTH_USERS = getCachedItem('authUsers', {
-                'admin': { role: 'admin', allowedTabs: ['all'] },
-                'Gaurav': { role: 'admin', allowedTabs: ['all'] }
-            });
-            // Check if user exists (without password check - passwords not stored)
-            if (AUTH_USERS[currentUser.username]) {
-                currentUser.allowedTabs = AUTH_USERS[currentUser.username].allowedTabs || ['all'];
-                currentUser.role = AUTH_USERS[currentUser.username].role || 'employee';
-                document.getElementById('authModal').classList.add('hidden');
-                document.getElementById('app').classList.remove('hidden');
-                updateTabVisibility();
-                // Show billing tab by default
-                showTab('billing');
-                return;
+    // Check server session for authentication
+    try {
+        const response = await fetch('/api/auth/current_user');
+        const data = await response.json();
+        
+        if (data.isAuthenticated) {
+            currentUser = data.user;
+            // Normalize properties
+            currentUser.username = currentUser.name || currentUser.email;
+            currentUser.allowedTabs = currentUser.allowed_tabs || ['all']; 
+            if (typeof currentUser.allowedTabs === 'string') {
+                try { currentUser.allowedTabs = JSON.parse(currentUser.allowedTabs); } catch(e) { currentUser.allowedTabs = ['all']; }
             }
-        } catch(e) {}
+            if (!Array.isArray(currentUser.allowedTabs)) currentUser.allowedTabs = ['all'];
+
+            document.getElementById('authModal').classList.add('hidden');
+            document.getElementById('app').classList.remove('hidden');
+            updateTabVisibility();
+            showTab('billing');
+            
+            // Load data from API
+            if (typeof loadDataFromAPI === 'function') {
+                await loadDataFromAPI();
+            }
+            if (typeof loadProducts === 'function') {
+                await loadProducts();
+            }
+            
+            // Update user info display
+            const userNameEl = document.getElementById('currentUserName');
+            if (userNameEl) {
+                userNameEl.textContent = `User: ${currentUser.username}`;
+            }
+            
+            return;
+        }
+    } catch (e) {
+        console.error('Auth check failed', e);
     }
+
     // Show auth modal if not authenticated
     document.getElementById('authModal').classList.remove('hidden');
     document.getElementById('app').classList.add('hidden');
@@ -4981,10 +4989,8 @@ billItems = selectedQuotationForBill.items.map(item => {
             }
 
             function getBillAdjustedMCRate(originalMCRate) {
-                    const slab = currentBillRateSlab || 'R';
-                    const discount = rateSlabDiscounts[slab] || 0;
-                    const adjustedRate = Math.max(0, (originalMCRate || 0) - discount);
-                    return adjustedRate;
+                    // MC must be absolute - no discounts
+                    return originalMCRate || 0;
                 }
 
             function recalculateBillItems() {
@@ -6656,9 +6662,9 @@ async function generateSalesBillPDF() {
                 const silverInput = parseFloat(document.getElementById('rateSilver').value) || 0;
                 const platinumInput = parseFloat(document.getElementById('ratePlatinum').value) || 0;
 
-                // Apply 3% discount for silver (wholesale) - ensure numbers, not strings
+                // Save raw rates (discounts applied dynamically based on slab)
                 rates.gold = parseFloat(goldInput);
-                rates.silver = parseFloat(silverInput * 0.97); // 3% discount
+                rates.silver = parseFloat(silverInput);
                 rates.platinum = parseFloat(platinumInput);
 
                 // Save to API
@@ -6675,31 +6681,13 @@ async function generateSalesBillPDF() {
                 setCachedItem('rates', rates);
                 updateRatesDisplay();
 
-                // Recalculate all items with new rates
-                let updatedCount = 0;
-                items.forEach(item => {
-                    if (item.metalType) {
-                        // Limit to 2 decimal places
-                        const newRate = parseFloat(parseFloat(rates[item.metalType]).toFixed(2));
-                        if (newRate) {
-                            item.rate = newRate;
-                            // Fix rate calculation: mc - 3% (if rate is 152.5, then rate would be 147.92)
-                            const originalMCRate = item.originalMcRate || parseFloat(item.mcRate);
-                            const adjustedMCRate = parseFloat(parseFloat(originalMCRate * 0.97).toFixed(2));
-                            item.mcRate = adjustedMCRate;
-                            item.amount = (parseFloat(item.rate) + parseFloat(item.mcRate)) * item.weight + (item.boxCharges || 0) + (item.stoneCharges || 0);
-                            updatedCount++;
-                        }
-                    }
-                });
-
-                if (updatedCount > 0) {
-                    updateItemsTable();
-                    updateSummary();
+                // Recalculate all items with new rates using centralized logic
+                if (items.length > 0) {
+                    recalculateAllItems();
                 }
 
                 closeModals();
-                alert(`✅ Rates Updated!\n\nGold: ₹${parseFloat(rates.gold).toFixed(2)}/gm\nSilver: ₹${parseFloat(rates.silver).toFixed(2)}/gm (3% wholesale discount applied)\nPlatinum: ₹${parseFloat(rates.platinum).toFixed(2)}/gm\n\n${updatedCount} items recalculated.`);
+                alert(`Rates Updated!\n\nGold: ₹${parseFloat(rates.gold).toFixed(2)}\nSilver: ₹${parseFloat(rates.silver).toFixed(2)}\nPlatinum: ₹${parseFloat(rates.platinum).toFixed(2)}`);
             }
 
         function updateCustomerDropdown() {
@@ -6837,10 +6825,10 @@ async function generateSalesBillPDF() {
 
                     const descriptions = {
                         'R': 'Standard Rate',
-                        'R1': 'MC Discount ₹2/gm',
-                        'R2': 'MC Discount ₹5/gm',
-                        'R3': 'MC Discount ₹10/gm',
-                        'R4': 'MC Discount ₹15/gm'
+                        'R1': 'Silver 3% + MC -2',
+                        'R2': 'Silver 3% + MC -5',
+                        'R3': 'Silver 3% + MC -10',
+                        'R4': 'Silver 3% + MC -15'
                     };
 
                     const rateSlabDesc = document.getElementById('rateSlabDesc');
@@ -6865,6 +6853,17 @@ async function generateSalesBillPDF() {
 
                 function recalculateAllItems() {
                         items.forEach(item => {
+                            // Recalculate rate for Silver items based on current slab
+                            if (item.metalType === 'silver') {
+                                let baseRate = rates[item.metalType] || rates.silver || 0;
+                                
+                                if (currentRateSlab !== 'R') {
+                                    item.rate = parseFloat((baseRate * 0.97).toFixed(2));
+                                } else {
+                                    item.rate = parseFloat(baseRate.toFixed(2));
+                                }
+                            }
+
                             // Get original MC rate (stored separately)
                             const originalMCRate = item.originalMcRate || item.mcRate;
                             const adjustedMCRate = getAdjustedMCRate(originalMCRate);
@@ -8441,7 +8440,12 @@ async function deleteProduct(idx) {
             if (itemPurityEl) itemPurityEl.value = product.purity;
             if (itemMetalTypeEl) itemMetalTypeEl.value = product.metalType;
 
-            const metalRate = rates[product.metalType] || rates.silver || 0;
+            let metalRate = rates[product.metalType] || rates.silver || 0;
+            // Apply 3% discount for Silver on Wholesale slabs (R1-R4)
+            if (product.metalType === 'silver' && currentRateSlab !== 'R') {
+                metalRate = metalRate * 0.97;
+            }
+            
             const originalMCRate = product.mcRate || 0;
             
             // Get adjusted MC rate (with fallback if function not available)
@@ -8724,10 +8728,10 @@ function updateMCTypeLabel() {
                     return;
                 }
 
-                // Apply 3% discount to MC rate if needed
-                if (item.originalMcRate && item.originalMcRate !== item.mcRate) {
-                    item.mcRate = parseFloat(item.originalMcRate * 0.97).toFixed(2);
-                }
+                // Apply 3% discount to MC rate if needed - REMOVED per requirement (MC is absolute)
+                // if (item.originalMcRate && item.originalMcRate !== item.mcRate) {
+                //    item.mcRate = parseFloat(item.originalMcRate * 0.97).toFixed(2);
+                // }
 
                 item.amount = (parseFloat(item.rate) + parseFloat(item.mcRate)) * item.weight + item.boxCharges + item.stoneCharges;
                 item.id = Date.now();
@@ -8892,9 +8896,9 @@ function updateMCTypeLabel() {
             const item = items.find(i => i.id === itemId);
             if (!item) return;
 
-            // Fix rate calculation: mc - 3% (if rate is 152.5, then rate would be 147.92)
+            // Fix rate calculation: MC is absolute (no discount)
             const originalMCRate = parseFloat(newMCRate) || 0;
-            const adjustedMCRate = originalMCRate * 0.97; // Apply 3% discount
+            const adjustedMCRate = originalMCRate; // No discount
             // Limit to 2 decimal places
             item.mcRate = parseFloat(parseFloat(adjustedMCRate).toFixed(2));
             item.originalMcRate = originalMCRate; // Store original

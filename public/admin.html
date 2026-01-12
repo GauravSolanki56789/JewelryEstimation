@@ -20,6 +20,8 @@
             <div class="flex gap-2 flex-wrap">
                 <button onclick="showAdminTab('clients')" id="tabClients" 
                     class="px-4 py-2 bg-amber-600 text-white rounded-lg font-medium">👥 Clients</button>
+                <button onclick="showAdminTab('users')" id="tabUsers" 
+                    class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium">👤 Users</button>
                 <button onclick="showAdminTab('monitoring')" id="tabMonitoring"
                     class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium">📊 Monitoring</button>
                 <button onclick="showAdminTab('apikeys')" id="tabApiKeys"
@@ -40,6 +42,33 @@
                     </button>
                 </div>
                 <div id="clientsList" class="space-y-4"></div>
+            </div>
+        </div>
+
+        <!-- Users Tab -->
+        <div id="adminTabUsers" class="admin-tab hidden">
+            <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold">User Management (Google Auth)</h2>
+                    <button onclick="loadUsers()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
+                        🔄 Refresh
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-gray-100 border-b">
+                                <th class="p-3 font-bold">Name</th>
+                                <th class="p-3 font-bold">Email</th>
+                                <th class="p-3 font-bold">Company</th>
+                                <th class="p-3 font-bold">Role</th>
+                                <th class="p-3 font-bold">Status</th>
+                                <th class="p-3 font-bold">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersList"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -227,6 +256,7 @@
                 
                 // Load tab content
                 if (tabName === 'clients' && typeof loadClients === 'function') loadClients();
+                if (tabName === 'users' && typeof loadUsers === 'function') loadUsers();
                 if (tabName === 'monitoring' && typeof loadMonitoring === 'function') loadMonitoring();
                 if (tabName === 'apikeys' && typeof loadApiKeys === 'function') loadApiKeys();
             } catch (error) {
@@ -299,6 +329,135 @@
             }
         }
         
+        // Load Users (Master Admin)
+        async function loadUsers() {
+            if (!checkMasterAdminAuth()) return;
+            
+            const auth = await getMasterAdminCredentials();
+            if (!auth) return;
+            
+            const list = document.getElementById('usersList');
+            if (!list) return;
+            
+            list.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-500">Loading users...</td></tr>';
+            
+            try {
+                // We need to pass auth in headers for this one, as it uses checkRole('admin') middleware
+                // which checks req.user (session) or we can modify the middleware to check headers?
+                // The current checkRole middleware checks req.isAuthenticated() which relies on session.
+                // But master admin might be logged in via session (if redirected from login).
+                // Let's assume session is active if checkMasterAdminAuth() is true.
+                // If not, we might need a way to pass credentials.
+                
+                // Since the server side checkRole checks req.isAuthenticated(), we must be logged in via session.
+                // The /api/auth/login endpoint establishes a session.
+                
+                const response = await fetch('/api/admin/users', {
+                    method: 'GET'
+                });
+                
+                if (!response.ok) {
+                    if (response.status === 401 || response.status === 403) {
+                         // Try to login first if session expired
+                         await fetch('/api/auth/login', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ username: auth.username, password: auth.password })
+                        });
+                        // Retry
+                        const retryResponse = await fetch('/api/admin/users');
+                        if (!retryResponse.ok) throw new Error('Failed to load users');
+                        const users = await retryResponse.json();
+                        renderUsers(users);
+                        return;
+                    }
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const users = await response.json();
+                renderUsers(users);
+                
+            } catch (error) {
+                console.error('Error loading users:', error);
+                list.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-red-600">Error: ${error.message}</td></tr>`;
+            }
+        }
+
+        function renderUsers(users) {
+            const list = document.getElementById('usersList');
+            if (users.length === 0) {
+                list.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-500">No users found.</td></tr>';
+                return;
+            }
+            
+            list.innerHTML = users.map(user => `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="p-3">
+                        <div class="font-bold">${user.name || 'N/A'}</div>
+                        <div class="text-xs text-gray-500">Google ID: ${user.google_id || '-'}</div>
+                    </td>
+                    <td class="p-3">${user.email}</td>
+                    <td class="p-3">
+                        <div>${user.company_name || '-'}</div>
+                        <div class="text-xs text-gray-500">${user.phone_number || ''}</div>
+                    </td>
+                    <td class="p-3">
+                        <select onchange="updateUserStatus(${user.id}, '${user.account_status}', this.value)" 
+                            class="text-xs border rounded p-1 ${user.role === 'admin' ? 'bg-purple-50 text-purple-700' : 'bg-gray-50'}">
+                            <option value="employee" ${user.role === 'employee' ? 'selected' : ''}>Employee</option>
+                            <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
+                            <option value="super_admin" ${user.role === 'super_admin' ? 'selected' : ''}>Super Admin</option>
+                        </select>
+                    </td>
+                    <td class="p-3">
+                        <span class="px-2 py-1 rounded-full text-xs font-bold 
+                            ${user.account_status === 'active' ? 'bg-green-100 text-green-800' : 
+                              user.account_status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+                              'bg-red-100 text-red-800'}">
+                            ${user.account_status.toUpperCase()}
+                        </span>
+                    </td>
+                    <td class="p-3">
+                        <div class="flex gap-2">
+                            ${user.account_status !== 'active' ? `
+                                <button onclick="updateUserStatus(${user.id}, 'active', '${user.role}')" 
+                                    class="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700">
+                                    Approve
+                                </button>
+                            ` : ''}
+                            ${user.account_status !== 'rejected' ? `
+                                <button onclick="updateUserStatus(${user.id}, 'rejected', '${user.role}')" 
+                                    class="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700">
+                                    Reject
+                                </button>
+                            ` : ''}
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function updateUserStatus(userId, status, role) {
+            if (!confirm(`Update user status to ${status} and role to ${role}?`)) return;
+            
+            try {
+                const response = await fetch(`/api/admin/users/${userId}/status`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status, role })
+                });
+                
+                if (response.ok) {
+                    loadUsers(); // Reload list
+                } else {
+                    alert('Failed to update user');
+                }
+            } catch (error) {
+                console.error('Error updating user:', error);
+                alert('Error updating user');
+            }
+        }
+
         // Load Clients (requires master admin) with error handling
         async function loadClients() {
             if (!checkMasterAdminAuth()) return;

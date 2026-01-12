@@ -4,6 +4,8 @@ const path = require('path');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 const http = require('http');
+const session = require('express-session');
+const passport = require('./config/passport');
 const { Server } = require('socket.io');
 const { 
     masterPool, 
@@ -12,6 +14,7 @@ const {
     createTenantDatabase,
     queryTenant 
 } = require('./config/database');
+const { checkRole, checkAuth, verifyTenantAccess } = require('./middleware/rbac');
 const TallyIntegration = require('./config/tally-integration');
 const TallySyncService = require('./config/tally-sync-service');
 
@@ -28,6 +31,19 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Session and Passport Middleware
+app.use(session({
+    secret: process.env.SESSION_SECRET || 'jewelry_estimation_secret',
+    resave: false,
+    saveUninitialized: false,
+    cookie: { 
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    }
+}));
+app.use(passport.initialize());
+app.use(passport.session());
 
 // SECURITY: Middleware to sanitize password fields from request/response logging
 app.use((req, res, next) => {
@@ -135,6 +151,45 @@ setInterval(() => {
     }
 }, 60 * 60 * 1000);
 
+// Google Auth Routes
+app.get('/auth/google',
+    passport.authenticate('google', { scope: ['profile', 'email'] })
+);
+
+app.get('/auth/google/callback', 
+    passport.authenticate('google', { failureRedirect: '/login.html?error=auth_failed' }),
+    (req, res) => {
+        // Successful authentication
+        if (req.user.account_status === 'pending') {
+            res.redirect('/complete-profile.html');
+        } else if (req.user.account_status === 'rejected') {
+            req.logout(() => {
+                res.redirect('/login.html?error=account_rejected');
+            });
+        } else {
+            res.redirect('/index.html');
+        }
+    }
+);
+
+app.get('/api/auth/current_user', (req, res) => {
+    if (req.isAuthenticated()) {
+        res.json({
+            isAuthenticated: true,
+            user: req.user
+        });
+    } else {
+        res.json({ isAuthenticated: false });
+    }
+});
+
+app.post('/api/auth/logout', (req, res) => {
+    req.logout((err) => {
+        if (err) { return res.status(500).json({ error: 'Logout failed' }); }
+        res.json({ success: true });
+    });
+});
+
 app.use(express.static('public'));
 
 // Initialize master database on startup
@@ -150,29 +205,88 @@ initMasterDatabase().then(success => {
     console.error('❌ Unexpected error during database initialization:', err);
 });
 
-// Create tenant endpoint (renamed from /api/tenants to avoid conflict)
-app.post('/api/admin/create-tenant', async (req, res) => {
-    try {
-        const { tenantCode, tenantName, adminUsername, adminPassword, masterUsername, masterPassword } = req.body;
-        
-        // Verify master admin
-        if (!masterUsername || !masterPassword) {
-            return res.status(403).json({ error: 'Master admin credentials required' });
+// ==========================================
+// AUTHENTICATION ROUTES (GOOGLE OAUTH)
+// ==========================================
+
+// Google Auth Route
+app.get('/auth/google', passport.authenticate('google', { 
+    scope: ['profile', 'email'] 
+}));
+
+// Google Auth Callback
+app.get('/auth/google/callback', 
+    passport.authenticate('google', { failureRedirect: '/?error=login_failed' }),
+    (req, res) => {
+        // Successful authentication
+        if (req.user.account_status === 'pending') {
+            res.redirect('/complete-profile.html');
+        } else if (req.user.account_status === 'active') {
+            res.redirect('/');
+        } else {
+            // Suspended or other status
+            req.logout((err) => {
+                if (err) { console.error('Logout error:', err); }
+                res.redirect('/?error=account_suspended');
+            });
         }
-        
-        const masterAdmin = await masterPool.query(
-            'SELECT * FROM master_admins WHERE username = $1',
-            [masterUsername]
+    }
+);
+
+// Get Current User (Session Check)
+app.get('/api/auth/current_user', (req, res) => {
+    if (req.isAuthenticated()) {
+        res.json({ 
+            isAuthenticated: true, 
+            user: req.user 
+        });
+    } else {
+        res.json({ isAuthenticated: false });
+    }
+});
+
+// Complete Profile (Update user details after first login)
+app.post('/api/users/complete-profile', async (req, res) => {
+    if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { phone, dob, companyName } = req.body;
+
+    try {
+        await masterPool.query(
+            'UPDATE users SET phone_number = $1, dob = $2, company_name = $3, account_status = $4 WHERE id = $5',
+            [phone, dob, companyName, 'pending', req.user.id] // Keep as pending until admin approves
         );
         
-        if (masterAdmin.rows.length === 0) {
-            return res.status(403).json({ error: 'Unauthorized' });
-        }
-        
-        const isValid = await bcrypt.compare(masterPassword, masterAdmin.rows[0].password_hash);
-        if (!isValid || !masterAdmin.rows[0].is_super_admin) {
-            return res.status(403).json({ error: 'Unauthorized' });
-        }
+        // Update session user object
+        req.user.phone_number = phone;
+        req.user.dob = dob;
+        req.user.company_name = companyName;
+        req.user.account_status = 'pending';
+
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Logout
+app.get('/api/auth/logout', (req, res) => {
+    req.logout((err) => {
+        if (err) { return res.status(500).json({ error: 'Logout failed' }); }
+        res.redirect('/');
+    });
+});
+
+// ==========================================
+// TENANT MANAGEMENT
+// ==========================================
+
+// Create tenant endpoint (renamed from /api/tenants to avoid conflict)
+app.post('/api/admin/create-tenant', checkRole('admin'), async (req, res) => {
+    try {
+        const { tenantCode, tenantName, adminUsername, adminPassword } = req.body;
         
         if (!tenantCode || !tenantName || !adminUsername || !adminPassword) {
             return res.status(400).json({ error: 'Missing required fields' });
@@ -193,64 +307,49 @@ app.post('/api/admin/create-tenant', async (req, res) => {
 });
 
 // List tenants endpoint (for master admin)
-app.post('/api/tenants', async (req, res) => {
+app.get('/api/tenants', checkRole('admin'), async (req, res) => {
     try {
-        const { username, password } = req.body;
-        
-        // If master admin credentials provided, return all tenants
-        if (username && password) {
-            const masterAdmin = await masterPool.query(
-                'SELECT * FROM master_admins WHERE username = $1',
-                [username]
-            );
-            
-            if (masterAdmin.rows.length > 0) {
-                const isValid = await bcrypt.compare(password, masterAdmin.rows[0].password_hash);
-                if (isValid && masterAdmin.rows[0].is_super_admin) {
-                    // Super admin can see all tenants
-                    const result = await masterPool.query('SELECT tenant_code, tenant_name, created_at, is_active FROM tenants ORDER BY created_at DESC');
-                    return res.json(result.rows);
-                }
-            }
-            
-            // Invalid credentials - return empty array instead of error for better UX
-            return res.json([]);
-        }
-        
-        // No credentials provided - return empty array
-        res.json([]);
+        // Super admin can see all tenants
+        const result = await masterPool.query('SELECT tenant_code, tenant_name, created_at, is_active FROM tenants ORDER BY created_at DESC');
+        return res.json(result.rows);
     } catch (error) {
         console.error('Error loading tenants:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-app.post('/api/tenants/for-user', async (req, res) => {
+app.get('/api/tenants/for-user', checkAuth, async (req, res) => {
     try {
-        const { username, tenantCode } = req.body; // Changed from req.query to req.body
-        
-        if (!username || !tenantCode) {
-            return res.json([]);
-        }
-        
-        // Check if master admin
-        const masterAdmin = await masterPool.query(
-            'SELECT * FROM master_admins WHERE username = $1',
-            [username]
-        );
-        
-        if (masterAdmin.rows.length > 0 && masterAdmin.rows[0].is_super_admin) {
-            // Super admin can see all tenants
+        // Super admin can see all tenants
+        if (req.user.role === 'admin' || req.user.role === 'super_admin') {
             const result = await masterPool.query('SELECT tenant_code, tenant_name, created_at, is_active FROM tenants');
             return res.json(result.rows);
         }
         
-        // Regular user can only see their own tenant
-        const result = await masterPool.query(
-            'SELECT tenant_code, tenant_name, created_at, is_active FROM tenants WHERE tenant_code = $1',
-            [tenantCode]
-        );
-        res.json(result.rows);
+        // Regular users - return their assigned tenant if any
+        if (req.user.tenant_code) {
+             // Return array with single tenant object (mocking the tenants table structure)
+             // If the tenant actually exists in tenants table, fetch it.
+             // For single-tenant master instance, we might not have a record in 'tenants' table for 'master', 
+             // but we can return a synthetic one.
+             
+             // Check if tenant exists in tenants table
+             const tenantCheck = await masterPool.query('SELECT tenant_code, tenant_name, created_at, is_active FROM tenants WHERE tenant_code = $1', [req.user.tenant_code]);
+             
+             if (tenantCheck.rows.length > 0) {
+                 return res.json(tenantCheck.rows);
+             } else if (req.user.tenant_code === 'master' || req.user.tenant_code === process.env.DEFAULT_TENANT_CODE) {
+                 // Return synthetic master tenant
+                 return res.json([{
+                     tenant_code: req.user.tenant_code,
+                     tenant_name: process.env.COMPANY_NAME || 'Master Instance',
+                     created_at: new Date(),
+                     is_active: true
+                 }]);
+             }
+        }
+        
+        res.json([]);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -428,9 +527,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-async function verifyTenantAccess(req, res, next) {
-    next();
-}
+
 
 app.get('/api/:tenant/products', verifyTenantAccess, async (req, res) => {
     try {
@@ -463,7 +560,7 @@ app.get('/api/:tenant/products', verifyTenantAccess, async (req, res) => {
     }
 });
 
-app.post('/api/:tenant/products', async (req, res) => {
+app.post('/api/:tenant/products', verifyTenantAccess, async (req, res) => {
     const { tenant } = req.params;
     const product = req.body;
     
@@ -502,7 +599,7 @@ app.post('/api/:tenant/products', async (req, res) => {
     }
 });
 
-app.put('/api/:tenant/products/:id', async (req, res) => {
+app.put('/api/:tenant/products/:id', verifyTenantAccess, async (req, res) => {
     try {
         const { tenant, id } = req.params;
         const product = req.body;
@@ -530,7 +627,7 @@ app.put('/api/:tenant/products/:id', async (req, res) => {
 });
 
 // Bulk insert products endpoint for fast bulk uploads
-app.post('/api/:tenant/products/bulk', async (req, res) => {
+app.post('/api/:tenant/products/bulk', verifyTenantAccess, async (req, res) => {
     try {
         const { tenant } = req.params;
         const { products: productsArray } = req.body;
@@ -623,7 +720,7 @@ app.post('/api/:tenant/products/bulk', async (req, res) => {
     }
 });
 
-app.delete('/api/:tenant/products/:id', async (req, res) => {
+app.delete('/api/:tenant/products/:id', verifyTenantAccess, async (req, res) => {
     try {
         const { tenant, id } = req.params;
         await queryTenant(tenant, 'DELETE FROM products WHERE id = $1', [id]);
@@ -635,7 +732,7 @@ app.delete('/api/:tenant/products/:id', async (req, res) => {
 });
 
 
-app.get('/api/:tenant/customers', async (req, res) => {
+app.get('/api/:tenant/customers', verifyTenantAccess, async (req, res) => {
     try {
         const { tenant } = req.params;
         const { mobile, search } = req.query;
@@ -662,7 +759,7 @@ app.get('/api/:tenant/customers', async (req, res) => {
     }
 });
 
-app.post('/api/:tenant/customers', async (req, res) => {
+app.post('/api/:tenant/customers', verifyTenantAccess, async (req, res) => {
     try {
         const { tenant } = req.params;
         const customer = req.body;
@@ -683,7 +780,7 @@ app.post('/api/:tenant/customers', async (req, res) => {
     }
 });
 
-app.put('/api/:tenant/customers/:id', async (req, res) => {
+app.put('/api/:tenant/customers/:id', verifyTenantAccess, async (req, res) => {
     try {
         const { tenant, id } = req.params;
         const customer = req.body;
@@ -706,7 +803,7 @@ app.put('/api/:tenant/customers/:id', async (req, res) => {
     }
 });
 
-app.delete('/api/:tenant/customers/:id', async (req, res) => {
+app.delete('/api/:tenant/customers/:id', verifyTenantAccess, async (req, res) => {
     try {
         const { tenant, id } = req.params;
         await queryTenant(tenant, 'DELETE FROM customers WHERE id = $1', [id]);
@@ -718,7 +815,7 @@ app.delete('/api/:tenant/customers/:id', async (req, res) => {
 });
 
 // Cleanup duplicate customers endpoint
-app.post('/api/:tenant/customers/cleanup-duplicates', async (req, res) => {
+app.post('/api/:tenant/customers/cleanup-duplicates', verifyTenantAccess, async (req, res) => {
     try {
         const { tenant } = req.params;
         
@@ -825,7 +922,7 @@ app.post('/api/:tenant/customers/cleanup-duplicates', async (req, res) => {
 });
 
 
-app.get('/api/:tenant/quotations', async (req, res) => {
+app.get('/api/:tenant/quotations', verifyTenantAccess, async (req, res) => {
     try {
         const { tenant } = req.params;
         const result = await queryTenant(tenant, 'SELECT * FROM quotations ORDER BY date DESC');
@@ -835,7 +932,7 @@ app.get('/api/:tenant/quotations', async (req, res) => {
     }
 });
 
-app.post('/api/:tenant/quotations', async (req, res) => {
+app.post('/api/:tenant/quotations', verifyTenantAccess, async (req, res) => {
     try {
         const { tenant } = req.params;
         const quotation = req.body;
@@ -860,7 +957,7 @@ app.post('/api/:tenant/quotations', async (req, res) => {
     }
 });
 
-app.put('/api/:tenant/quotations/:id', async (req, res) => {
+app.put('/api/:tenant/quotations/:id', verifyTenantAccess, async (req, res) => {
     try {
         const { tenant, id } = req.params;
         const quotation = req.body;
@@ -886,7 +983,7 @@ app.put('/api/:tenant/quotations/:id', async (req, res) => {
     }
 });
 
-app.delete('/api/:tenant/quotations/:id', async (req, res) => {
+app.delete('/api/:tenant/quotations/:id', verifyTenantAccess, async (req, res) => {
     try {
         const { tenant, id } = req.params;
         await queryTenant(tenant, 'DELETE FROM quotations WHERE id = $1', [id]);
@@ -898,7 +995,7 @@ app.delete('/api/:tenant/quotations/:id', async (req, res) => {
 });
 
 
-app.get('/api/:tenant/bills', async (req, res) => {
+app.get('/api/:tenant/bills', verifyTenantAccess, async (req, res) => {
     try {
         const { tenant } = req.params;
         const { billNo, date } = req.query;
@@ -925,7 +1022,7 @@ app.get('/api/:tenant/bills', async (req, res) => {
     }
 });
 
-app.post('/api/:tenant/bills', async (req, res) => {
+app.post('/api/:tenant/bills', verifyTenantAccess, async (req, res) => {
     try {
         const { tenant } = req.params;
         const bill = req.body;
@@ -969,7 +1066,7 @@ app.post('/api/:tenant/bills', async (req, res) => {
     }
 });
 
-app.put('/api/:tenant/bills/:id', async (req, res) => {
+app.put('/api/:tenant/bills/:id', verifyTenantAccess, async (req, res) => {
     try {
         const { tenant, id } = req.params;
         const bill = req.body;
@@ -993,7 +1090,7 @@ app.put('/api/:tenant/bills/:id', async (req, res) => {
     }
 });
 
-app.delete('/api/:tenant/bills/:id', async (req, res) => {
+app.delete('/api/:tenant/bills/:id', verifyTenantAccess, async (req, res) => {
     try {
         const { tenant, id } = req.params;
         await queryTenant(tenant, 'DELETE FROM bills WHERE id = $1', [id]);
@@ -1005,7 +1102,7 @@ app.delete('/api/:tenant/bills/:id', async (req, res) => {
 });
 
 
-app.get('/api/:tenant/rates', async (req, res) => {
+app.get('/api/:tenant/rates', verifyTenantAccess, async (req, res) => {
     try {
         const { tenant } = req.params;
         const result = await queryTenant(tenant, 'SELECT * FROM rates ORDER BY updated_at DESC LIMIT 1');
@@ -1015,7 +1112,8 @@ app.get('/api/:tenant/rates', async (req, res) => {
     }
 });
 
-app.put('/api/:tenant/rates', async (req, res) => {
+// Update rates
+app.post('/api/:tenant/rates', verifyTenantAccess, async (req, res) => {
     try {
         const { tenant } = req.params;
         const { gold, silver, platinum } = req.body;
@@ -1032,8 +1130,32 @@ app.put('/api/:tenant/rates', async (req, res) => {
     }
 });
 
+// Master User Management (for Google Auth users)
+app.get('/api/admin/users', checkRole('admin'), async (req, res) => {
+    try {
+        const result = await masterPool.query('SELECT * FROM users ORDER BY created_at DESC');
+        res.json(result.rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
-app.get('/api/:tenant/ledger/transactions', async (req, res) => {
+app.post('/api/admin/users/:id/status', checkRole('admin'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status, role } = req.body; // status: 'active', 'rejected', 'pending'; role: 'admin', 'employee'
+        
+        const query = `UPDATE users SET account_status = $1, role = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *`;
+        const result = await masterPool.query(query, [status, role || 'employee', id]);
+        
+        res.json(result.rows[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
+app.get('/api/:tenant/ledger/transactions', verifyTenantAccess, async (req, res) => {
     try {
         const { tenant } = req.params;
         const { customerId, type, startDate, endDate } = req.query;
@@ -1068,7 +1190,7 @@ app.get('/api/:tenant/ledger/transactions', async (req, res) => {
     }
 });
 
-app.post('/api/:tenant/ledger/transactions', async (req, res) => {
+app.post('/api/:tenant/ledger/transactions', verifyTenantAccess, async (req, res) => {
     try {
         const { tenant } = req.params;
         const transaction = req.body;
@@ -1111,7 +1233,7 @@ app.post('/api/:tenant/ledger/transactions', async (req, res) => {
 });
 
 
-app.get('/api/:tenant/purchase-vouchers', async (req, res) => {
+app.get('/api/:tenant/purchase-vouchers', verifyTenantAccess, async (req, res) => {
     try {
         const { tenant } = req.params;
         const { pvNo } = req.query;
@@ -1133,7 +1255,7 @@ app.get('/api/:tenant/purchase-vouchers', async (req, res) => {
     }
 });
 
-app.post('/api/:tenant/purchase-vouchers', async (req, res) => {
+app.post('/api/:tenant/purchase-vouchers', verifyTenantAccess, async (req, res) => {
     try {
         const { tenant } = req.params;
         const pv = req.body;
@@ -1166,7 +1288,7 @@ app.post('/api/:tenant/purchase-vouchers', async (req, res) => {
 });
 
 
-app.get('/api/:tenant/rol', async (req, res) => {
+app.get('/api/:tenant/rol', verifyTenantAccess, async (req, res) => {
     try {
         const { tenant } = req.params;
         const { barcode, styleCode } = req.query;
@@ -1191,7 +1313,7 @@ app.get('/api/:tenant/rol', async (req, res) => {
     }
 });
 
-app.post('/api/:tenant/rol', async (req, res) => {
+app.post('/api/:tenant/rol', verifyTenantAccess, async (req, res) => {
     try {
         const { tenant } = req.params;
         const rolData = req.body;
@@ -1214,7 +1336,7 @@ app.post('/api/:tenant/rol', async (req, res) => {
     }
 });
 
-app.put('/api/:tenant/rol/:barcode', async (req, res) => {
+app.put('/api/:tenant/rol/:barcode', verifyTenantAccess, async (req, res) => {
     try {
         const { tenant, barcode } = req.params;
         const { rol, available } = req.body;
@@ -1230,15 +1352,8 @@ app.put('/api/:tenant/rol/:barcode', async (req, res) => {
     }
 });
 
-async function checkUserManagementAccess(req, res, next) {
-    try {
-        next();
-    } catch (error) {
-        res.status(403).json({ error: 'Access denied. Only administrators can manage users.' });
-    }
-}
 
-app.get('/api/:tenant/users', checkUserManagementAccess, async (req, res) => {
+app.get('/api/:tenant/users', checkRole('admin'), async (req, res) => {
     try {
         const { tenant } = req.params;
         // SECURITY: Never return password hashes
@@ -1254,7 +1369,7 @@ app.get('/api/:tenant/users', checkUserManagementAccess, async (req, res) => {
     }
 });
 
-app.post('/api/:tenant/users', checkUserManagementAccess, async (req, res) => {
+app.post('/api/:tenant/users', checkRole('admin'), async (req, res) => {
     try {
         const { tenant } = req.params;
         const { username, password, role, allowedTabs } = req.body;
@@ -1294,7 +1409,7 @@ app.post('/api/:tenant/users', checkUserManagementAccess, async (req, res) => {
     }
 });
 
-app.put('/api/:tenant/users/:id', checkUserManagementAccess, async (req, res) => {
+app.put('/api/:tenant/users/:id', checkRole('admin'), async (req, res) => {
     try {
         const { tenant, id } = req.params;
         const { username, password, role, allowedTabs } = req.body;
@@ -1335,7 +1450,7 @@ app.put('/api/:tenant/users/:id', checkUserManagementAccess, async (req, res) =>
     }
 });
 
-app.delete('/api/:tenant/users/:id', checkUserManagementAccess, async (req, res) => {
+app.delete('/api/:tenant/users/:id', checkRole('admin'), async (req, res) => {
     try {
         const { tenant, id } = req.params;
         await queryTenant(tenant, 'DELETE FROM users WHERE id = $1', [id]);
@@ -1395,7 +1510,7 @@ app.post('/api/admin/api-keys', async (req, res) => {
     }
 });
 
-app.post('/api/:tenant/query', async (req, res) => {
+app.post('/api/:tenant/query', checkRole('admin'), async (req, res) => {
     try {
         const { tenant } = req.params;
         const { query: sqlQuery, params = [] } = req.body;
@@ -1413,7 +1528,7 @@ app.post('/api/:tenant/query', async (req, res) => {
 });
 
 // Get table schema
-app.get('/api/:tenant/schema/:table', async (req, res) => {
+app.get('/api/:tenant/schema/:table', verifyTenantAccess, async (req, res) => {
     try {
         const { tenant, table } = req.params;
         const query = `
@@ -1430,7 +1545,7 @@ app.get('/api/:tenant/schema/:table', async (req, res) => {
 });
 
 // List all tables
-app.get('/api/:tenant/tables', async (req, res) => {
+app.get('/api/:tenant/tables', verifyTenantAccess, async (req, res) => {
     try {
         const { tenant } = req.params;
         const query = `
