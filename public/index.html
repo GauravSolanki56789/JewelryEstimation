@@ -2076,22 +2076,65 @@
 
 <!-- User Management Modal -->
 <div id="userManagementModal" class="fixed inset-0 flex items-center justify-center z-50 hidden bg-black bg-opacity-50 p-4">
-    <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+    <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-4">
-            <h3 class="text-2xl font-bold text-gray-800">👥 User Management</h3>
+            <h3 class="text-2xl font-bold text-gray-800">👥 User Whitelist Management</h3>
             <button onclick="document.getElementById('userManagementModal').classList.add('hidden')" 
                 class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
         </div>
         
-        <div class="mb-4">
-            <button onclick="addNewUser()" 
-                class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">
-                ➕ Add New User
+        <!-- Add New User Form -->
+        <div class="bg-green-50 border-l-4 border-green-500 p-4 mb-4">
+            <h4 class="font-bold text-green-800 mb-3">➕ Add New User to Whitelist</h4>
+            <p class="text-sm text-green-700 mb-3">Only whitelisted emails can login via Google OAuth</p>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div>
+                    <input type="email" id="newUserEmail" placeholder="Email (required)" 
+                        class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500">
+                </div>
+                <div>
+                    <input type="text" id="newUserName" placeholder="Name (optional)" 
+                        class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500">
+                </div>
+                <div>
+                    <select id="newUserRole" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500">
+                        <option value="employee">Employee</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <div>
+                    <button onclick="addUserToWhitelist()" 
+                        class="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">
+                        ➕ Add User
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Existing Users List -->
+        <div class="mb-4 flex justify-between items-center">
+            <h4 class="font-bold text-gray-700">📋 Whitelisted Users</h4>
+            <button onclick="loadWhitelistedUsers()" 
+                class="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
+                🔄 Refresh
             </button>
         </div>
         
-        <div id="userManagementList" class="space-y-3">
-            <!-- Users will be rendered here -->
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-gray-100 border-b">
+                        <th class="p-3 font-bold text-sm">Email</th>
+                        <th class="p-3 font-bold text-sm">Name</th>
+                        <th class="p-3 font-bold text-sm">Role</th>
+                        <th class="p-3 font-bold text-sm">Status</th>
+                        <th class="p-3 font-bold text-sm">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="userManagementList">
+                    <!-- Users will be rendered here -->
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
@@ -3599,18 +3642,26 @@ function saveAuthUsers() {
 }
 
 function logout() {
-    showConfirmDialog('Logout', 'Are you sure you want to log out?', () => {
+    showConfirmDialog('Logout', 'Are you sure you want to log out?', async () => {
+        try {
+            // SECURITY: Call server to destroy session properly
+            await fetch('/api/auth/logout', { method: 'POST' });
+        } catch (e) {
+            console.log('Logout request completed');
+        }
+        
+        // Clear local state
         currentUser = null;
         delete localStorageCache['currentUser'];
         try { localStorage.removeItem('currentUser'); } catch(e) {}
-        document.getElementById('authModal').classList.remove('hidden');
-        document.getElementById('app').classList.add('hidden');
-        const usernameInput = document.getElementById('authUsername');
-        const passwordInput = document.getElementById('authPassword');
-        if (usernameInput) usernameInput.value = '';
-        if (passwordInput) passwordInput.value = '';
-        if (usernameInput) usernameInput.focus();
-        updateTabVisibility();
+        
+        // SECURITY: Clear all cached data on logout
+        try {
+            sessionStorage.clear();
+        } catch (e) {}
+        
+        // Redirect to login page (prevents back button access)
+        window.location.href = '/';
     });
 }
 
@@ -3625,27 +3676,26 @@ function updateTabVisibility() {
     const userNameEl = document.getElementById('currentUserName');
     const userMgmtBtn = document.getElementById('btnManageUsers');
     const userMgmtBtnContainer = document.getElementById('userManagementBtn');
+    const updateSwBtn = document.getElementById('btnUpdateSW');
     
     if (userNameEl) {
         userNameEl.textContent = `User: ${currentUser.username}`;
     }
     
-    // SECURITY: Only admin and Gaurav can access user management
-    // Employee role CANNOT access user management
-    const canManageUsers = (currentUser.username === 'admin' || 
-                            currentUser.username === 'Gaurav' || 
-                            currentUser.role === 'admin' || 
-                            currentUser.isMasterAdmin === true) &&
-                           currentUser.role !== 'employee'; // Explicitly block employees
+    // SECURITY: Use permissions from server (fallback to role check)
+    const permissions = currentUser.permissions || {};
+    const isAdmin = permissions.isAdmin || currentUser.role === 'admin' || currentUser.role === 'super_admin';
     
-    // SECURITY: Only admin and Gaurav can access Tally configuration
-    // Employee role CANNOT access Tally configuration
-    const canAccessTally = (currentUser.username === 'admin' || 
-                           currentUser.username === 'Gaurav' || 
-                           currentUser.role === 'admin' || 
-                           currentUser.isMasterAdmin === true) &&
-                          currentUser.role !== 'employee';
+    // SECURITY: Only admin can access user management
+    const canManageUsers = permissions.canManageUsers || isAdmin;
     
+    // SECURITY: Only admin can access Tally configuration and settings
+    const canAccessTally = permissions.canAccessSettings || isAdmin;
+    
+    // SECURITY: Only admin can update software
+    const canUpdateSoftware = permissions.canUpdateSoftware || isAdmin;
+    
+    // Show/hide Manage Users button
     if (userMgmtBtn && userMgmtBtnContainer) {
         if (canManageUsers) {
             userMgmtBtnContainer.classList.remove('hidden');
@@ -3653,6 +3703,15 @@ function updateTabVisibility() {
         } else {
             userMgmtBtnContainer.classList.add('hidden');
             userMgmtBtn.classList.add('hidden');
+        }
+    }
+    
+    // Show/hide Update S/W button (ADMIN ONLY)
+    if (updateSwBtn) {
+        if (canUpdateSoftware) {
+            updateSwBtn.classList.remove('hidden');
+        } else {
+            updateSwBtn.classList.add('hidden');
         }
     }
     
@@ -3892,15 +3951,12 @@ function updateTallyStatus(message, type) {
 }
 
 async function showUserManagement() {
-        // Only admin and Gaurav can manage users
-    const canManageUsers = (currentUser.username === 'admin' || 
-                           currentUser.username === 'Gaurav' || 
-                           currentUser.role === 'admin' || 
-                           currentUser.isMasterAdmin === true) &&
-                           currentUser.role !== 'employee'; // Explicitly block employees
+    // SECURITY: Only admin can manage users
+    const permissions = currentUser?.permissions || {};
+    const isAdmin = permissions.isAdmin || currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
     
-    if (!canManageUsers) {
-        showDialog('Access Denied', 'Only administrators can manage users. Employee role does not have access to user management.', 'error');
+    if (!isAdmin) {
+        showDialog('Access Denied', 'Only administrators can manage users.', 'error');
         return;
     }
     
@@ -3910,7 +3966,188 @@ async function showUserManagement() {
         return;
     }
     modal.classList.remove('hidden');
-    await window.renderUserManagement();
+    await loadWhitelistedUsers();
+}
+
+// Add user to whitelist (Admin only)
+async function addUserToWhitelist() {
+    const emailInput = document.getElementById('newUserEmail');
+    const nameInput = document.getElementById('newUserName');
+    const roleSelect = document.getElementById('newUserRole');
+    
+    const email = emailInput?.value?.trim();
+    const name = nameInput?.value?.trim() || '';
+    const role = roleSelect?.value || 'employee';
+    
+    if (!email) {
+        showDialog('Error', 'Email is required', 'error');
+        return;
+    }
+    
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        showDialog('Error', 'Please enter a valid email address', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/admin/add-user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, name, role })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            showDialog('Success', `User ${email} added to whitelist successfully!`, 'success');
+            // Clear inputs
+            if (emailInput) emailInput.value = '';
+            if (nameInput) nameInput.value = '';
+            if (roleSelect) roleSelect.value = 'employee';
+            // Refresh user list
+            await loadWhitelistedUsers();
+        } else {
+            showDialog('Error', result.error || 'Failed to add user', 'error');
+        }
+    } catch (error) {
+        console.error('Error adding user:', error);
+        showDialog('Error', 'Failed to add user: ' + error.message, 'error');
+    }
+}
+
+// Load whitelisted users from server
+async function loadWhitelistedUsers() {
+    const userListDiv = document.getElementById('userManagementList');
+    if (!userListDiv) return;
+    
+    userListDiv.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-500">Loading users...</td></tr>';
+    
+    try {
+        const response = await fetch('/api/admin/users');
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const users = await response.json();
+        
+        if (!users || users.length === 0) {
+            userListDiv.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-500">No users found. Add a user above.</td></tr>';
+            return;
+        }
+        
+        userListDiv.innerHTML = users.map(user => {
+            const isSuperAdmin = user.email === 'jaigaurav56789@gmail.com';
+            const statusClass = user.account_status === 'active' ? 'bg-green-100 text-green-800' : 
+                               user.account_status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+                               'bg-red-100 text-red-800';
+            
+            return `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="p-3">
+                        <div class="font-medium">${user.email}</div>
+                        ${isSuperAdmin ? '<span class="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">Super Admin</span>' : ''}
+                    </td>
+                    <td class="p-3">${user.name || '-'}</td>
+                    <td class="p-3">
+                        <select onchange="updateUserRole(${user.id}, this.value)" 
+                            class="text-xs border rounded p-1" ${isSuperAdmin ? 'disabled' : ''}>
+                            <option value="employee" ${user.role === 'employee' ? 'selected' : ''}>Employee</option>
+                            <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
+                        </select>
+                    </td>
+                    <td class="p-3">
+                        <span class="px-2 py-1 rounded-full text-xs font-bold ${statusClass}">
+                            ${(user.account_status || 'pending').toUpperCase()}
+                        </span>
+                    </td>
+                    <td class="p-3">
+                        <div class="flex gap-2">
+                            ${user.account_status !== 'active' ? `
+                                <button onclick="updateUserStatus(${user.id}, 'active')" 
+                                    class="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700">
+                                    ✓ Approve
+                                </button>
+                            ` : ''}
+                            ${!isSuperAdmin ? `
+                                <button onclick="removeUserFromWhitelist(${user.id}, '${user.email}')" 
+                                    class="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700">
+                                    🗑️ Remove
+                                </button>
+                            ` : ''}
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+        
+    } catch (error) {
+        console.error('Error loading users:', error);
+        userListDiv.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-red-600">Error loading users: ${error.message}</td></tr>`;
+    }
+}
+
+// Update user status
+async function updateUserStatus(userId, status) {
+    try {
+        const response = await fetch(`/api/admin/users/${userId}/status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status })
+        });
+        
+        if (response.ok) {
+            await loadWhitelistedUsers();
+        } else {
+            const result = await response.json();
+            showDialog('Error', result.error || 'Failed to update user', 'error');
+        }
+    } catch (error) {
+        showDialog('Error', 'Failed to update user: ' + error.message, 'error');
+    }
+}
+
+// Update user role
+async function updateUserRole(userId, role) {
+    try {
+        const response = await fetch(`/api/admin/users/${userId}/status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role })
+        });
+        
+        if (!response.ok) {
+            showDialog('Error', 'Failed to update role', 'error');
+            await loadWhitelistedUsers();
+        }
+    } catch (error) {
+        showDialog('Error', 'Failed to update role: ' + error.message, 'error');
+    }
+}
+
+// Remove user from whitelist
+async function removeUserFromWhitelist(userId, email) {
+    if (!confirm(`Are you sure you want to remove ${email} from the whitelist? They will no longer be able to login.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/admin/users/${userId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            showDialog('Success', `User ${email} removed from whitelist`, 'success');
+            await loadWhitelistedUsers();
+        } else {
+            const result = await response.json();
+            showDialog('Error', result.error || 'Failed to remove user', 'error');
+        }
+    } catch (error) {
+        showDialog('Error', 'Failed to remove user: ' + error.message, 'error');
+    }
 }
 
 // Make user management functions globally accessible
@@ -4584,6 +4821,9 @@ document.addEventListener('DOMContentLoaded', async function() {
         
         if (data.isAuthenticated) {
             currentUser = data.user;
+            // Store permissions from server
+            currentUser.permissions = data.permissions || {};
+            
             // Normalize properties
             currentUser.username = currentUser.name || currentUser.email;
             currentUser.allowedTabs = currentUser.allowed_tabs || ['all']; 
@@ -4591,6 +4831,17 @@ document.addEventListener('DOMContentLoaded', async function() {
                 try { currentUser.allowedTabs = JSON.parse(currentUser.allowedTabs); } catch(e) { currentUser.allowedTabs = ['all']; }
             }
             if (!Array.isArray(currentUser.allowedTabs)) currentUser.allowedTabs = ['all'];
+            
+            // SECURITY: Check if user account is active
+            if (currentUser.account_status !== 'active') {
+                if (currentUser.account_status === 'pending') {
+                    window.location.href = '/complete-profile.html';
+                    return;
+                } else {
+                    window.location.href = '/unauth.html?reason=' + currentUser.account_status;
+                    return;
+                }
+            }
 
             document.getElementById('authModal').classList.add('hidden');
             document.getElementById('app').classList.remove('hidden');

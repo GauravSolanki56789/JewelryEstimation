@@ -14,7 +14,7 @@ const {
     query,
     getPool
 } = require('./config/database');
-const { checkRole, checkAuth } = require('./middleware/rbac');
+const { checkRole, checkAuth, checkAdmin, noCache, securityHeaders, getUserPermissions } = require('./middleware/auth');
 const TallyIntegration = require('./config/tally-integration');
 const TallySyncService = require('./config/tally-sync-service');
 
@@ -34,16 +34,22 @@ app.use(express.json());
 
 // Session and Passport Middleware
 app.use(session({
-    secret: process.env.SESSION_SECRET || 'jewelry_estimation_secret',
+    secret: process.env.SESSION_SECRET || 'jewelry_estimation_secret_change_me',
     resave: false,
     saveUninitialized: false,
+    name: 'jp.sid', // Custom session name (not default 'connect.sid')
     cookie: { 
         secure: process.env.NODE_ENV === 'production',
+        httpOnly: true, // Prevent XSS access to cookie
+        sameSite: 'lax', // CSRF protection
         maxAge: 24 * 60 * 60 * 1000 // 24 hours
     }
 }));
 app.use(passport.initialize());
 app.use(passport.session());
+
+// SECURITY: Apply security headers to all requests
+app.use(securityHeaders);
 
 // SECURITY: Middleware to sanitize password fields from logging
 app.use((req, res, next) => {
@@ -114,37 +120,66 @@ setInterval(() => {
 }, 60 * 60 * 1000);
 
 // ==========================================
-// GOOGLE OAUTH ROUTES
+// GOOGLE OAUTH ROUTES (WHITELIST-BASED)
 // ==========================================
 
 app.get('/auth/google',
     passport.authenticate('google', { scope: ['profile', 'email'] })
 );
 
+// Google OAuth Callback - Handle whitelist denial
 app.get('/auth/google/callback', 
-    passport.authenticate('google', { failureRedirect: '/?error=login_failed' }),
+    passport.authenticate('google', { 
+        failureRedirect: '/unauth.html?reason=ACCESS_DENIED',
+        failureMessage: true
+    }),
     (req, res) => {
+        // User passed whitelist check
+        if (!req.user) {
+            return res.redirect('/unauth.html?reason=ACCESS_DENIED');
+        }
+        
         if (req.user.account_status === 'pending') {
             res.redirect('/complete-profile.html');
         } else if (req.user.account_status === 'active') {
             res.redirect('/');
-        } else {
+        } else if (req.user.account_status === 'rejected' || req.user.account_status === 'suspended') {
+            // Destroy session for suspended users
             req.logout((err) => {
                 if (err) { console.error('Logout error:', err); }
-                res.redirect('/?error=account_suspended');
+                req.session.destroy((err) => {
+                    if (err) { console.error('Session destroy error:', err); }
+                    res.clearCookie('jp.sid');
+                    res.redirect('/unauth.html?reason=suspended&email=' + encodeURIComponent(req.user?.email || ''));
+                });
             });
+        } else {
+            res.redirect('/');
         }
     }
 );
 
+// Current user endpoint - include permissions
 app.get('/api/auth/current_user', (req, res) => {
     if (req.isAuthenticated()) {
+        const permissions = getUserPermissions(req.user);
         res.json({ 
             isAuthenticated: true, 
-            user: req.user 
+            user: {
+                id: req.user.id,
+                email: req.user.email,
+                name: req.user.name,
+                role: req.user.role,
+                account_status: req.user.account_status,
+                allowed_tabs: req.user.allowed_tabs
+            },
+            permissions: permissions
         });
     } else {
-        res.json({ isAuthenticated: false });
+        res.json({ 
+            isAuthenticated: false,
+            permissions: getUserPermissions(null)
+        });
     }
 });
 
@@ -173,17 +208,62 @@ app.post('/api/users/complete-profile', async (req, res) => {
     }
 });
 
+// ==========================================
+// SECURE LOGOUT (Fixes back button bug)
+// ==========================================
+
 app.get('/api/auth/logout', (req, res) => {
-    req.logout((err) => {
-        if (err) { return res.status(500).json({ error: 'Logout failed' }); }
-        res.redirect('/');
-    });
+    const performLogout = () => {
+        req.logout((err) => {
+            if (err) { console.error('Logout error:', err); }
+            
+            // Destroy the session completely
+            req.session.destroy((sessionErr) => {
+                if (sessionErr) { console.error('Session destroy error:', sessionErr); }
+                
+                // Clear all cookies
+                res.clearCookie('jp.sid', { path: '/' });
+                res.clearCookie('connect.sid', { path: '/' }); // Legacy fallback
+                
+                // Set cache control to prevent back button access
+                res.set({
+                    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                });
+                
+                res.redirect('/');
+            });
+        });
+    };
+    
+    performLogout();
 });
 
 app.post('/api/auth/logout', (req, res) => {
     req.logout((err) => {
-        if (err) { return res.status(500).json({ error: 'Logout failed' }); }
-        res.json({ success: true });
+        if (err) { 
+            console.error('Logout error:', err);
+            return res.status(500).json({ error: 'Logout failed' }); 
+        }
+        
+        // Destroy the session completely
+        req.session.destroy((sessionErr) => {
+            if (sessionErr) { console.error('Session destroy error:', sessionErr); }
+            
+            // Clear all cookies
+            res.clearCookie('jp.sid', { path: '/' });
+            res.clearCookie('connect.sid', { path: '/' });
+            
+            // Set cache control headers
+            res.set({
+                'Cache-Control': 'no-store, no-cache, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            });
+            
+            res.json({ success: true, message: 'Logged out successfully' });
+        });
     });
 });
 
@@ -934,6 +1014,96 @@ app.post('/api/admin/change-password', checkRole('admin'), async (req, res) => {
         await query('UPDATE admin_users SET password_hash = $1 WHERE username = $2', [hashedPassword, 'Gaurav']);
         
         res.json({ success: true, message: 'Password changed successfully' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ==========================================
+// USER WHITELIST MANAGEMENT (Admin Only)
+// ==========================================
+
+// Add user to whitelist (pre-approve email)
+app.post('/api/admin/add-user', checkRole('admin'), async (req, res) => {
+    try {
+        const { email, name, role } = req.body;
+        
+        if (!email) {
+            return res.status(400).json({ error: 'Email is required' });
+        }
+        
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({ error: 'Invalid email format' });
+        }
+        
+        // Check if user already exists
+        const existingUser = await query('SELECT * FROM users WHERE email = $1', [email.toLowerCase()]);
+        if (existingUser.length > 0) {
+            return res.status(409).json({ error: 'User with this email already exists' });
+        }
+        
+        // Validate role
+        const validRoles = ['employee', 'admin'];
+        const userRole = validRoles.includes(role) ? role : 'employee';
+        
+        // Insert new user (whitelisted, pending first login)
+        const result = await query(
+            `INSERT INTO users (email, name, role, account_status, created_at) 
+             VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP) RETURNING *`,
+            [email.toLowerCase(), name || 'New User', userRole, 'active']
+        );
+        
+        console.log(`✅ User whitelisted by admin: ${email} (Role: ${userRole})`);
+        
+        res.json({ 
+            success: true, 
+            message: `User ${email} added to whitelist successfully`,
+            user: result[0]
+        });
+    } catch (error) {
+        console.error('Error adding user:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Remove user from whitelist (revoke access)
+app.delete('/api/admin/users/:id', checkRole('admin'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        // Prevent deleting super admin
+        const user = await query('SELECT * FROM users WHERE id = $1', [id]);
+        if (user.length > 0 && user[0].email === 'jaigaurav56789@gmail.com') {
+            return res.status(403).json({ error: 'Cannot delete super admin' });
+        }
+        
+        await query('DELETE FROM users WHERE id = $1', [id]);
+        
+        console.log(`🗑️ User removed from whitelist: ID ${id}`);
+        res.json({ success: true, message: 'User removed successfully' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Update user allowed tabs
+app.put('/api/admin/users/:id/tabs', checkRole('admin'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { allowedTabs } = req.body;
+        
+        const result = await query(
+            'UPDATE users SET allowed_tabs = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+            [allowedTabs, id]
+        );
+        
+        if (result.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
+        res.json({ success: true, user: result[0] });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
