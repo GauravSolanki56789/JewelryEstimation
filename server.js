@@ -828,6 +828,118 @@ app.delete('/api/bills/:id', checkAuth, async (req, res) => {
 });
 
 // ==========================================
+// ADMIN PANEL API
+// ==========================================
+
+// Get all users (for admin panel)
+app.get('/api/admin/users', checkRole('admin'), async (req, res) => {
+    try {
+        const result = await query('SELECT id, google_id, email, name, role, allowed_tabs, account_status, phone_number, created_at FROM users ORDER BY created_at DESC');
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Update user status/role (for admin panel)
+app.post('/api/admin/users/:id/status', checkRole('admin'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status, role } = req.body;
+        
+        const updates = [];
+        const params = [];
+        let paramIndex = 1;
+        
+        if (status) {
+            updates.push(`account_status = $${paramIndex++}`);
+            params.push(status);
+        }
+        if (role) {
+            updates.push(`role = $${paramIndex++}`);
+            params.push(role);
+        }
+        
+        if (updates.length === 0) {
+            return res.status(400).json({ error: 'No updates provided' });
+        }
+        
+        params.push(id);
+        const result = await query(
+            `UPDATE users SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = $${paramIndex} RETURNING *`,
+            params
+        );
+        
+        if (result.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
+        res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Admin SQL query endpoint (SELECT only)
+app.post('/api/admin/query', checkRole('admin'), async (req, res) => {
+    try {
+        const { query: sqlQuery } = req.body;
+        
+        if (!sqlQuery || typeof sqlQuery !== 'string') {
+            return res.status(400).json({ error: 'Query is required' });
+        }
+        
+        // Security: Only allow SELECT statements
+        const trimmedQuery = sqlQuery.trim().toUpperCase();
+        if (!trimmedQuery.startsWith('SELECT')) {
+            return res.status(403).json({ error: 'Only SELECT queries are allowed' });
+        }
+        
+        // Block dangerous keywords
+        const dangerousKeywords = ['DROP', 'DELETE', 'INSERT', 'UPDATE', 'ALTER', 'CREATE', 'TRUNCATE', 'GRANT', 'REVOKE'];
+        for (const keyword of dangerousKeywords) {
+            if (trimmedQuery.includes(keyword)) {
+                return res.status(403).json({ error: `Query contains forbidden keyword: ${keyword}` });
+            }
+        }
+        
+        const result = await pool.query(sqlQuery);
+        res.json({ rows: result.rows, rowCount: result.rowCount });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Change admin password
+app.post('/api/admin/change-password', checkRole('admin'), async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+        const bcrypt = require('bcrypt');
+        
+        // Get current admin user
+        const adminUser = await query('SELECT * FROM admin_users WHERE username = $1', ['Gaurav']);
+        
+        if (adminUser.length === 0) {
+            return res.status(404).json({ error: 'Admin user not found' });
+        }
+        
+        // Verify current password
+        const validPassword = await bcrypt.compare(currentPassword, adminUser[0].password_hash);
+        if (!validPassword) {
+            return res.status(401).json({ error: 'Current password is incorrect' });
+        }
+        
+        // Hash and save new password
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        await query('UPDATE admin_users SET password_hash = $1 WHERE username = $2', [hashedPassword, 'Gaurav']);
+        
+        res.json({ success: true, message: 'Password changed successfully' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ==========================================
 // RATES API
 // ==========================================
 

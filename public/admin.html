@@ -10,46 +10,37 @@
     <div class="max-w-7xl mx-auto">
         <div class="bg-white rounded-2xl shadow-2xl overflow-hidden mb-6">
             <div class="bg-gradient-to-r from-amber-600 to-orange-600 text-white p-6">
-                <h1 class="text-3xl font-bold mb-2">🔧 Admin Control Panel</h1>
-                <p class="text-amber-100">Multi-Tenant Management & Monitoring</p>
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h1 class="text-3xl font-bold mb-2">🔧 Admin Control Panel</h1>
+                        <p class="text-amber-100">System Administration & User Management</p>
+                    </div>
+                    <a href="/" class="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-white">
+                        ← Back to Dashboard
+                    </a>
+                </div>
             </div>
         </div>
 
         <!-- Tabs -->
         <div class="bg-white rounded-xl shadow-lg mb-6 p-4">
             <div class="flex gap-2 flex-wrap">
-                <button onclick="showAdminTab('clients')" id="tabClients" 
-                    class="px-4 py-2 bg-amber-600 text-white rounded-lg font-medium">👥 Clients</button>
                 <button onclick="showAdminTab('users')" id="tabUsers" 
-                    class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium">👤 Users</button>
-                <button onclick="showAdminTab('monitoring')" id="tabMonitoring"
-                    class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium">📊 Monitoring</button>
-                <button onclick="showAdminTab('apikeys')" id="tabApiKeys"
-                    class="px-4 py-2 bg-purple-600 text-white rounded-lg font-medium">🔑 API Keys</button>
+                    class="px-4 py-2 bg-amber-600 text-white rounded-lg font-medium">👤 User Management</button>
                 <button onclick="showAdminTab('database')" id="tabDatabase"
-                    class="px-4 py-2 bg-green-600 text-white rounded-lg font-medium">🗄️ Database</button>
-            </div>
-        </div>
-
-        <!-- Clients Tab -->
-        <div id="adminTabClients" class="admin-tab">
-            <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-2xl font-bold">Client Management</h2>
-                    <button onclick="showCreateClientModal()" 
-                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
-                        ➕ Create New Client
-                    </button>
-                </div>
-                <div id="clientsList" class="space-y-4"></div>
+                    class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium">🗄️ Database</button>
+                <button onclick="showAdminTab('system')" id="tabSystem"
+                    class="px-4 py-2 bg-green-600 text-white rounded-lg font-medium">📊 System Info</button>
+                <button onclick="showAdminTab('settings')" id="tabSettings"
+                    class="px-4 py-2 bg-purple-600 text-white rounded-lg font-medium">⚙️ Settings</button>
             </div>
         </div>
 
         <!-- Users Tab -->
-        <div id="adminTabUsers" class="admin-tab hidden">
+        <div id="adminTabUsers" class="admin-tab">
             <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
                 <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-2xl font-bold">User Management (Google Auth)</h2>
+                    <h2 class="text-2xl font-bold">User Management</h2>
                     <button onclick="loadUsers()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
                         🔄 Refresh
                     </button>
@@ -60,76 +51,34 @@
                             <tr class="bg-gray-100 border-b">
                                 <th class="p-3 font-bold">Name</th>
                                 <th class="p-3 font-bold">Email</th>
-                                <th class="p-3 font-bold">Company</th>
+                                <th class="p-3 font-bold">Phone</th>
                                 <th class="p-3 font-bold">Role</th>
                                 <th class="p-3 font-bold">Status</th>
                                 <th class="p-3 font-bold">Actions</th>
                             </tr>
                         </thead>
-                        <tbody id="usersList"></tbody>
+                        <tbody id="usersList">
+                            <tr><td colspan="6" class="p-4 text-center text-gray-500">Loading users...</td></tr>
+                        </tbody>
                     </table>
                 </div>
-            </div>
-        </div>
-
-        <!-- Monitoring Tab -->
-        <div id="adminTabMonitoring" class="admin-tab hidden">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                <div class="bg-white rounded-xl shadow-lg p-6">
-                    <h3 class="text-lg font-bold mb-2">Total Clients</h3>
-                    <p class="text-3xl font-bold text-blue-600" id="statTotalClients">0</p>
-                </div>
-                <div class="bg-white rounded-xl shadow-lg p-6">
-                    <h3 class="text-lg font-bold mb-2">Active Clients</h3>
-                    <p class="text-3xl font-bold text-green-600" id="statActiveClients">0</p>
-                </div>
-                <div class="bg-white rounded-xl shadow-lg p-6">
-                    <h3 class="text-lg font-bold mb-2">Total Databases</h3>
-                    <p class="text-3xl font-bold text-purple-600" id="statTotalDatabases">0</p>
-                </div>
-            </div>
-            <div class="bg-white rounded-xl shadow-lg p-6">
-                <h2 class="text-2xl font-bold mb-4">Client Activity</h2>
-                <div id="clientActivity" class="space-y-2"></div>
-            </div>
-        </div>
-
-        <!-- API Keys Tab -->
-        <div id="adminTabApiKeys" class="admin-tab hidden">
-            <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-2xl font-bold">API Key Management</h2>
-                    <button onclick="showCreateApiKeyModal()" 
-                        class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium">
-                        ➕ Generate API Key
-                    </button>
-                </div>
-                <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-4">
-                    <p class="text-sm text-yellow-800">
-                        <strong>Note:</strong> API keys are used for monitoring and accessing client data programmatically.
-                        Store your master API key securely in the .env file as MASTER_API_KEY.
-                    </p>
-                </div>
-                <div id="apiKeysList" class="space-y-4"></div>
             </div>
         </div>
 
         <!-- Database Tab -->
         <div id="adminTabDatabase" class="admin-tab hidden">
             <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
-                <h2 class="text-xl font-bold mb-4">Select Tenant</h2>
-                <div class="flex gap-4">
-                    <input type="text" id="tenantCode" placeholder="Enter tenant code (e.g., jpjewellery)" 
-                        class="px-4 py-2 border rounded-lg flex-1">
-                    <button onclick="loadTenantInfo()" class="px-6 py-2 bg-blue-600 text-white rounded-lg">
-                        Load Tenant
-                    </button>
-                </div>
-            </div>
-
-            <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
                 <h2 class="text-xl font-bold mb-4">Database Tables</h2>
-                <div id="tablesList" class="grid grid-cols-4 gap-2"></div>
+                <div id="tablesList" class="grid grid-cols-4 gap-2">
+                    <button onclick="loadTable('products')" class="px-4 py-2 bg-blue-100 hover:bg-blue-200 rounded-lg text-sm">products</button>
+                    <button onclick="loadTable('customers')" class="px-4 py-2 bg-blue-100 hover:bg-blue-200 rounded-lg text-sm">customers</button>
+                    <button onclick="loadTable('bills')" class="px-4 py-2 bg-blue-100 hover:bg-blue-200 rounded-lg text-sm">bills</button>
+                    <button onclick="loadTable('quotations')" class="px-4 py-2 bg-blue-100 hover:bg-blue-200 rounded-lg text-sm">quotations</button>
+                    <button onclick="loadTable('users')" class="px-4 py-2 bg-blue-100 hover:bg-blue-200 rounded-lg text-sm">users</button>
+                    <button onclick="loadTable('rates')" class="px-4 py-2 bg-blue-100 hover:bg-blue-200 rounded-lg text-sm">rates</button>
+                    <button onclick="loadTable('ledger_transactions')" class="px-4 py-2 bg-blue-100 hover:bg-blue-200 rounded-lg text-sm">ledger_transactions</button>
+                    <button onclick="loadTable('sales_returns')" class="px-4 py-2 bg-blue-100 hover:bg-blue-200 rounded-lg text-sm">sales_returns</button>
+                </div>
             </div>
 
             <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
@@ -138,8 +87,8 @@
                 <textarea id="sqlQuery" rows="5" 
                     class="w-full px-4 py-2 border rounded-lg font-mono text-sm"
                     placeholder="SELECT * FROM products LIMIT 10;"></textarea>
-                <button onclick="executeQuery()" class="mt-4 px-6 py-2 bg-green-600 text-white rounded-lg">
-                    Execute Query
+                <button onclick="executeQuery()" class="mt-4 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                    ▶️ Execute Query
                 </button>
             </div>
 
@@ -150,232 +99,185 @@
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Create Client Modal -->
-    <div id="createClientModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-            <h3 class="text-xl font-bold mb-4">Create New Client</h3>
-            <form onsubmit="event.preventDefault(); createClient();" class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium mb-1">Tenant Code *</label>
-                    <input type="text" id="newTenantCode" placeholder="e.g., client1" required
-                        class="w-full px-4 py-2 border rounded-lg">
+        <!-- System Tab -->
+        <div id="adminTabSystem" class="admin-tab hidden">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <h3 class="text-lg font-bold mb-2">📦 Products</h3>
+                    <p class="text-3xl font-bold text-blue-600" id="statProducts">-</p>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium mb-1">Client Name *</label>
-                    <input type="text" id="newTenantName" placeholder="Client Name" required
-                        class="w-full px-4 py-2 border rounded-lg">
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <h3 class="text-lg font-bold mb-2">👥 Customers</h3>
+                    <p class="text-3xl font-bold text-green-600" id="statCustomers">-</p>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium mb-1">Admin Username *</label>
-                    <input type="text" id="newAdminUsername" placeholder="admin" required
-                        class="w-full px-4 py-2 border rounded-lg">
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <h3 class="text-lg font-bold mb-2">📄 Bills</h3>
+                    <p class="text-3xl font-bold text-purple-600" id="statBills">-</p>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium mb-1">Admin Password *</label>
-                    <input type="password" id="newAdminPassword" placeholder="Password" required
-                        class="w-full px-4 py-2 border rounded-lg">
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <h3 class="text-lg font-bold mb-4">Current Rates</h3>
+                    <div id="currentRates" class="space-y-2">Loading...</div>
                 </div>
-                <div class="flex gap-3">
-                    <button type="submit"
-                        class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
-                        Create
-                    </button>
-                    <button type="button" onclick="closeCreateClientModal()" 
-                        class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
-                        Cancel
-                    </button>
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <h3 class="text-lg font-bold mb-4">System Status</h3>
+                    <div class="space-y-2">
+                        <div class="flex justify-between">
+                            <span>Server Status:</span>
+                            <span class="text-green-600 font-bold">✅ Online</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Database:</span>
+                            <span class="text-green-600 font-bold" id="dbStatus">Checking...</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Environment:</span>
+                            <span class="font-bold" id="envMode">-</span>
+                        </div>
+                    </div>
                 </div>
-            </form>
+            </div>
         </div>
-    </div>
 
-    <!-- Create API Key Modal -->
-    <div id="createApiKeyModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-            <h3 class="text-xl font-bold mb-4">Generate API Key</h3>
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium mb-1">Client/Tenant Code *</label>
-                    <input type="text" id="apiKeyTenantCode" placeholder="e.g., jpjewellery" 
-                        class="w-full px-4 py-2 border rounded-lg">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium mb-1">Description</label>
-                    <input type="text" id="apiKeyDescription" placeholder="Optional description" 
-                        class="w-full px-4 py-2 border rounded-lg">
-                </div>
-                <div class="flex gap-3">
-                    <button onclick="createApiKey()" 
-                        class="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium">
-                        Generate
+        <!-- Settings Tab -->
+        <div id="adminTabSettings" class="admin-tab hidden">
+            <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
+                <h2 class="text-xl font-bold mb-4">Software Update</h2>
+                <p class="text-gray-600 mb-4">Pull the latest changes from GitHub and restart the server.</p>
+                <button onclick="updateSoftware()" 
+                    class="px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-bold">
+                    🔄 Update Software
+                </button>
+            </div>
+            
+            <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
+                <h2 class="text-xl font-bold mb-4">Change Admin Password</h2>
+                <div class="space-y-4 max-w-md">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Current Password</label>
+                        <input type="password" id="currentPassword" class="w-full px-4 py-2 border rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">New Password</label>
+                        <input type="password" id="newPassword" class="w-full px-4 py-2 border rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Confirm New Password</label>
+                        <input type="password" id="confirmPassword" class="w-full px-4 py-2 border rounded-lg">
+                    </div>
+                    <button onclick="changePassword()" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        Change Password
                     </button>
-                    <button onclick="closeCreateApiKeyModal()" 
-                        class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
-                        Cancel
-                    </button>
                 </div>
+            </div>
+            
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <h2 class="text-xl font-bold mb-4">Backup Database</h2>
+                <p class="text-gray-600 mb-4">Create a backup of the current database.</p>
+                <button onclick="backupDatabase()" 
+                    class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">
+                    💾 Download Backup
+                </button>
             </div>
         </div>
     </div>
 
     <script>
-        let currentTenant = null;
-
-        // Tab Management - Make function globally accessible with error handling
-        window.showAdminTab = function(tabName) {
-            try {
-                // Hide all tabs
-                document.querySelectorAll('.admin-tab').forEach(tab => {
-                    if (tab) tab.classList.add('hidden');
-                });
-                
-                // Reset all tab buttons
-                document.querySelectorAll('[id^="tab"]').forEach(btn => {
-                    if (btn) {
-                        btn.classList.remove('bg-gray-600');
-                        btn.classList.add('bg-gray-400');
-                    }
-                });
-                
-                // Show selected tab
-                const tabId = `adminTab${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`;
-                const tabElement = document.getElementById(tabId);
-                if (tabElement) {
-                    tabElement.classList.remove('hidden');
-                }
-                
-                // Highlight selected tab button
-                const btnId = `tab${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`;
-                const btnElement = document.getElementById(btnId);
-                if (btnElement) {
-                    btnElement.classList.remove('bg-gray-400');
-                    btnElement.classList.add('bg-gray-600');
-                }
-                
-                // Load tab content
-                if (tabName === 'clients' && typeof loadClients === 'function') loadClients();
-                if (tabName === 'users' && typeof loadUsers === 'function') loadUsers();
-                if (tabName === 'monitoring' && typeof loadMonitoring === 'function') loadMonitoring();
-                if (tabName === 'apikeys' && typeof loadApiKeys === 'function') loadApiKeys();
-            } catch (error) {
-                console.error('Error switching admin tab:', error);
+        // Tab Management
+        function showAdminTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.admin-tab').forEach(tab => {
+                tab.classList.add('hidden');
+            });
+            
+            // Reset all tab buttons
+            document.querySelectorAll('[id^="tab"]').forEach(btn => {
+                btn.classList.remove('bg-amber-600');
+                btn.classList.add('bg-gray-400');
+            });
+            
+            // Show selected tab
+            const tabId = `adminTab${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`;
+            const tabElement = document.getElementById(tabId);
+            if (tabElement) {
+                tabElement.classList.remove('hidden');
             }
+            
+            // Highlight selected tab button
+            const btnId = `tab${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`;
+            const btnElement = document.getElementById(btnId);
+            if (btnElement) {
+                btnElement.classList.remove('bg-gray-400');
+                btnElement.classList.add('bg-amber-600');
+            }
+            
+            // Load tab data
+            if (tabName === 'users') loadUsers();
+            if (tabName === 'system') loadSystemStats();
         }
 
-        // Master admin authentication - Single declaration
-        let masterAdminAuth = {
-            username: null,
-            password: null
-        };
-        
-        // Check if user is authenticated (session token from URL)
-        const urlParams = new URLSearchParams(window.location.search);
-        const sessionToken = urlParams.get('session');
-        
-        // Set authenticated if session token exists
-        if (sessionToken) {
-            masterAdminAuth = { username: 'Gaurav', password: 'authenticated' };
-        }
-        
-        function checkMasterAdminAuth() {
-            // If we have a session token, user is authenticated via server
-            if (sessionToken) {
-                return true;
-            }
-            // Otherwise check if we have stored credentials
-            return masterAdminAuth.username && masterAdminAuth.password;
-        }
-        
-        // Prompt for master admin credentials
-        async function getMasterAdminCredentials() {
-            // If we have session token, return authenticated
-            if (sessionToken) {
-                return { username: 'Gaurav', password: 'session' };
-            }
-            
-            // If already have credentials, return them
-            if (masterAdminAuth.username && masterAdminAuth.password && masterAdminAuth.password !== 'session') {
-                return masterAdminAuth;
-            }
-            
-            // Prompt for credentials
-            const username = prompt('Enter Master Admin Username:');
-            if (!username) return null;
-            
-            const password = prompt('Enter Master Admin Password:');
-            if (!password) return null;
-            
-            // Verify credentials
-            try {
-                const response = await fetch('/api/auth/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password, tenantCode: '' })
-                });
-                
-                const data = await response.json();
-                if (data.success && data.isMasterAdmin) {
-                    masterAdminAuth = { username, password };
-                    return masterAdminAuth;
-                } else {
-                    alert('Invalid master admin credentials');
-                    return null;
-                }
-            } catch (error) {
-                alert('Error verifying credentials: ' + error.message);
-                return null;
-            }
-        }
-        
-        // Load Users (Master Admin)
+        // Load Users
         async function loadUsers() {
-            if (!checkMasterAdminAuth()) return;
-            
-            const auth = await getMasterAdminCredentials();
-            if (!auth) return;
-            
             const list = document.getElementById('usersList');
-            if (!list) return;
-            
             list.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-500">Loading users...</td></tr>';
             
             try {
-                // We need to pass auth in headers for this one, as it uses checkRole('admin') middleware
-                // which checks req.user (session) or we can modify the middleware to check headers?
-                // The current checkRole middleware checks req.isAuthenticated() which relies on session.
-                // But master admin might be logged in via session (if redirected from login).
-                // Let's assume session is active if checkMasterAdminAuth() is true.
-                // If not, we might need a way to pass credentials.
-                
-                // Since the server side checkRole checks req.isAuthenticated(), we must be logged in via session.
-                // The /api/auth/login endpoint establishes a session.
-                
-                const response = await fetch('/api/admin/users', {
-                    method: 'GET'
-                });
+                const response = await fetch('/api/admin/users');
                 
                 if (!response.ok) {
-                    if (response.status === 401 || response.status === 403) {
-                         // Try to login first if session expired
-                         await fetch('/api/auth/login', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ username: auth.username, password: auth.password })
-                        });
-                        // Retry
-                        const retryResponse = await fetch('/api/admin/users');
-                        if (!retryResponse.ok) throw new Error('Failed to load users');
-                        const users = await retryResponse.json();
-                        renderUsers(users);
-                        return;
-                    }
                     throw new Error(`HTTP ${response.status}`);
                 }
                 
                 const users = await response.json();
-                renderUsers(users);
+                
+                if (users.length === 0) {
+                    list.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-500">No users found.</td></tr>';
+                    return;
+                }
+                
+                list.innerHTML = users.map(user => `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-3">
+                            <div class="font-bold">${user.name || 'N/A'}</div>
+                            <div class="text-xs text-gray-500">ID: ${user.id}</div>
+                        </td>
+                        <td class="p-3">${user.email}</td>
+                        <td class="p-3">${user.phone_number || '-'}</td>
+                        <td class="p-3">
+                            <select onchange="updateUserRole(${user.id}, this.value)" 
+                                class="text-xs border rounded p-1 ${user.role === 'admin' ? 'bg-purple-50 text-purple-700' : 'bg-gray-50'}">
+                                <option value="employee" ${user.role === 'employee' ? 'selected' : ''}>Employee</option>
+                                <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
+                            </select>
+                        </td>
+                        <td class="p-3">
+                            <span class="px-2 py-1 rounded-full text-xs font-bold 
+                                ${user.account_status === 'active' ? 'bg-green-100 text-green-800' : 
+                                  user.account_status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+                                  'bg-red-100 text-red-800'}">
+                                ${user.account_status.toUpperCase()}
+                            </span>
+                        </td>
+                        <td class="p-3">
+                            <div class="flex gap-2">
+                                ${user.account_status !== 'active' ? `
+                                    <button onclick="updateUserStatus(${user.id}, 'active')" 
+                                        class="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700">
+                                        Approve
+                                    </button>
+                                ` : ''}
+                                ${user.account_status !== 'rejected' ? `
+                                    <button onclick="updateUserStatus(${user.id}, 'rejected')" 
+                                        class="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700">
+                                        Reject
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
                 
             } catch (error) {
                 console.error('Error loading users:', error);
@@ -383,438 +285,69 @@
             }
         }
 
-        function renderUsers(users) {
-            const list = document.getElementById('usersList');
-            if (users.length === 0) {
-                list.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-500">No users found.</td></tr>';
-                return;
-            }
-            
-            list.innerHTML = users.map(user => `
-                <tr class="border-b hover:bg-gray-50">
-                    <td class="p-3">
-                        <div class="font-bold">${user.name || 'N/A'}</div>
-                        <div class="text-xs text-gray-500">Google ID: ${user.google_id || '-'}</div>
-                    </td>
-                    <td class="p-3">${user.email}</td>
-                    <td class="p-3">
-                        <div>${user.company_name || '-'}</div>
-                        <div class="text-xs text-gray-500">${user.phone_number || ''}</div>
-                    </td>
-                    <td class="p-3">
-                        <select onchange="updateUserStatus(${user.id}, '${user.account_status}', this.value)" 
-                            class="text-xs border rounded p-1 ${user.role === 'admin' ? 'bg-purple-50 text-purple-700' : 'bg-gray-50'}">
-                            <option value="employee" ${user.role === 'employee' ? 'selected' : ''}>Employee</option>
-                            <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
-                            <option value="super_admin" ${user.role === 'super_admin' ? 'selected' : ''}>Super Admin</option>
-                        </select>
-                    </td>
-                    <td class="p-3">
-                        <span class="px-2 py-1 rounded-full text-xs font-bold 
-                            ${user.account_status === 'active' ? 'bg-green-100 text-green-800' : 
-                              user.account_status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
-                              'bg-red-100 text-red-800'}">
-                            ${user.account_status.toUpperCase()}
-                        </span>
-                    </td>
-                    <td class="p-3">
-                        <div class="flex gap-2">
-                            ${user.account_status !== 'active' ? `
-                                <button onclick="updateUserStatus(${user.id}, 'active', '${user.role}')" 
-                                    class="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700">
-                                    Approve
-                                </button>
-                            ` : ''}
-                            ${user.account_status !== 'rejected' ? `
-                                <button onclick="updateUserStatus(${user.id}, 'rejected', '${user.role}')" 
-                                    class="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700">
-                                    Reject
-                                </button>
-                            ` : ''}
-                        </div>
-                    </td>
-                </tr>
-            `).join('');
-        }
-
-        async function updateUserStatus(userId, status, role) {
-            if (!confirm(`Update user status to ${status} and role to ${role}?`)) return;
+        async function updateUserStatus(userId, status) {
+            if (!confirm(`Update user status to ${status}?`)) return;
             
             try {
                 const response = await fetch(`/api/admin/users/${userId}/status`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status, role })
+                    body: JSON.stringify({ status })
                 });
                 
                 if (response.ok) {
-                    loadUsers(); // Reload list
+                    loadUsers();
                 } else {
                     alert('Failed to update user');
                 }
             } catch (error) {
-                console.error('Error updating user:', error);
-                alert('Error updating user');
+                alert('Error updating user: ' + error.message);
             }
         }
 
-        // Load Clients (requires master admin) with error handling
-        async function loadClients() {
-            if (!checkMasterAdminAuth()) return;
-            
-            const auth = await getMasterAdminCredentials();
-            if (!auth) return;
-            
-            const list = document.getElementById('clientsList');
-            if (!list) return;
-            
-            list.innerHTML = '<p class="text-gray-500">Loading clients...</p>';
-            
+        async function updateUserRole(userId, role) {
             try {
-                const response = await fetch('/api/tenants', {
+                const response = await fetch(`/api/admin/users/${userId}/status`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        username: auth.username,
-                        password: auth.password
-                    })
-                });
-                
-                // Check if response is OK
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-                    throw new Error(errorData.error || `Failed to load clients: ${response.status}`);
-                }
-                
-                const clients = await response.json();
-                
-                // Ensure clients is an array
-                if (!Array.isArray(clients)) {
-                    console.error('Invalid response format:', clients);
-                    list.innerHTML = '<p class="text-red-600">Error: Invalid response format from server</p>';
-                    return;
-                }
-                
-                if (clients.length === 0) {
-                    list.innerHTML = '<p class="text-gray-500">No clients found. Create your first client!</p>';
-                    return;
-                }
-                
-                list.innerHTML = clients.map(client => `
-                    <div class="border rounded-lg p-4 hover:bg-gray-50">
-                        <div class="flex justify-between items-center">
-                            <div>
-                                <h3 class="font-bold text-lg">${client.tenant_name || client.tenant_code}</h3>
-                                <p class="text-sm text-gray-600">Code: ${client.tenant_code}</p>
-                                <p class="text-sm text-gray-600">Database: jewelry_${client.tenant_code}</p>
-                                <p class="text-sm text-gray-600">Created: ${new Date(client.created_at).toLocaleDateString()}</p>
-                            </div>
-                            <div class="flex gap-2">
-                                <span class="px-3 py-1 rounded-full text-xs font-medium ${client.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
-                                    ${client.is_active ? 'Active' : 'Inactive'}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                `).join('');
-            } catch (error) {
-                console.error('Error loading clients:', error);
-                list.innerHTML = `<p class="text-red-600">Error loading clients: ${error.message}</p>`;
-            }
-        }
-
-        // Load Monitoring (requires master admin) with error handling
-        async function loadMonitoring() {
-            if (!checkMasterAdminAuth()) return;
-            
-            const auth = await getMasterAdminCredentials();
-            if (!auth) return;
-            
-            try {
-                const response = await fetch('/api/tenants', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        username: auth.username,
-                        password: auth.password
-                    })
-                });
-                
-                // Check if response is OK
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-                    throw new Error(errorData.error || `Failed to load monitoring: ${response.status}`);
-                }
-                
-                const clients = await response.json();
-                
-                // Ensure clients is an array
-                if (!Array.isArray(clients)) {
-                    console.error('Invalid response format:', clients);
-                    clients = [];
-                }
-                
-                const statTotal = document.getElementById('statTotalClients');
-                const statActive = document.getElementById('statActiveClients');
-                const statDatabases = document.getElementById('statTotalDatabases');
-                const activity = document.getElementById('clientActivity');
-                
-                if (statTotal) statTotal.textContent = clients.length;
-                if (statActive) statActive.textContent = clients.filter(c => c.is_active).length;
-                if (statDatabases) statDatabases.textContent = clients.length;
-                
-                if (activity) {
-                    if (clients.length === 0) {
-                        activity.innerHTML = '<p class="text-gray-500">No clients found.</p>';
-                    } else {
-                        activity.innerHTML = clients.map(client => `
-                            <div class="border rounded-lg p-4">
-                                <div class="flex justify-between items-center">
-                                    <div>
-                                        <h4 class="font-bold">${client.tenant_name || client.tenant_code}</h4>
-                                        <p class="text-sm text-gray-600">Last activity: ${new Date(client.created_at).toLocaleString()}</p>
-                                    </div>
-                                    <button onclick="viewClientDatabase('${client.tenant_code}')" 
-                                        class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">
-                                        View Database
-                                    </button>
-                                </div>
-                            </div>
-                        `).join('');
-                    }
-                }
-            } catch (error) {
-                console.error('Error loading monitoring:', error);
-                const activity = document.getElementById('clientActivity');
-                if (activity) {
-                    activity.innerHTML = `<p class="text-red-600">Error loading monitoring: ${error.message}</p>`;
-                }
-            }
-        }
-
-        // Load API Keys
-        async function loadApiKeys() {
-            try {
-                // Note: This requires MASTER_API_KEY in .env
-                const masterKey = prompt('Enter Master API Key:');
-                if (!masterKey) return;
-                
-                const response = await fetch('/api/admin/api-keys', {
-                    headers: { 'x-master-api-key': masterKey }
+                    body: JSON.stringify({ role })
                 });
                 
                 if (!response.ok) {
-                    document.getElementById('apiKeysList').innerHTML = 
-                        '<p class="text-red-600">Error: Unauthorized or API keys not configured</p>';
-                    return;
+                    alert('Failed to update role');
+                    loadUsers();
                 }
-                
-                const keys = await response.json();
-                
-                if (keys.length === 0) {
-                    document.getElementById('apiKeysList').innerHTML = 
-                        '<p class="text-gray-500">No API keys found. Generate your first API key!</p>';
-                    return;
-                }
-                
-                document.getElementById('apiKeysList').innerHTML = keys.map(key => `
-                    <div class="border rounded-lg p-4">
-                        <div class="flex justify-between items-center">
-                            <div>
-                                <h4 class="font-bold">${key.tenant_code || 'Global'}</h4>
-                                <p class="text-sm text-gray-600 font-mono break-all">${key.api_key}</p>
-                                <p class="text-sm text-gray-600">${key.description || 'No description'}</p>
-                                <p class="text-xs text-gray-500">Created: ${new Date(key.created_at).toLocaleString()}</p>
-                            </div>
-                            <span class="px-3 py-1 rounded-full text-xs font-medium ${key.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
-                                ${key.is_active ? 'Active' : 'Inactive'}
-                            </span>
-                        </div>
-                    </div>
-                `).join('');
             } catch (error) {
-                document.getElementById('apiKeysList').innerHTML = 
-                    `<p class="text-red-600">Error: ${error.message}</p>`;
+                alert('Error updating role: ' + error.message);
             }
         }
 
-        // Create Client - Make functions globally accessible
-        window.showCreateClientModal = function() {
-            if (!checkMasterAdminAuth()) return;
-            document.getElementById('createClientModal').classList.remove('hidden');
-        };
-
-        window.closeCreateClientModal = function() {
-            document.getElementById('createClientModal').classList.add('hidden');
-        };
-
-        window.createClient = async function() {
-            if (!checkMasterAdminAuth()) return;
-            
-            const tenantCode = document.getElementById('newTenantCode')?.value?.trim();
-            const tenantName = document.getElementById('newTenantName')?.value?.trim();
-            const adminUsername = document.getElementById('newAdminUsername')?.value?.trim();
-            const adminPassword = document.getElementById('newAdminPassword')?.value;
-            
-            if (!tenantCode || !tenantName || !adminUsername || !adminPassword) {
-                alert('Please fill all fields');
-                return;
-            }
-            
-            // Get master admin credentials from session or prompt
-            const auth = await getMasterAdminCredentials();
-            if (!auth) {
-                alert('Master admin authentication required');
-                return;
-            }
-            
-            // For session-based auth, we need to prompt for password
-            if (auth.password === 'session' || auth.password === 'authenticated') {
-                const password = prompt('Enter Master Admin Password:');
-                if (!password) return;
-                auth.password = password;
-            }
-            
-            try {
-                const response = await fetch('/api/admin/create-tenant', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        tenantCode, 
-                        tenantName, 
-                        adminUsername, 
-                        adminPassword,
-                        masterUsername: auth.username,
-                        masterPassword: auth.password
-                    })
-                });
-                
-                // Handle non-JSON responses
-                const contentType = response.headers.get('content-type');
-                let result;
-                if (contentType && contentType.includes('application/json')) {
-                    result = await response.json();
-                } else {
-                    const text = await response.text();
-                    throw new Error(text || `HTTP ${response.status}`);
-                }
-                
-                if (response.ok) {
-                    alert('Client created successfully!');
-                    window.closeCreateClientModal();
-                    if (typeof loadClients === 'function') {
-                        loadClients();
-                    }
-                } else {
-                    alert('Error: ' + (result.error || result.message || 'Unknown error'));
-                }
-            } catch (error) {
-                console.error('Error creating client:', error);
-                alert('Error: ' + error.message);
-            }
-        }
-        
-        // Require master admin for admin panel access
-        document.addEventListener('DOMContentLoaded', function() {
-            checkMasterAdminAuth();
-        });
-
-        // Create API Key - Make functions globally accessible
-        window.showCreateApiKeyModal = function() {
-            document.getElementById('createApiKeyModal').classList.remove('hidden');
-        };
-
-        window.closeCreateApiKeyModal = function() {
-            document.getElementById('createApiKeyModal').classList.add('hidden');
-        };
-
-        window.createApiKey = async function() {
-            const tenantCode = document.getElementById('apiKeyTenantCode').value;
-            const description = document.getElementById('apiKeyDescription').value;
-            const masterKey = prompt('Enter Master API Key:');
-            
-            if (!tenantCode || !masterKey) {
-                alert('Please fill required fields');
-                return;
-            }
-            
-            try {
-                const response = await fetch('/api/admin/api-keys', {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'x-master-api-key': masterKey
-                    },
-                    body: JSON.stringify({ tenantCode, description })
-                });
-                
-                const result = await response.json();
-                if (response.ok) {
-                    alert('API Key generated: ' + result.api_key);
-                    closeCreateApiKeyModal();
-                    loadApiKeys();
-                } else {
-                    alert('Error: ' + result.error);
-                }
-            } catch (error) {
-                alert('Error: ' + error.message);
-            }
-        }
-
-        // Database Functions - Make functions globally accessible
-        window.loadTenantInfo = async function() {
-            const tenantCode = document.getElementById('tenantCode').value;
-            if (!tenantCode) {
-                alert('Please enter tenant code');
-                return;
-            }
-            currentTenant = tenantCode;
-
-            try {
-                const tablesRes = await fetch(`/api/${tenantCode}/tables`);
-                const tables = await tablesRes.json();
-                
-                const tablesList = document.getElementById('tablesList');
-                tablesList.innerHTML = tables.map(table => `
-                    <button onclick="loadTable('${table}')" 
-                        class="px-4 py-2 bg-blue-100 hover:bg-blue-200 rounded-lg text-sm">
-                        ${table}
-                    </button>
-                `).join('');
-
-                alert(`Tenant ${tenantCode} loaded! Found ${tables.length} tables.`);
-            } catch (error) {
-                alert('Error loading tenant: ' + error.message);
-            }
-        }
-
-        window.loadTable = async function(tableName) {
-            if (!currentTenant) {
-                alert('Please select a tenant first');
-                return;
-            }
-            const query = `SELECT * FROM ${tableName} LIMIT 100`;
+        // Database Functions
+        function loadTable(tableName) {
+            const query = `SELECT * FROM ${tableName} ORDER BY id DESC LIMIT 100`;
             document.getElementById('sqlQuery').value = query;
-            await executeQuery();
+            executeQuery();
         }
 
-        window.executeQuery = async function() {
-            if (!currentTenant) {
-                alert('Please select a tenant first');
-                return;
-            }
-
-            const query = document.getElementById('sqlQuery').value;
-            if (!query.trim()) {
+        async function executeQuery() {
+            const query = document.getElementById('sqlQuery').value.trim();
+            if (!query) {
                 alert('Please enter a query');
                 return;
             }
 
+            // Security check - only allow SELECT
+            if (!query.toUpperCase().startsWith('SELECT')) {
+                document.getElementById('queryResults').innerHTML = 
+                    '<p class="text-red-600">Error: Only SELECT queries are allowed</p>';
+                return;
+            }
+
             try {
-                const response = await fetch(`/api/${currentTenant}/query`, {
+                const response = await fetch('/api/admin/query', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query, params: [] })
+                    body: JSON.stringify({ query })
                 });
 
                 const data = await response.json();
@@ -825,28 +358,28 @@
                     return;
                 }
 
-                if (data.length === 0) {
+                if (!data.rows || data.rows.length === 0) {
                     document.getElementById('queryResults').innerHTML = 
-                        `<p class="text-gray-500">No results found</p>`;
+                        '<p class="text-gray-500">No results found</p>';
                     return;
                 }
 
-                const keys = Object.keys(data[0]);
+                const keys = Object.keys(data.rows[0]);
                 let html = `<div class="overflow-x-auto">
                     <table class="min-w-full border-collapse border border-gray-300">
                         <thead class="bg-gray-200">
-                            <tr>${keys.map(k => `<th class="border px-4 py-2 text-left">${k}</th>`).join('')}</tr>
+                            <tr>${keys.map(k => `<th class="border px-4 py-2 text-left text-xs">${k}</th>`).join('')}</tr>
                         </thead>
                         <tbody>`;
                 
-                data.forEach(row => {
-                    html += `<tr>${keys.map(k => 
-                        `<td class="border px-4 py-2">${JSON.stringify(row[k])}</td>`
+                data.rows.forEach(row => {
+                    html += `<tr class="hover:bg-gray-50">${keys.map(k => 
+                        `<td class="border px-4 py-2 text-xs">${row[k] !== null ? String(row[k]).substring(0, 100) : '-'}</td>`
                     ).join('')}</tr>`;
                 });
                 
                 html += `</tbody></table>
-                    <p class="mt-4 text-sm text-gray-600">Showing ${data.length} row(s)</p>
+                    <p class="mt-4 text-sm text-gray-600">Showing ${data.rows.length} row(s)</p>
                 </div>`;
                 
                 document.getElementById('queryResults').innerHTML = html;
@@ -856,14 +389,106 @@
             }
         }
 
-        window.viewClientDatabase = function(tenantCode) {
-            document.getElementById('tenantCode').value = tenantCode;
-            showAdminTab('database');
-            loadTenantInfo();
+        // System Stats
+        async function loadSystemStats() {
+            try {
+                // Load counts
+                const [productsRes, customersRes, billsRes, ratesRes] = await Promise.all([
+                    fetch('/api/products').then(r => r.json()).catch(() => []),
+                    fetch('/api/customers').then(r => r.json()).catch(() => []),
+                    fetch('/api/bills').then(r => r.json()).catch(() => []),
+                    fetch('/api/rates').then(r => r.json()).catch(() => ({}))
+                ]);
+                
+                document.getElementById('statProducts').textContent = Array.isArray(productsRes) ? productsRes.length : '0';
+                document.getElementById('statCustomers').textContent = Array.isArray(customersRes) ? customersRes.length : '0';
+                document.getElementById('statBills').textContent = Array.isArray(billsRes) ? billsRes.length : '0';
+                
+                // Display rates
+                document.getElementById('currentRates').innerHTML = `
+                    <div class="flex justify-between"><span>Gold:</span> <span class="font-bold">₹${ratesRes.gold || 0}/gm</span></div>
+                    <div class="flex justify-between"><span>Silver:</span> <span class="font-bold">₹${ratesRes.silver || 0}/gm</span></div>
+                    <div class="flex justify-between"><span>Platinum:</span> <span class="font-bold">₹${ratesRes.platinum || 0}/gm</span></div>
+                `;
+                
+                document.getElementById('dbStatus').textContent = '✅ Connected';
+                document.getElementById('envMode').textContent = window.location.hostname === 'localhost' ? 'Development' : 'Production';
+                
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        // Settings Functions
+        async function updateSoftware() {
+            if (!confirm('Are you sure you want to update the software? The server will restart.')) return;
+            
+            try {
+                const response = await fetch('/api/update-software', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✅ Software updated! Page will reload in 10 seconds...');
+                    setTimeout(() => location.reload(), 10000);
+                } else {
+                    alert('❌ Update failed: ' + (result.message || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('⚠️ Connection lost. Server is likely restarting. Reload in 10 seconds...');
+                setTimeout(() => location.reload(), 10000);
+            }
+        }
+
+        async function changePassword() {
+            const currentPassword = document.getElementById('currentPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            
+            if (!currentPassword || !newPassword || !confirmPassword) {
+                alert('Please fill all fields');
+                return;
+            }
+            
+            if (newPassword !== confirmPassword) {
+                alert('New passwords do not match');
+                return;
+            }
+            
+            if (newPassword.length < 6) {
+                alert('Password must be at least 6 characters');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/admin/change-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ currentPassword, newPassword })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    alert('✅ Password changed successfully!');
+                    document.getElementById('currentPassword').value = '';
+                    document.getElementById('newPassword').value = '';
+                    document.getElementById('confirmPassword').value = '';
+                } else {
+                    alert('❌ ' + (result.error || 'Failed to change password'));
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function backupDatabase() {
+            alert('Database backup feature coming soon. For now, use: npm run backup-db');
         }
 
         // Initialize
-        showAdminTab('clients');
+        document.addEventListener('DOMContentLoaded', function() {
+            showAdminTab('users');
+        });
     </script>
 </body>
 </html>

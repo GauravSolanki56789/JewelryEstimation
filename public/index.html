@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jewellery ERP Software</title>
+    <title>Jewellery Software by Gaurav Softwares</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -862,10 +862,10 @@
                             <label class="block text-sm font-medium mb-2">Rate Slab</label>
                             <select id="billRateSlab" class="border rounded px-3 py-2" onchange="updateBillRateSlabInfo()">
                                 <option value="R">R - Standard Rate</option>
-                                <option value="R1">R1 - Silver 3% Wholesale</option>
-                                <option value="R2">R2 - Silver 3% Wholesale</option>
-                                <option value="R3">R3 - Silver 3% Wholesale</option>
-                                <option value="R4">R4 - Silver 3% Wholesale</option>
+                                <option value="R1">R1 - Silver -3% + MC -₹2</option>
+                                <option value="R2">R2 - Silver -3% + MC -₹5</option>
+                                <option value="R3">R3 - Silver -3% + MC -₹10</option>
+                                <option value="R4">R4 - Silver -3% + MC -₹15</option>
                             </select>
                         </div>
                         <div class="flex-1 text-sm">
@@ -6610,10 +6610,14 @@ async function generateSalesBillPDF() {
                 const silverInput = parseFloat(document.getElementById('rateSilver').value) || 0;
                 const platinumInput = parseFloat(document.getElementById('ratePlatinum').value) || 0;
 
-                // Save raw rates (discounts applied dynamically based on slab)
+                // Save Gold and Platinum as-is
                 rates.gold = parseFloat(goldInput);
-                rates.silver = parseFloat(silverInput);
                 rates.platinum = parseFloat(platinumInput);
+                
+                // Apply 3% WHOLESALE DISCOUNT to Silver Rate automatically
+                // If user enters 296, system stores 296 * 0.97 = 287.12
+                const silverWithDiscount = parseFloat((silverInput * 0.97).toFixed(2));
+                rates.silver = silverWithDiscount;
 
                 // Save to API
                 try {
@@ -6635,7 +6639,7 @@ async function generateSalesBillPDF() {
                 }
 
                 closeModals();
-                alert(`Rates Updated!\n\nGold: ₹${parseFloat(rates.gold).toFixed(2)}\nSilver: ₹${parseFloat(rates.silver).toFixed(2)}\nPlatinum: ₹${parseFloat(rates.platinum).toFixed(2)}`);
+                alert(`Rates Updated!\n\nGold: ₹${parseFloat(rates.gold).toFixed(2)}\nSilver: ₹${parseFloat(rates.silver).toFixed(2)} (3% wholesale discount applied)\nPlatinum: ₹${parseFloat(rates.platinum).toFixed(2)}`);
             }
 
         function updateCustomerDropdown() {
@@ -6772,11 +6776,11 @@ async function generateSalesBillPDF() {
                     }
 
                     const descriptions = {
-                        'R': 'Standard Rate',
-                        'R1': 'Silver 3% Discount',
-                        'R2': 'Silver 3% Discount',
-                        'R3': 'Silver 3% Discount',
-                        'R4': 'Silver 3% Discount'
+                        'R': 'Standard Rate (No Discount)',
+                        'R1': 'Silver -3% + MC -₹2/gm',
+                        'R2': 'Silver -3% + MC -₹5/gm',
+                        'R3': 'Silver -3% + MC -₹10/gm',
+                        'R4': 'Silver -3% + MC -₹15/gm'
                     };
 
                     const rateSlabDesc = document.getElementById('rateSlabDesc');
@@ -6794,9 +6798,11 @@ async function generateSalesBillPDF() {
                 }
 
                 function getAdjustedMCRate(originalMCRate) {
-                    // MC is ABSOLUTE - no discounts applied (per business rule)
-                    // The 3% wholesale discount applies ONLY to Silver Rate
-                    return originalMCRate;
+                    // Apply Rate Slab discount to MC
+                    // R: No discount, R1: -2, R2: -5, R3: -10, R4: -15
+                    const discount = rateSlabDiscounts[currentRateSlab] || 0;
+                    const adjustedRate = Math.max(0, originalMCRate - discount);
+                    return adjustedRate;
                 }
 
                 function recalculateAllItems() {

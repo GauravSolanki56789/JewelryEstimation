@@ -2,34 +2,14 @@
 -- Single-Tenant Database Setup Script
 -- Gaurav Softwares - Jewelry Estimation
 -- ============================================
--- Run this script on a fresh PostgreSQL database
--- Usage: psql -U postgres -d jewelry_db -f setup_single_tenant.sql
+-- Run: psql -U postgres -d jewelry_db -f setup_single_tenant.sql
+-- Or:  npm run setup-db
 -- ============================================
-
--- Drop existing tables if migrating from multi-tenant
-DROP TABLE IF EXISTS tally_sync_log CASCADE;
-DROP TABLE IF EXISTS sales_returns CASCADE;
-DROP TABLE IF EXISTS tally_config CASCADE;
-DROP TABLE IF EXISTS rol_data CASCADE;
-DROP TABLE IF EXISTS purchase_vouchers CASCADE;
-DROP TABLE IF EXISTS ledger_transactions CASCADE;
-DROP TABLE IF EXISTS bills CASCADE;
-DROP TABLE IF EXISTS quotations CASCADE;
-DROP TABLE IF EXISTS customers CASCADE;
-DROP TABLE IF EXISTS products CASCADE;
-DROP TABLE IF EXISTS rates CASCADE;
-DROP TABLE IF EXISTS users CASCADE;
-DROP TABLE IF EXISTS admin_users CASCADE;
-
--- Drop old multi-tenant tables if they exist
-DROP TABLE IF EXISTS api_keys CASCADE;
-DROP TABLE IF EXISTS master_admins CASCADE;
-DROP TABLE IF EXISTS tenants CASCADE;
 
 -- ============================================
 -- ADMIN USERS TABLE (Super Admin Management)
 -- ============================================
-CREATE TABLE admin_users (
+CREATE TABLE IF NOT EXISTS admin_users (
     id SERIAL PRIMARY KEY,
     username VARCHAR(100) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
@@ -40,7 +20,7 @@ CREATE TABLE admin_users (
 -- ============================================
 -- USERS TABLE (Google OAuth / Local Auth)
 -- ============================================
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     google_id VARCHAR(255) UNIQUE,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -58,9 +38,26 @@ CREATE TABLE users (
 );
 
 -- ============================================
+-- CUSTOMERS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS customers (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    mobile VARCHAR(20),
+    address1 VARCHAR(255),
+    address2 VARCHAR(255),
+    city VARCHAR(100),
+    state VARCHAR(100),
+    pincode VARCHAR(20),
+    gstin VARCHAR(20),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================
 -- PRODUCTS TABLE
 -- ============================================
-CREATE TABLE products (
+CREATE TABLE IF NOT EXISTS products (
     id SERIAL PRIMARY KEY,
     barcode VARCHAR(100) UNIQUE,
     sku VARCHAR(100),
@@ -87,26 +84,20 @@ CREATE TABLE products (
 );
 
 -- ============================================
--- CUSTOMERS TABLE
+-- RATES TABLE
 -- ============================================
-CREATE TABLE customers (
+CREATE TABLE IF NOT EXISTS rates (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    mobile VARCHAR(20),
-    address1 VARCHAR(255),
-    address2 VARCHAR(255),
-    city VARCHAR(100),
-    state VARCHAR(100),
-    pincode VARCHAR(20),
-    gstin VARCHAR(20),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    gold DECIMAL(10,2) DEFAULT 7500,
+    silver DECIMAL(10,2) DEFAULT 156,
+    platinum DECIMAL(10,2) DEFAULT 3500,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- ============================================
 -- QUOTATIONS TABLE
 -- ============================================
-CREATE TABLE quotations (
+CREATE TABLE IF NOT EXISTS quotations (
     id SERIAL PRIMARY KEY,
     quotation_no VARCHAR(50) UNIQUE NOT NULL,
     customer_id INTEGER REFERENCES customers(id),
@@ -131,7 +122,7 @@ CREATE TABLE quotations (
 -- ============================================
 -- BILLS TABLE
 -- ============================================
-CREATE TABLE bills (
+CREATE TABLE IF NOT EXISTS bills (
     id SERIAL PRIMARY KEY,
     bill_no VARCHAR(50) UNIQUE NOT NULL,
     quotation_id INTEGER REFERENCES quotations(id),
@@ -151,20 +142,9 @@ CREATE TABLE bills (
 );
 
 -- ============================================
--- RATES TABLE
--- ============================================
-CREATE TABLE rates (
-    id SERIAL PRIMARY KEY,
-    gold DECIMAL(10,2) DEFAULT 7500,
-    silver DECIMAL(10,2) DEFAULT 156,
-    platinum DECIMAL(10,2) DEFAULT 3500,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- ============================================
 -- LEDGER TRANSACTIONS TABLE
 -- ============================================
-CREATE TABLE ledger_transactions (
+CREATE TABLE IF NOT EXISTS ledger_transactions (
     id SERIAL PRIMARY KEY,
     customer_id INTEGER REFERENCES customers(id),
     transaction_type VARCHAR(50),
@@ -184,7 +164,7 @@ CREATE TABLE ledger_transactions (
 -- ============================================
 -- PURCHASE VOUCHERS TABLE
 -- ============================================
-CREATE TABLE purchase_vouchers (
+CREATE TABLE IF NOT EXISTS purchase_vouchers (
     id SERIAL PRIMARY KEY,
     pv_no VARCHAR(50) UNIQUE NOT NULL,
     supplier_name VARCHAR(255),
@@ -197,9 +177,9 @@ CREATE TABLE purchase_vouchers (
 -- ============================================
 -- ROL DATA TABLE
 -- ============================================
-CREATE TABLE rol_data (
+CREATE TABLE IF NOT EXISTS rol_data (
     id SERIAL PRIMARY KEY,
-    barcode VARCHAR(100) UNIQUE REFERENCES products(barcode),
+    barcode VARCHAR(100) UNIQUE,
     rol INTEGER DEFAULT 0,
     available INTEGER DEFAULT 0,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -208,7 +188,7 @@ CREATE TABLE rol_data (
 -- ============================================
 -- TALLY CONFIG TABLE
 -- ============================================
-CREATE TABLE tally_config (
+CREATE TABLE IF NOT EXISTS tally_config (
     id SERIAL PRIMARY KEY,
     tally_url VARCHAR(255) DEFAULT 'http://localhost:9000',
     company_name VARCHAR(255),
@@ -225,7 +205,7 @@ CREATE TABLE tally_config (
 -- ============================================
 -- SALES RETURNS TABLE
 -- ============================================
-CREATE TABLE sales_returns (
+CREATE TABLE IF NOT EXISTS sales_returns (
     id SERIAL PRIMARY KEY,
     ssr_no VARCHAR(50) UNIQUE NOT NULL,
     bill_id INTEGER REFERENCES bills(id),
@@ -249,7 +229,7 @@ CREATE TABLE sales_returns (
 -- ============================================
 -- TALLY SYNC LOG TABLE
 -- ============================================
-CREATE TABLE tally_sync_log (
+CREATE TABLE IF NOT EXISTS tally_sync_log (
     id SERIAL PRIMARY KEY,
     transaction_type VARCHAR(50) NOT NULL,
     transaction_id INTEGER NOT NULL,
@@ -266,62 +246,64 @@ CREATE TABLE tally_sync_log (
 -- ============================================
 -- INDEXES
 -- ============================================
-CREATE INDEX idx_products_barcode ON products(barcode);
-CREATE INDEX idx_products_style_code ON products(style_code);
-CREATE INDEX idx_customers_mobile ON customers(mobile);
-CREATE INDEX idx_quotations_date ON quotations(date);
-CREATE INDEX idx_bills_date ON bills(date);
-CREATE INDEX idx_tally_sync_log_transaction ON tally_sync_log(transaction_type, transaction_id);
-CREATE INDEX idx_tally_sync_log_status ON tally_sync_log(sync_status);
-CREATE INDEX idx_sales_returns_bill_no ON sales_returns(bill_no);
-CREATE INDEX idx_sales_returns_ssr_no ON sales_returns(ssr_no);
-CREATE INDEX idx_quotations_is_billed ON quotations(is_billed);
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_ledger_customer ON ledger_transactions(customer_id);
-CREATE INDEX idx_ledger_date ON ledger_transactions(date);
+CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode);
+CREATE INDEX IF NOT EXISTS idx_products_style_code ON products(style_code);
+CREATE INDEX IF NOT EXISTS idx_customers_mobile ON customers(mobile);
+CREATE INDEX IF NOT EXISTS idx_quotations_date ON quotations(date);
+CREATE INDEX IF NOT EXISTS idx_bills_date ON bills(date);
+CREATE INDEX IF NOT EXISTS idx_tally_sync_log_transaction ON tally_sync_log(transaction_type, transaction_id);
+CREATE INDEX IF NOT EXISTS idx_tally_sync_log_status ON tally_sync_log(sync_status);
+CREATE INDEX IF NOT EXISTS idx_sales_returns_bill_no ON sales_returns(bill_no);
+CREATE INDEX IF NOT EXISTS idx_sales_returns_ssr_no ON sales_returns(ssr_no);
+CREATE INDEX IF NOT EXISTS idx_quotations_is_billed ON quotations(is_billed);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_ledger_customer ON ledger_transactions(customer_id);
+CREATE INDEX IF NOT EXISTS idx_ledger_date ON ledger_transactions(date);
 
 -- ============================================
--- INSERT DEFAULT DATA
+-- SEED DATA - Default Rates
 -- ============================================
+INSERT INTO rates (gold, silver, platinum) 
+SELECT 7500, 156, 3500
+WHERE NOT EXISTS (SELECT 1 FROM rates LIMIT 1);
 
--- Default Rates
-INSERT INTO rates (gold, silver, platinum) VALUES (7500, 156, 3500);
-
--- Default Tally Config
+-- ============================================
+-- SEED DATA - Default Tally Config
+-- ============================================
 INSERT INTO tally_config (tally_url, company_name, enabled, sync_mode, auto_sync_enabled) 
-VALUES ('http://localhost:9000', 'Default Company', false, 'manual', false);
+SELECT 'http://localhost:9000', 'Default Company', false, 'manual', false
+WHERE NOT EXISTS (SELECT 1 FROM tally_config LIMIT 1);
 
--- Default Super Admin User
--- Password: Change this immediately after setup!
--- Default password hash is for 'admin123' - CHANGE IMMEDIATELY
-INSERT INTO admin_users (username, password_hash, is_super_admin) 
-VALUES ('Gaurav', '$2b$10$PLACEHOLDER_HASH_CHANGE_THIS', true);
-
--- Default Super Admin with Google OAuth
--- Email: jaigaurav56789@gmail.com
+-- ============================================
+-- SEED DATA - Super Admin User (Google OAuth)
+-- ============================================
 INSERT INTO users (email, name, role, account_status, allowed_tabs) 
-VALUES ('jaigaurav56789@gmail.com', 'Gaurav (Super Admin)', 'admin', 'active', ARRAY['all']);
+SELECT 'jaigaurav56789@gmail.com', 'Gaurav (Super Admin)', 'admin', 'active', ARRAY['all']
+WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'jaigaurav56789@gmail.com');
 
 -- ============================================
--- GRANT PERMISSIONS (if using non-postgres user)
+-- SEED DATA - Default Customer
 -- ============================================
--- GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO your_app_user;
--- GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO your_app_user;
+INSERT INTO customers (name, mobile, address1, city, state, pincode) 
+SELECT 'Walk-in Customer', '9999999999', '123 Main Street', 'Mumbai', 'Maharashtra', '400001'
+WHERE NOT EXISTS (SELECT 1 FROM customers LIMIT 1);
 
 -- ============================================
--- COMPLETION MESSAGE
+-- SEED DATA - Sample Products
 -- ============================================
-DO $$
-BEGIN
-    RAISE NOTICE '';
-    RAISE NOTICE '============================================';
-    RAISE NOTICE 'DATABASE SETUP COMPLETE!';
-    RAISE NOTICE '============================================';
-    RAISE NOTICE '';
-    RAISE NOTICE 'Default Super Admin: jaigaurav56789@gmail.com';
-    RAISE NOTICE 'Default Admin User: Gaurav';
-    RAISE NOTICE '';
-    RAISE NOTICE 'IMPORTANT: Change the admin password immediately!';
-    RAISE NOTICE 'Run: npm run change-master-password';
-    RAISE NOTICE '';
-END $$;
+INSERT INTO products (barcode, sku, style_code, short_name, item_name, metal_type, size, weight, purity, rate, mc_rate, mc_type, pcs, floor, avg_wt) 
+SELECT 'SAMPLE001', 'GR-001', 'RING-001', 'Gold Ring', 'Gold Ring 22K', 'gold', '16', 5.500, 91.6, 7500, 250, 'MC/GM', 1, 'Main Floor', 5.500
+WHERE NOT EXISTS (SELECT 1 FROM products WHERE barcode = 'SAMPLE001');
+
+INSERT INTO products (barcode, sku, style_code, short_name, item_name, metal_type, size, weight, purity, rate, mc_rate, mc_type, pcs, floor, avg_wt) 
+SELECT 'SAMPLE002', 'SC-001', 'CHAIN-001', 'Silver Chain', 'Silver Chain 925', 'silver', '20 inch', 25.000, 92.5, 156, 15, 'MC/GM', 1, 'Main Floor', 25.000
+WHERE NOT EXISTS (SELECT 1 FROM products WHERE barcode = 'SAMPLE002');
+
+-- ============================================
+-- COMPLETION
+-- ============================================
+-- Database setup complete!
+-- Tables created: admin_users, users, customers, products, rates, quotations, bills, 
+--                 ledger_transactions, purchase_vouchers, rol_data, sales_returns,
+--                 tally_config, tally_sync_log
+-- Seed data: 1 admin user, 1 customer, 2 products, default rates
