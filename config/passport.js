@@ -1,6 +1,7 @@
+// Passport Configuration (Single-Tenant Version)
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
-const { masterPool } = require('./database');
+const { pool } = require('./database');
 
 passport.serializeUser((user, done) => {
     done(null, user.id);
@@ -8,14 +9,11 @@ passport.serializeUser((user, done) => {
 
 passport.deserializeUser(async (id, done) => {
     try {
-        const result = await masterPool.query('SELECT * FROM users WHERE id = $1', [id]);
+        const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
         if (result.rows.length > 0) {
             const user = result.rows[0];
-            // Assign default tenant code for single-tenant/master instance users
-            user.tenant_code = process.env.DEFAULT_TENANT_CODE || 'master';
             done(null, user);
         } else {
-            // User might have been deleted or DB reset
             done(null, null);
         }
     } catch (err) {
@@ -39,24 +37,24 @@ passport.use(new GoogleStrategy({
 
     try {
         // Check if user exists
-        let result = await masterPool.query('SELECT * FROM users WHERE email = $1', [email]);
+        let result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
 
         if (result.rows.length > 0) {
             // User exists
             const user = result.rows[0];
             // Update Google ID if missing
             if (!user.google_id) {
-                await masterPool.query('UPDATE users SET google_id = $1 WHERE email = $2', [googleId, email]);
+                await pool.query('UPDATE users SET google_id = $1 WHERE email = $2', [googleId, email]);
                 user.google_id = googleId;
             }
             return done(null, user);
         } else {
-            // New user
+            // New user - determine role based on email
             const isSuperAdmin = email === 'jaigaurav56789@gmail.com';
             const role = isSuperAdmin ? 'admin' : 'employee'; 
             const status = isSuperAdmin ? 'active' : 'pending';
 
-            const newUserResult = await masterPool.query(
+            const newUserResult = await pool.query(
                 `INSERT INTO users (google_id, email, name, role, account_status) 
                  VALUES ($1, $2, $3, $4, $5) RETURNING *`,
                 [googleId, email, displayName, role, status]

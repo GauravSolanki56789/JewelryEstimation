@@ -1,3 +1,5 @@
+// Role-Based Access Control Middleware (Single-Tenant Version)
+
 const checkRole = (roles) => {
     return (req, res, next) => {
         // If roles is a string, convert to array
@@ -10,12 +12,12 @@ const checkRole = (roles) => {
         }
         
         // Super admin bypasses all checks
-        if (req.user.role === 'super_admin') {
+        if (req.user.role === 'super_admin' || req.user.role === 'admin') {
             return next();
         }
 
         if (req.user.account_status !== 'active') {
-             return res.status(403).json({ error: 'Account is not active. Please wait for admin approval.' });
+            return res.status(403).json({ error: 'Account is not active. Please wait for admin approval.' });
         }
 
         if (roles.includes(req.user.role)) {
@@ -34,30 +36,18 @@ const checkAuth = (req, res, next) => {
     }
 };
 
+// For backward compatibility - just calls checkAuth in single-tenant mode
 const verifyTenantAccess = (req, res, next) => {
     if (!req.isAuthenticated()) {
         return res.status(401).json({ error: 'Not authenticated' });
     }
 
-    // Check account status
     if (req.user.account_status !== 'active') {
         return res.status(403).json({ error: 'Account is not active' });
     }
 
-    const { tenant } = req.params;
-
-    // Super admin and Master Admin can access any tenant
-    if (req.user.role === 'super_admin' || req.user.role === 'admin') {
-        return next();
-    }
-
-    // Tenant users must match the requested tenant
-    if (req.user.tenant_code === tenant) {
-        return next();
-    }
-
-    // Deny access if no match
-    return res.status(403).json({ error: 'Access denied for this tenant' });
+    // In single-tenant mode, all authenticated users have access
+    return next();
 };
 
 module.exports = { checkRole, checkAuth, verifyTenantAccess };

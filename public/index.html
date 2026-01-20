@@ -862,10 +862,10 @@
                             <label class="block text-sm font-medium mb-2">Rate Slab</label>
                             <select id="billRateSlab" class="border rounded px-3 py-2" onchange="updateBillRateSlabInfo()">
                                 <option value="R">R - Standard Rate</option>
-                                <option value="R1">R1 - MC Discount ₹2/gm</option>
-                                <option value="R2">R2 - MC Discount ₹5/gm</option>
-                                <option value="R3">R3 - MC Discount ₹10/gm</option>
-                                <option value="R4">R4 - MC Discount ₹15/gm</option>
+                                <option value="R1">R1 - Silver 3% Wholesale</option>
+                                <option value="R2">R2 - Silver 3% Wholesale</option>
+                                <option value="R3">R3 - Silver 3% Wholesale</option>
+                                <option value="R4">R4 - Silver 3% Wholesale</option>
                             </select>
                         </div>
                         <div class="flex-1 text-sm">
@@ -2730,29 +2730,19 @@
         
         // Use global API_BASE_URL set above
         const API_BASE = window.API_BASE_URL || 'http://localhost:3000/api';
-        let currentTenant = null; // Store current tenant code
         
-        // API Helper Functions
+        // API Helper Functions (Single-Tenant Version)
         const api = {
-            // Get current tenant code
-            getTenant() {
-                return currentTenant || localStorage.getItem('currentTenant') || 'jpjewellery';
-            },
-            
-            // Set current tenant
-            setTenant(tenantCode) {
-                currentTenant = tenantCode;
-                localStorage.setItem('currentTenant', tenantCode);
-                // Initialize real-time sync for this tenant
+            // Initialize socket connection
+            initConnection() {
                 if (typeof initSocketConnection === 'function') {
-                    initSocketConnection(tenantCode);
+                    initSocketConnection();
                 }
             },
             
-            // API request handler
+            // API request handler (No tenant prefix in single-tenant mode)
             async request(endpoint, options = {}) {
-                const tenant = this.getTenant();
-                const url = `${API_BASE}/${tenant}${endpoint}`;
+                const url = `${API_BASE}${endpoint}`;
                 
                 const defaultOptions = {
                     headers: {
@@ -3090,27 +3080,28 @@
                 }
             },
             
-            async login(tenantCode, username, password) {
+            async login(username, password) {
                 try {
                     const response = await fetch(`${API_BASE.replace('/api', '')}/api/auth/login`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ tenantCode, username, password }),
+                        body: JSON.stringify({ username, password }),
                     });
                     const data = await response.json();
-                    
-                    // If master admin and needs tenant selection, handle it
-                    if (data.success && data.isMasterAdmin && data.needsTenantSelection) {
-                        // Load all tenants for selection
-                        const tenants = await this.getTenants(username, password);
-                        return { ...data, availableTenants: tenants };
-                    }
-                    
                     return data;
                 } catch (error) {
                     console.error('Login error:', error);
                     throw error;
                 }
+            },
+            
+            // Update software API
+            async updateSoftware() {
+                const response = await fetch(`${API_BASE.replace('/api', '')}/api/update-software`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                });
+                return response.json();
             },
         };
         
@@ -4375,22 +4366,8 @@ window.addNewUser = async function() {
 }
 
 window.handleLogin = async function() {
-    let tenantCode = document.getElementById('authTenant').value.trim();
     const username = document.getElementById('authUsername').value.trim();
     const password = document.getElementById('authPassword').value;
-    
-    // Special handling: If username is "Gaurav", allow login even without tenant code
-    // Master admin can access any tenant
-    if (username === 'Gaurav' && !tenantCode) {
-        // Try to get first available tenant, or allow login without tenant
-        tenantCode = '';
-    }
-
-    // Allow empty tenant code only for master admin
-    if (!tenantCode && username !== 'Gaurav') {
-        showDialog('Login Failed', 'Please enter your client/tenant code!', 'error');
-        return;
-    }
 
     if (!username || !password) {
         showDialog('Login Failed', 'Please enter username and password!', 'error');
@@ -4398,20 +4375,18 @@ window.handleLogin = async function() {
     }
 
     try {
-        // Try API login first
-        const loginResult = await api.login(tenantCode, username, password);
+        // Single-tenant login (no tenant code required)
+        const loginResult = await api.login(username, password);
         
         if (loginResult.success) {
-            // API login successful
             // Handle both camelCase and snake_case from server
             let allowedTabs = loginResult.allowedTabs || loginResult.allowed_tabs || [];
             
-            // Ensure allowedTabs is an array (PostgreSQL TEXT[] might return as string or array)
+            // Ensure allowedTabs is an array
             if (typeof allowedTabs === 'string') {
                 try {
                     allowedTabs = JSON.parse(allowedTabs);
                 } catch (e) {
-                    // If parsing fails, treat as comma-separated string
                     allowedTabs = allowedTabs.split(',').map(t => t.trim()).filter(t => t);
                 }
             }
@@ -4422,65 +4397,38 @@ window.handleLogin = async function() {
             currentUser = {
                 username: loginResult.username,
                 role: loginResult.role || 'user',
-                allowedTabs: allowedTabs, // Don't default to ['all'] - use empty array if not provided
-                tenantCode: loginResult.tenantCode || tenantCode,
+                allowedTabs: allowedTabs,
                 isMasterAdmin: loginResult.isMasterAdmin || false
             };
             
-            console.log('User logged in:', currentUser.username, 'Role:', currentUser.role, 'Allowed tabs:', currentUser.allowedTabs);
+            console.log('User logged in:', currentUser.username, 'Role:', currentUser.role);
             
-            // If master admin and no tenant code provided, show message
-            if (loginResult.isMasterAdmin && !tenantCode) {
-                showDialog('Info', 'Master Admin: Please enter a client/tenant code to access that client.', 'info');
-                document.getElementById('authTenant').focus();
-                return;
-            }
-            
-            // If master admin with tenant code, use it (server already verified)
-            if (loginResult.isMasterAdmin && tenantCode) {
-                currentUser.tenantCode = tenantCode;
-                // Master admin can access any tenant, even if it doesn't exist yet
-                // (they can create it via admin panel)
-            }
-            
-            // Regular user - verify they can only access their tenant
-            if (!loginResult.isMasterAdmin) {
-                // Ensure tenant code matches
-                if (tenantCode !== loginResult.tenantCode) {
-                    showDialog('Access Denied', `You can only access your own client account (${loginResult.tenantCode}).`, 'error');
-                    document.getElementById('authTenant').value = loginResult.tenantCode;
-                    return;
-                }
-                // Lock tenant code for regular users
-                document.getElementById('authTenant').disabled = true;
-            }
-            
-            api.setTenant(currentUser.tenantCode);
             setCachedItem('currentUser', currentUser);
             document.getElementById('authModal').classList.add('hidden');
             document.getElementById('app').classList.remove('hidden');
             updateTabVisibility();
-            // Initialize real-time sync for this tenant
+            
+            // Initialize real-time sync
             if (typeof initSocketConnection === 'function') {
-                initSocketConnection(currentUser.tenantCode);
+                initSocketConnection();
             }
+            
             // Show billing tab by default
             showTab('billing');
+            
             // Load data from API
             await loadDataFromAPI();
-            // Also load products immediately for barcode scanning
             await loadProducts();
             return;
+        } else {
+            showDialog('Login Failed', loginResult.error || 'Invalid credentials.', 'error');
         }
     } catch (apiError) {
-        // API login failed
         console.log('API login failed:', apiError);
-        showDialog('Login Failed', 'Invalid credentials. Please check your username, password, and client code.', 'error');
+        showDialog('Login Failed', 'Invalid credentials. Please check your username and password.', 'error');
         return;
     }
 
-    // No fallback - all authentication must go through API for security
-    showDialog('Login Failed', 'Invalid credentials. Please check your username, password, and client code.', 'error');
     document.getElementById('authPassword').value = '';
 };
 
@@ -4975,10 +4923,10 @@ billItems = selectedQuotationForBill.items.map(item => {
 
                 const descriptions = {
                     'R': 'Standard Rate',
-                    'R1': 'MC Discount ₹2/gm',
-                    'R2': 'MC Discount ₹5/gm',
-                    'R3': 'MC Discount ₹10/gm',
-                    'R4': 'MC Discount ₹15/gm'
+                    'R1': 'Silver 3% Wholesale',
+                    'R2': 'Silver 3% Wholesale',
+                    'R3': 'Silver 3% Wholesale',
+                    'R4': 'Silver 3% Wholesale'
                 };
 
                 document.getElementById('billRateSlabDesc').textContent = descriptions[currentBillRateSlab];
@@ -6825,10 +6773,10 @@ async function generateSalesBillPDF() {
 
                     const descriptions = {
                         'R': 'Standard Rate',
-                        'R1': 'Silver 3% + MC -2',
-                        'R2': 'Silver 3% + MC -5',
-                        'R3': 'Silver 3% + MC -10',
-                        'R4': 'Silver 3% + MC -15'
+                        'R1': 'Silver 3% Discount',
+                        'R2': 'Silver 3% Discount',
+                        'R3': 'Silver 3% Discount',
+                        'R4': 'Silver 3% Discount'
                     };
 
                     const rateSlabDesc = document.getElementById('rateSlabDesc');
@@ -6846,9 +6794,9 @@ async function generateSalesBillPDF() {
                 }
 
                 function getAdjustedMCRate(originalMCRate) {
-                    const discount = rateSlabDiscounts[currentRateSlab];
-                    const adjustedRate = Math.max(0, originalMCRate - discount);
-                    return adjustedRate;
+                    // MC is ABSOLUTE - no discounts applied (per business rule)
+                    // The 3% wholesale discount applies ONLY to Silver Rate
+                    return originalMCRate;
                 }
 
                 function recalculateAllItems() {
@@ -8448,20 +8396,9 @@ async function deleteProduct(idx) {
             
             const originalMCRate = product.mcRate || 0;
             
-            // Get adjusted MC rate (with fallback if function not available)
+            // MC is ABSOLUTE - no discounts applied (per business rule)
+            // Only the Silver Rate gets the 3% wholesale discount
             let adjustedMCRate = originalMCRate;
-            try {
-                if (typeof getAdjustedMCRate === 'function') {
-                    adjustedMCRate = getAdjustedMCRate(originalMCRate);
-                } else {
-                    // Fallback: apply rate slab discount manually
-                    const discount = rateSlabDiscounts[currentRateSlab] || 0;
-                    adjustedMCRate = Math.max(0, originalMCRate - discount);
-                }
-            } catch (e) {
-                console.warn('Error calculating adjusted MC rate:', e);
-                adjustedMCRate = originalMCRate;
-            }
             
             if (itemRateEl) itemRateEl.value = parseFloat(parseFloat(metalRate).toFixed(2));
             if (itemMcRateEl) {
@@ -16603,6 +16540,34 @@ function updateBulkUploadFloorDropdown() {
 
 let currentAppVersion = '2.0.0'; // Update this when releasing new version
 
+// VPS Self-Update Function (Pull from GitHub and restart PM2)
+async function updateSoftware() {
+    if (!confirm("Are you sure you want to pull the latest updates from GitHub?")) return;
+    
+    const btn = document.getElementById('btnUpdateSW');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = "🔄 Updating...";
+    btn.disabled = true;
+    
+    try {
+        const response = await fetch('/api/update-software', { method: 'POST' });
+        const result = await response.json();
+        
+        if (result.success) {
+            alert("✅ Software Updated Successfully! The page will now reload.");
+            location.reload();
+        } else {
+            alert("❌ Update Failed: " + (result.message || "Check server logs."));
+        }
+    } catch (error) {
+        alert("⚠️ Connection lost. The server is likely restarting. Reloading in 10 seconds...");
+        setTimeout(() => location.reload(), 10000);
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+}
+
 async function checkForUpdates() {
     const btn = document.getElementById('btnUpdateSW');
     const originalText = btn.innerHTML;
@@ -16610,93 +16575,38 @@ async function checkForUpdates() {
     btn.disabled = true;
     
     try {
-        // Check if running in Electron
-        if (window.electronAPI) {
-            // Use Electron IPC for updates
-            const updateInfo = await window.electronAPI.checkForUpdates();
+        // Check for updates from server
+        const updateUrl = `${window.API_BASE_URL ? window.API_BASE_URL.replace('/api', '') : ''}/api/update/check`;
+        const response = await fetch(updateUrl);
+        const updateInfo = await response.json();
+        
+        if (updateInfo.available && updateInfo.version !== currentAppVersion) {
+            const shouldUpdate = confirm(
+                `🔄 Update Available!\n\n` +
+                `Current Version: ${currentAppVersion}\n` +
+                `New Version: ${updateInfo.version}\n\n` +
+                `Release Notes: ${updateInfo.releaseNotes || 'Latest update with improvements'}\n\n` +
+                `Would you like to pull the latest updates from GitHub now?`
+            );
             
-            if (!updateInfo.success) {
-                throw new Error(updateInfo.error || 'Update check failed');
-            }
-            
-            if (updateInfo.updateAvailable) {
-                const shouldUpdate = confirm(
-                    `🔄 Update Available!\n\n` +
-                    `Current Version: ${updateInfo.currentVersion}\n` +
-                    `New Version: ${updateInfo.version}\n\n` +
-                    `Release Notes: ${updateInfo.releaseNotes || 'Latest update with improvements'}\n\n` +
-                    `Would you like to download and install the update?`
-                );
-                
-                if (shouldUpdate) {
-                    await downloadAndInstallUpdate(updateInfo);
-                }
-            } else {
-                showSuccessMessage('✅ You are using the latest version!');
+            if (shouldUpdate) {
+                await updateSoftware();
             }
         } else {
-            // Fallback to server API (for browser testing)
-            const updateUrl = `${window.API_BASE_URL.replace('/api', '')}/api/update/check`;
-            const response = await fetch(updateUrl);
-            const updateInfo = await response.json();
-            
-            if (updateInfo.available && updateInfo.version !== currentAppVersion) {
-                const shouldUpdate = confirm(
-                    `🔄 Update Available!\n\n` +
-                    `Current Version: ${currentAppVersion}\n` +
-                    `New Version: ${updateInfo.version}\n\n` +
-                    `Release Notes: ${updateInfo.releaseNotes}\n\n` +
-                    `Would you like to download and install the update?`
-                );
-                
-                if (shouldUpdate) {
-                    await downloadAndInstallUpdate(updateInfo);
-                }
-            } else {
-                showSuccessMessage('✅ You are using the latest version!');
-            }
+            showSuccessMessage('✅ You are using the latest version!');
         }
     } catch (error) {
         console.error('Update check failed:', error);
-        alert('⚠️ Could not check for updates. Please check your internet connection or contact support.');
+        // If check fails, offer to update anyway
+        const shouldUpdate = confirm(
+            '⚠️ Could not check for updates.\n\n' +
+            'Would you like to pull the latest updates from GitHub anyway?'
+        );
+        if (shouldUpdate) {
+            await updateSoftware();
+        }
     } finally {
         btn.innerHTML = originalText;
-        btn.disabled = false;
-    }
-}
-
-async function downloadAndInstallUpdate(updateInfo) {
-    const btn = document.getElementById('btnUpdateSW');
-    btn.innerHTML = '⬇️ Downloading...';
-    btn.disabled = true;
-    
-    try {
-        if (window.electronAPI && updateInfo.downloadUrl) {
-            // Download using Electron
-            btn.innerHTML = '⬇️ Downloading update...';
-            
-            const installerPath = await window.electronAPI.downloadUpdate(updateInfo.downloadUrl);
-            
-            btn.innerHTML = '📦 Installing...';
-            
-            // Install the update
-            await window.electronAPI.installUpdate(installerPath);
-            
-            // Show success message (though app will quit)
-            showSuccessMessage('✅ Update downloaded successfully! The installer will now launch. Please follow the installation prompts.');
-        } else {
-            // Fallback: open download URL
-            if (updateInfo.downloadUrl) {
-                window.open(updateInfo.downloadUrl, '_blank');
-                showSuccessMessage('✅ Download started! Please run the installer after download completes.');
-            } else {
-                throw new Error('Download URL not available');
-            }
-        }
-    } catch (error) {
-        console.error('Update download failed:', error);
-        alert('❌ Update download failed. Please try again later.\n\nError: ' + error.message);
-        btn.innerHTML = '🔄 Update S/w';
         btn.disabled = false;
     }
 }

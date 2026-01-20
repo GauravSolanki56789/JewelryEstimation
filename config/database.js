@@ -1,47 +1,34 @@
-// Database Configuration for Multi-Tenant Architecture
-require('dotenv').config(); // Load .env file
+// Database Configuration for Single-Tenant Architecture
+// Each client gets their own VPS with one database
+require('dotenv').config();
 const { Pool } = require('pg');
 
-// Store tenant database connections
-const tenantPools = {};
-
-// Master database connection (for tenant management)
-const masterPool = new Pool({
-    host: process.env.DB_HOST || 'localhost',
-    port: process.env.DB_PORT || 5432,
-    database: process.env.DB_NAME || 'jewelry_master',
-    user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || 'postgres',
+// Single database connection using DATABASE_URL or individual env vars
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL || undefined,
+    host: process.env.DATABASE_URL ? undefined : (process.env.DB_HOST || 'localhost'),
+    port: process.env.DATABASE_URL ? undefined : (process.env.DB_PORT || 5432),
+    database: process.env.DATABASE_URL ? undefined : (process.env.DB_NAME || 'jewelry_db'),
+    user: process.env.DATABASE_URL ? undefined : (process.env.DB_USER || 'postgres'),
+    password: process.env.DATABASE_URL ? undefined : (process.env.DB_PASSWORD || 'postgres'),
     max: 20,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000, // Increased to 10 seconds
+    connectionTimeoutMillis: 10000,
     keepAlive: true,
     keepAliveInitialDelayMillis: 10000,
+    ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
 });
 
-// Initialize master database with retry logic
-async function initMasterDatabase(retries = 3, delay = 2000) {
+// Initialize database with retry logic
+async function initDatabase(retries = 3, delay = 2000) {
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
             // Test connection first
-            await masterPool.query('SELECT 1');
+            await pool.query('SELECT 1');
             
-            await masterPool.query(`
-                CREATE TABLE IF NOT EXISTS tenants (
-                    id SERIAL PRIMARY KEY,
-                    tenant_code VARCHAR(50) UNIQUE NOT NULL,
-                    tenant_name VARCHAR(255) NOT NULL,
-                    database_name VARCHAR(100) UNIQUE NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    is_active BOOLEAN DEFAULT true,
-                    admin_username VARCHAR(100) NOT NULL,
-                    admin_password VARCHAR(255) NOT NULL
-                )
-            `);
-            
-            // Create master admin users table
-            await masterPool.query(`
-                CREATE TABLE IF NOT EXISTS master_admins (
+            // Create users table for admin management
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS admin_users (
                     id SERIAL PRIMARY KEY,
                     username VARCHAR(100) UNIQUE NOT NULL,
                     password_hash VARCHAR(255) NOT NULL,
@@ -51,34 +38,30 @@ async function initMasterDatabase(retries = 3, delay = 2000) {
             `);
             
             const bcrypt = require('bcrypt');
-            const masterAdminCheck = await masterPool.query('SELECT * FROM master_admins WHERE username = $1', ['Gaurav']);
-            if (masterAdminCheck.rows.length === 0) {
+            
+            // Check if default super admin exists
+            const adminCheck = await pool.query('SELECT * FROM admin_users WHERE username = $1', ['Gaurav']);
+            if (adminCheck.rows.length === 0) {
+                // Create default super admin with temporary password
                 const tempPassword = await bcrypt.hash('CHANGE_ME_' + Date.now(), 10);
-                await masterPool.query(
-                    'INSERT INTO master_admins (username, password_hash, is_super_admin) VALUES ($1, $2, $3)',
+                await pool.query(
+                    'INSERT INTO admin_users (username, password_hash, is_super_admin) VALUES ($1, $2, $3)',
                     ['Gaurav', tempPassword, true]
                 );
-                console.log('⚠️ Master admin user created with temporary password. Run "npm run fix-gaurav-password" to set the correct password.');
-            } else {
-                const existingAdmin = masterAdminCheck.rows[0];
-                if (existingAdmin.password_hash && !existingAdmin.password_hash.startsWith('$2')) {
-                    console.log('⚠️ Master admin password needs to be hashed. Run "npm run fix-gaurav-password" to fix it.');
-                }
+                console.log('⚠️ Default admin user created. Run "npm run change-master-password" to set secure password.');
             }
             
-            console.log('✅ Master database initialized');
+            console.log('✅ Database connected');
             
-            // For Single Tenant / Per-Client Instance model:
-            // Initialize the full schema on the master database as well
-            await initTenantSchema(masterPool);
-            console.log('✅ Full schema initialized on master database');
+            // Initialize full application schema
+            await initSchema();
+            console.log('✅ Database schema initialized');
 
             return true;
         } catch (error) {
             if (attempt === retries) {
-                console.error('❌ Error initializing master database after', retries, 'attempts:', error.message);
-                console.error('💡 Make sure PostgreSQL is running and connection settings are correct in .env file');
-                console.error('💡 Check: DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD');
+                console.error('❌ Database initialization failed after', retries, 'attempts:', error.message);
+                console.error('💡 Check your DATABASE_URL or DB_* environment variables');
                 return false;
             }
             console.warn(`⚠️ Database connection attempt ${attempt}/${retries} failed. Retrying in ${delay/1000}s...`);
@@ -88,79 +71,8 @@ async function initMasterDatabase(retries = 3, delay = 2000) {
     return false;
 }
 
-// Get or create tenant database connection
-function getTenantPool(tenantCode) {
-    if (!tenantPools[tenantCode]) {
-        tenantPools[tenantCode] = new Pool({
-            host: process.env.DB_HOST || 'localhost',
-            port: process.env.DB_PORT || 5432,
-            database: `jewelry_${tenantCode}`,
-            user: process.env.DB_USER || 'postgres',
-            password: process.env.DB_PASSWORD || 'postgres',
-            max: 20,
-            idleTimeoutMillis: 30000,
-            connectionTimeoutMillis: 10000, // Increased to 10 seconds
-            keepAlive: true,
-            keepAliveInitialDelayMillis: 10000,
-        });
-    }
-    return tenantPools[tenantCode];
-}
-
-// Create tenant database and schema
-async function createTenantDatabase(tenantCode, tenantName, adminUsername, adminPasswordHash) {
-    // Need to connect to 'postgres' database to create new database
-    const postgresPool = new Pool({
-        host: process.env.DB_HOST || 'localhost',
-        port: parseInt(process.env.DB_PORT) || 5432,
-        database: 'postgres', // Connect to postgres database to create new DB
-        user: process.env.DB_USER || 'postgres',
-        password: process.env.DB_PASSWORD || 'postgres',
-        connectionTimeoutMillis: 10000,
-        keepAlive: true,
-        keepAliveInitialDelayMillis: 10000,
-    });
-    
-    const postgresClient = await postgresPool.connect();
-    const masterClient = await masterPool.connect();
-    
-    try {
-        // CREATE DATABASE cannot run inside a transaction, so do it first
-        await postgresClient.query(`CREATE DATABASE jewelry_${tenantCode}`);
-        console.log(`✅ Database created: jewelry_${tenantCode}`);
-        
-        // Now create tenant record in master database (password is already hashed)
-        await masterClient.query('BEGIN');
-        await masterClient.query(
-            `INSERT INTO tenants (tenant_code, tenant_name, database_name, admin_username, admin_password)
-             VALUES ($1, $2, $3, $4, $5)`,
-            [tenantCode, tenantName, `jewelry_${tenantCode}`, adminUsername, adminPasswordHash]
-        );
-        await masterClient.query('COMMIT');
-        
-        // Initialize tenant database schema (connect to new database)
-        const tenantPool = getTenantPool(tenantCode);
-        await initTenantSchema(tenantPool);
-        
-        console.log(`✅ Tenant database initialized: jewelry_${tenantCode}`);
-        return true;
-    } catch (error) {
-        try {
-            await masterClient.query('ROLLBACK');
-        } catch (rollbackError) {
-            // Ignore rollback errors
-        }
-        console.error(`❌ Error creating tenant database:`, error);
-        throw error;
-    } finally {
-        postgresClient.release();
-        masterClient.release();
-        await postgresPool.end();
-    }
-}
-
-// Initialize tenant database schema
-async function initTenantSchema(pool) {
+// Initialize database schema
+async function initSchema() {
     const queries = [
         // Products table
         `CREATE TABLE IF NOT EXISTS products (
@@ -256,11 +168,13 @@ async function initTenantSchema(pool) {
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
         
-        // Users table (Google OAuth)
+        // Users table (Google OAuth / Local Auth)
         `CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
             google_id VARCHAR(255) UNIQUE,
             email VARCHAR(255) UNIQUE NOT NULL,
+            username VARCHAR(100),
+            password VARCHAR(255),
             name VARCHAR(255),
             role VARCHAR(50) DEFAULT 'employee',
             account_status VARCHAR(50) DEFAULT 'pending',
@@ -310,7 +224,7 @@ async function initTenantSchema(pool) {
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
         
-        // Tally sync configuration (with encrypted API key)
+        // Tally sync configuration
         `CREATE TABLE IF NOT EXISTS tally_config (
             id SERIAL PRIMARY KEY,
             tally_url VARCHAR(255) DEFAULT 'http://localhost:9000',
@@ -394,23 +308,42 @@ async function initTenantSchema(pool) {
 }
 
 // Query helper function
-async function queryTenant(tenantCode, query, params = []) {
-    const pool = getTenantPool(tenantCode);
+async function query(text, params = []) {
     try {
-        const result = await pool.query(query, params);
+        const result = await pool.query(text, params);
         return result.rows;
     } catch (error) {
-        console.error(`Database query error for tenant ${tenantCode}:`, error);
+        console.error('Database query error:', error);
         throw error;
     }
 }
 
-module.exports = {
-    masterPool,
-    getTenantPool,
-    initMasterDatabase,
-    createTenantDatabase,
-    initTenantSchema,
-    queryTenant,
-};
+// For backward compatibility with existing code that uses queryTenant
+async function queryTenant(tenantCode, text, params = []) {
+    // Ignore tenantCode in single-tenant mode
+    return query(text, params);
+}
 
+// Get pool (for transactions)
+function getPool() {
+    return pool;
+}
+
+// Alias for backward compatibility
+const masterPool = pool;
+function getTenantPool() {
+    return pool;
+}
+
+module.exports = {
+    pool,
+    masterPool,
+    getPool,
+    getTenantPool,
+    initDatabase,
+    initSchema,
+    query,
+    queryTenant,
+    // Alias for backward compatibility
+    initMasterDatabase: initDatabase
+};

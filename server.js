@@ -1,4 +1,4 @@
-require('dotenv').config(); // Load .env file first
+require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
@@ -7,14 +7,14 @@ const http = require('http');
 const session = require('express-session');
 const passport = require('./config/passport');
 const { Server } = require('socket.io');
+const { exec } = require('child_process');
 const { 
-    masterPool, 
-    getTenantPool, 
-    initMasterDatabase, 
-    createTenantDatabase,
-    queryTenant 
+    pool, 
+    initDatabase, 
+    query,
+    getPool
 } = require('./config/database');
-const { checkRole, checkAuth, verifyTenantAccess } = require('./middleware/rbac');
+const { checkRole, checkAuth } = require('./middleware/rbac');
 const TallyIntegration = require('./config/tally-integration');
 const TallySyncService = require('./config/tally-sync-service');
 
@@ -45,61 +45,53 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// SECURITY: Middleware to sanitize password fields from request/response logging
+// SECURITY: Middleware to sanitize password fields from logging
 app.use((req, res, next) => {
-    // Sanitize request body (remove passwords before any logging)
     if (req.body && typeof req.body === 'object') {
         const sanitizedBody = { ...req.body };
         if (sanitizedBody.password) sanitizedBody.password = '[REDACTED]';
         if (sanitizedBody.masterPassword) sanitizedBody.masterPassword = '[REDACTED]';
         if (sanitizedBody.adminPassword) sanitizedBody.adminPassword = '[REDACTED]';
-        // Store sanitized version for logging (if needed)
         req.sanitizedBody = sanitizedBody;
     }
     next();
 });
 
-// Store active master admin sessions (in production, use Redis or database)
-const masterAdminSessions = new Map();
+// Store admin sessions
+const adminSessions = new Map();
 
-// Protect admin panel - require master admin authentication
+// Admin panel protection
 app.use('/admin.html', async (req, res, next) => {
-    // Check for master admin session token in query or header
     const sessionToken = req.query.session || req.headers['x-admin-session'];
-    const authHeader = req.headers.authorization;
-    const authQuery = req.query.auth; // For login redirect
+    const authQuery = req.query.auth;
     
-    // Check if session is valid
-    if (sessionToken && masterAdminSessions.has(sessionToken)) {
-        const session = masterAdminSessions.get(sessionToken);
+    if (sessionToken && adminSessions.has(sessionToken)) {
+        const session = adminSessions.get(sessionToken);
         if (session.expires > Date.now()) {
             return next();
         } else {
-            masterAdminSessions.delete(sessionToken);
+            adminSessions.delete(sessionToken);
         }
     }
     
-    // If auth in query (from login redirect), decode and verify
     if (authQuery) {
         try {
             const credentials = Buffer.from(authQuery, 'base64').toString('utf-8');
             const [username, password] = credentials.split(':');
             
-            const masterAdmin = await masterPool.query(
-                'SELECT * FROM master_admins WHERE username = $1',
+            const admin = await pool.query(
+                'SELECT * FROM admin_users WHERE username = $1',
                 [username]
             );
             
-            if (masterAdmin.rows.length > 0) {
-                const isValid = await bcrypt.compare(password, masterAdmin.rows[0].password_hash);
-                if (isValid && masterAdmin.rows[0].is_super_admin) {
-                    // Create session token
+            if (admin.rows.length > 0) {
+                const isValid = await bcrypt.compare(password, admin.rows[0].password_hash);
+                if (isValid && admin.rows[0].is_super_admin) {
                     const sessionId = require('crypto').randomBytes(32).toString('hex');
-                    masterAdminSessions.set(sessionId, {
+                    adminSessions.set(sessionId, {
                         username,
-                        expires: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
+                        expires: Date.now() + (24 * 60 * 60 * 1000)
                     });
-                    // Redirect with session token (remove auth from URL)
                     return res.redirect(`/admin.html?session=${sessionId}`);
                 }
             }
@@ -108,123 +100,35 @@ app.use('/admin.html', async (req, res, next) => {
         }
     }
     
-    // If authorization header exists, verify it
-    if (authHeader && authHeader.startsWith('Basic ')) {
-        const credentials = Buffer.from(authHeader.split(' ')[1], 'base64').toString('utf-8');
-        const [username, password] = credentials.split(':');
-        
-        try {
-            const masterAdmin = await masterPool.query(
-                'SELECT * FROM master_admins WHERE username = $1',
-                [username]
-            );
-            
-            if (masterAdmin.rows.length > 0) {
-                const isValid = await bcrypt.compare(password, masterAdmin.rows[0].password_hash);
-                if (isValid && masterAdmin.rows[0].is_super_admin) {
-                    // Create session token
-                    const sessionId = require('crypto').randomBytes(32).toString('hex');
-                    masterAdminSessions.set(sessionId, {
-                        username,
-                        expires: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
-                    });
-                    // Redirect with session token
-                    return res.redirect(`/admin.html?session=${sessionId}`);
-                }
-            }
-        } catch (error) {
-            console.error('Admin auth error:', error);
-        }
-    }
-    
-    // Not authenticated - redirect to login
     return res.redirect('/admin-login.html');
 });
 
-// Clean expired sessions (run every hour)
+// Clean expired sessions (every hour)
 setInterval(() => {
     const now = Date.now();
-    for (const [token, session] of masterAdminSessions.entries()) {
+    for (const [token, session] of adminSessions.entries()) {
         if (session.expires < now) {
-            masterAdminSessions.delete(token);
+            adminSessions.delete(token);
         }
     }
 }, 60 * 60 * 1000);
 
-// Google Auth Routes
+// ==========================================
+// GOOGLE OAUTH ROUTES
+// ==========================================
+
 app.get('/auth/google',
     passport.authenticate('google', { scope: ['profile', 'email'] })
 );
 
 app.get('/auth/google/callback', 
-    passport.authenticate('google', { failureRedirect: '/login.html?error=auth_failed' }),
-    (req, res) => {
-        // Successful authentication
-        if (req.user.account_status === 'pending') {
-            res.redirect('/complete-profile.html');
-        } else if (req.user.account_status === 'rejected') {
-            req.logout(() => {
-                res.redirect('/login.html?error=account_rejected');
-            });
-        } else {
-            res.redirect('/index.html');
-        }
-    }
-);
-
-app.get('/api/auth/current_user', (req, res) => {
-    if (req.isAuthenticated()) {
-        res.json({
-            isAuthenticated: true,
-            user: req.user
-        });
-    } else {
-        res.json({ isAuthenticated: false });
-    }
-});
-
-app.post('/api/auth/logout', (req, res) => {
-    req.logout((err) => {
-        if (err) { return res.status(500).json({ error: 'Logout failed' }); }
-        res.json({ success: true });
-    });
-});
-
-app.use(express.static('public'));
-
-// Initialize master database on startup
-// Initialize master database (non-blocking - server starts even if DB init fails)
-initMasterDatabase().then(success => {
-    if (success) {
-        console.log('✅ Master database ready');
-    } else {
-        console.log('⚠️ Server started but master database initialization failed. Some features may not work.');
-        console.log('💡 Please check your PostgreSQL connection and restart the server.');
-    }
-}).catch(err => {
-    console.error('❌ Unexpected error during database initialization:', err);
-});
-
-// ==========================================
-// AUTHENTICATION ROUTES (GOOGLE OAUTH)
-// ==========================================
-
-// Google Auth Route
-app.get('/auth/google', passport.authenticate('google', { 
-    scope: ['profile', 'email'] 
-}));
-
-// Google Auth Callback
-app.get('/auth/google/callback', 
     passport.authenticate('google', { failureRedirect: '/?error=login_failed' }),
     (req, res) => {
-        // Successful authentication
         if (req.user.account_status === 'pending') {
             res.redirect('/complete-profile.html');
         } else if (req.user.account_status === 'active') {
             res.redirect('/');
         } else {
-            // Suspended or other status
             req.logout((err) => {
                 if (err) { console.error('Logout error:', err); }
                 res.redirect('/?error=account_suspended');
@@ -233,7 +137,6 @@ app.get('/auth/google/callback',
     }
 );
 
-// Get Current User (Session Check)
 app.get('/api/auth/current_user', (req, res) => {
     if (req.isAuthenticated()) {
         res.json({ 
@@ -254,12 +157,11 @@ app.post('/api/users/complete-profile', async (req, res) => {
     const { phone, dob, companyName } = req.body;
 
     try {
-        await masterPool.query(
+        await pool.query(
             'UPDATE users SET phone_number = $1, dob = $2, company_name = $3, account_status = $4 WHERE id = $5',
-            [phone, dob, companyName, 'pending', req.user.id] // Keep as pending until admin approves
+            [phone, dob, companyName, 'pending', req.user.id]
         );
         
-        // Update session user object
         req.user.phone_number = phone;
         req.user.dob = dob;
         req.user.company_name = companyName;
@@ -271,7 +173,6 @@ app.post('/api/users/complete-profile', async (req, res) => {
     }
 });
 
-// Logout
 app.get('/api/auth/logout', (req, res) => {
     req.logout((err) => {
         if (err) { return res.status(500).json({ error: 'Logout failed' }); }
@@ -279,301 +180,237 @@ app.get('/api/auth/logout', (req, res) => {
     });
 });
 
+app.post('/api/auth/logout', (req, res) => {
+    req.logout((err) => {
+        if (err) { return res.status(500).json({ error: 'Logout failed' }); }
+        res.json({ success: true });
+    });
+});
+
+// Static files
+app.use(express.static('public'));
+
+// Initialize database on startup
+initDatabase().then(success => {
+    if (success) {
+        console.log('✅ Database ready');
+    } else {
+        console.log('⚠️ Server started but database initialization failed.');
+        console.log('💡 Please check your PostgreSQL connection and restart the server.');
+    }
+}).catch(err => {
+    console.error('❌ Unexpected error during database initialization:', err);
+});
+
 // ==========================================
-// TENANT MANAGEMENT
+// LOGIN API (Email/Password - No Tenant Code)
 // ==========================================
-
-// Create tenant endpoint (renamed from /api/tenants to avoid conflict)
-app.post('/api/admin/create-tenant', checkRole('admin'), async (req, res) => {
-    try {
-        const { tenantCode, tenantName, adminUsername, adminPassword } = req.body;
-        
-        if (!tenantCode || !tenantName || !adminUsername || !adminPassword) {
-            return res.status(400).json({ error: 'Missing required fields' });
-        }
-        
-        // Hash tenant admin password
-        const hashedPassword = await bcrypt.hash(adminPassword, 10);
-        await createTenantDatabase(tenantCode, tenantName, adminUsername, hashedPassword);
-        res.json({ 
-            success: true, 
-            message: `Tenant ${tenantCode} created successfully`,
-            tenantCode: tenantCode,
-            databaseName: `jewelry_${tenantCode}`
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// List tenants endpoint (for master admin)
-app.get('/api/tenants', checkRole('admin'), async (req, res) => {
-    try {
-        // Super admin can see all tenants
-        const result = await masterPool.query('SELECT tenant_code, tenant_name, created_at, is_active FROM tenants ORDER BY created_at DESC');
-        return res.json(result.rows);
-    } catch (error) {
-        console.error('Error loading tenants:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-app.get('/api/tenants/for-user', checkAuth, async (req, res) => {
-    try {
-        // Super admin can see all tenants
-        if (req.user.role === 'admin' || req.user.role === 'super_admin') {
-            const result = await masterPool.query('SELECT tenant_code, tenant_name, created_at, is_active FROM tenants');
-            return res.json(result.rows);
-        }
-        
-        // Regular users - return their assigned tenant if any
-        if (req.user.tenant_code) {
-             // Return array with single tenant object (mocking the tenants table structure)
-             // If the tenant actually exists in tenants table, fetch it.
-             // For single-tenant master instance, we might not have a record in 'tenants' table for 'master', 
-             // but we can return a synthetic one.
-             
-             // Check if tenant exists in tenants table
-             const tenantCheck = await masterPool.query('SELECT tenant_code, tenant_name, created_at, is_active FROM tenants WHERE tenant_code = $1', [req.user.tenant_code]);
-             
-             if (tenantCheck.rows.length > 0) {
-                 return res.json(tenantCheck.rows);
-             } else if (req.user.tenant_code === 'master' || req.user.tenant_code === process.env.DEFAULT_TENANT_CODE) {
-                 // Return synthetic master tenant
-                 return res.json([{
-                     tenant_code: req.user.tenant_code,
-                     tenant_name: process.env.COMPANY_NAME || 'Master Instance',
-                     created_at: new Date(),
-                     is_active: true
-                 }]);
-             }
-        }
-        
-        res.json([]);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
 
 app.post('/api/auth/login', async (req, res) => {
     try {
-        const { username, password, tenantCode } = req.body;
+        const { username, password } = req.body;
         
-        // ALWAYS check master admin FIRST (before tenant checks)
-        const masterAdmin = await masterPool.query(
-            'SELECT * FROM master_admins WHERE username = $1',
+        if (!username || !password) {
+            return res.status(400).json({ error: 'Username and password required' });
+        }
+
+        // Check admin_users table first (super admin)
+        const adminResult = await pool.query(
+            'SELECT * FROM admin_users WHERE username = $1',
             [username]
         );
         
-        if (masterAdmin.rows.length > 0) {
-            const isValid = await bcrypt.compare(password, masterAdmin.rows[0].password_hash);
-            if (isValid && masterAdmin.rows[0].is_super_admin) {
-                // Master admin can access any tenant
-                if (tenantCode && tenantCode.trim() !== '') {
-                    // Verify tenant exists
-                    const tenantCheck = await masterPool.query(
-                        'SELECT * FROM tenants WHERE tenant_code = $1',
-                        [tenantCode.trim()]
-                    );
-                    if (tenantCheck.rows.length > 0) {
-                        return res.json({
-                            success: true,
-                            tenantCode: tenantCode.trim(),
-                            username: username,
-                            role: 'super_admin',
-                            allowedTabs: ['all'],
-                            isMasterAdmin: true
-                        });
-                    } else {
-                        // Tenant doesn't exist, but master admin can still login
-                        return res.json({
-                            success: true,
-                            tenantCode: tenantCode.trim(),
-                            username: username,
-                            role: 'super_admin',
-                            allowedTabs: ['all'],
-                            isMasterAdmin: true,
-                            warning: 'Tenant not found, but logged in as master admin'
-                        });
-                    }
-                }
-                // If no tenant specified or empty, return success but user needs to select tenant
+        if (adminResult.rows.length > 0) {
+            const admin = adminResult.rows[0];
+            const isValid = await bcrypt.compare(password, admin.password_hash);
+            if (isValid) {
                 return res.json({
                     success: true,
-                    username: username,
+                    username: admin.username,
                     role: 'super_admin',
                     allowedTabs: ['all'],
-                    isMasterAdmin: true,
-                    needsTenantSelection: true
+                    isMasterAdmin: true
                 });
             }
         }
         
-        // Check master tenant table (tenant admin) - only if tenantCode provided
-        if (tenantCode) {
-            const tenantResult = await masterPool.query(
-                'SELECT * FROM tenants WHERE tenant_code = $1 AND admin_username = $2',
-                [tenantCode, username]
-            );
+        // Check regular users table
+        const userResult = await pool.query(
+            'SELECT * FROM users WHERE (username = $1 OR email = $1)',
+            [username]
+        );
         
-            if (tenantResult.rows.length > 0) {
-                const tenant = tenantResult.rows[0];
-                // SECURITY: Always use bcrypt for password verification
-                // Check if password is already hashed (starts with $2a$, $2b$, or $2y$)
+        if (userResult.rows.length > 0) {
+            const user = userResult.rows[0];
+            
+            // Check if password field exists and is hashed
+            if (user.password) {
                 let passwordValid = false;
-                if (tenant.admin_password && tenant.admin_password.startsWith('$2')) {
-                    // Password is already hashed - use bcrypt compare
-                    try {
-                        passwordValid = await bcrypt.compare(password, tenant.admin_password);
-                    } catch (e) {
-                        passwordValid = false;
-                    }
+                if (user.password.startsWith('$2')) {
+                    passwordValid = await bcrypt.compare(password, user.password);
                 } else {
-                    // Legacy plain text password - hash it immediately and verify
-                    const hashedPassword = await bcrypt.hash(password, 10);
-                    // Verify by comparing the new hash (one-time migration)
-                    passwordValid = await bcrypt.compare(password, hashedPassword);
-                    if (passwordValid) {
-                        // Update to hashed password
-                        await masterPool.query(
-                            'UPDATE tenants SET admin_password = $1 WHERE id = $2',
-                            [hashedPassword, tenant.id]
-                        );
+                    // Legacy plain text - migrate to hashed
+                    if (password === user.password) {
+                        const hashedPassword = await bcrypt.hash(password, 10);
+                        await pool.query('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, user.id]);
+                        passwordValid = true;
                     }
                 }
                 
                 if (passwordValid) {
+                    let allowedTabs = user.allowed_tabs || ['all'];
+                    if (typeof allowedTabs === 'string') {
+                        try {
+                            allowedTabs = JSON.parse(allowedTabs);
+                        } catch (e) {
+                            allowedTabs = allowedTabs.split(',').map(t => t.trim()).filter(t => t);
+                        }
+                    }
+                    
                     return res.json({
                         success: true,
-                        tenantCode: tenant.tenant_code,
-                        username: tenant.admin_username,
-                        role: 'admin',
-                        allowedTabs: ['all'],
+                        username: user.username || user.email,
+                        role: user.role || 'employee',
+                        allowedTabs: allowedTabs,
                         isMasterAdmin: false
                     });
                 }
             }
         }
         
-        // Check tenant users table
-        if (tenantCode) {
+        res.status(401).json({ error: 'Invalid credentials' });
+    } catch (error) {
+        console.error('Login error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ==========================================
+// SOFTWARE UPDATE API
+// ==========================================
+
+app.post('/api/update-software', checkAuth, async (req, res) => {
+    console.log("🔄 Update triggered by user...");
+    
+    // Only allow admin/super_admin to update
+    if (req.user && !['admin', 'super_admin'].includes(req.user.role)) {
+        return res.status(403).json({ success: false, message: 'Admin access required' });
+    }
+    
+    // Execute the shell script
+    exec('bash update.sh', { cwd: __dirname }, (error, stdout, stderr) => {
+        if (error) {
+            console.error(`❌ Update error: ${error}`);
+            return res.status(500).json({ success: false, message: 'Update failed', error: error.message });
+        }
+        console.log(`✅ Update Output: ${stdout}`);
+        if (stderr) console.log(`Update Stderr: ${stderr}`);
+        res.json({ success: true, message: 'Server updated & restarted successfully!' });
+    });
+});
+
+// Check for updates (version check)
+app.get('/api/update/check', async (req, res) => {
+    try {
+        const packageJson = require('./package.json');
+        const currentVersion = packageJson.version;
+        
+        const githubRepo = process.env.GITHUB_REPO;
+        
+        if (githubRepo) {
             try {
-                const pool = getTenantPool(tenantCode);
-                const userResult = await pool.query(
-                    'SELECT * FROM users WHERE username = $1',
-                    [username]
-                );
+                const https = require('https');
+                const githubUrl = `https://api.github.com/repos/${githubRepo}/releases/latest`;
                 
-                if (userResult.rows.length > 0) {
-                    const user = userResult.rows[0];
-                    // SECURITY: Always use bcrypt for password verification
-                    // Check if password is already hashed (starts with $2a$, $2b$, or $2y$)
-                    let passwordValid = false;
-                    if (user.password && user.password.startsWith('$2')) {
-                        // Password is already hashed - use bcrypt compare
-                        try {
-                            passwordValid = await bcrypt.compare(password, user.password);
-                        } catch (e) {
-                            passwordValid = false;
-                        }
-                    } else {
-                        // Legacy plain text password - hash it immediately and verify
-                        const hashedPassword = await bcrypt.hash(password, 10);
-                        // Verify by comparing the new hash (one-time migration)
-                        passwordValid = await bcrypt.compare(password, hashedPassword);
-                        if (passwordValid) {
-                            // Update to hashed password
-                            await pool.query(
-                                'UPDATE users SET password = $1 WHERE id = $2',
-                                [hashedPassword, user.id]
-                            );
-                        }
-                    }
-                    
-                    if (passwordValid) {
-                        // Ensure allowed_tabs is an array (PostgreSQL TEXT[] returns as array, but handle edge cases)
-                        let allowedTabs = user.allowed_tabs || ['all'];
-                        if (typeof allowedTabs === 'string') {
-                            try {
-                                allowedTabs = JSON.parse(allowedTabs);
-                            } catch (e) {
-                                // If parsing fails, treat as comma-separated string
-                                allowedTabs = allowedTabs.split(',').map(t => t.trim()).filter(t => t);
+                const githubResponse = await new Promise((resolve, reject) => {
+                    https.get(githubUrl, {
+                        headers: { 'User-Agent': 'JP-Jewellery-Estimations' }
+                    }, (res) => {
+                        let data = '';
+                        res.on('data', chunk => data += chunk);
+                        res.on('end', () => {
+                            if (res.statusCode === 200) {
+                                resolve(JSON.parse(data));
+                            } else {
+                                reject(new Error(`GitHub API returned ${res.statusCode}`));
                             }
-                        }
-                        if (!Array.isArray(allowedTabs)) {
-                            allowedTabs = ['all'];
-                        }
-                        
-                        return res.json({
-                            success: true,
-                            tenantCode: tenantCode,
-                            username: user.username,
-                            role: user.role,
-                            allowedTabs: allowedTabs,
-                            isMasterAdmin: false
                         });
-                    }
-                }
-            } catch (error) {
-                // Tenant database might not exist
-                console.error('Error checking tenant users:', error);
+                    }).on('error', reject);
+                });
+                
+                const latestVersion = githubResponse.tag_name.replace(/^v/i, '');
+                const updateAvailable = latestVersion !== currentVersion;
+                
+                return res.json({
+                    available: updateAvailable,
+                    version: latestVersion,
+                    currentVersion: currentVersion,
+                    releaseNotes: githubResponse.body || 'Latest update with improvements',
+                    mandatory: false
+                });
+            } catch (githubError) {
+                console.error('GitHub check failed:', githubError);
             }
         }
         
-        res.status(401).json({ error: 'Invalid credentials' });
+        res.json({
+            available: false,
+            version: currentVersion,
+            currentVersion: currentVersion,
+            releaseNotes: 'No updates available',
+            mandatory: false
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
+// ==========================================
+// PRODUCTS API (Single Tenant - No :tenant prefix)
+// ==========================================
 
-
-app.get('/api/:tenant/products', verifyTenantAccess, async (req, res) => {
+app.get('/api/products', checkAuth, async (req, res) => {
     try {
-        const { tenant } = req.params;
         const { barcode, styleCode, search } = req.query;
         
-        let query = 'SELECT * FROM products WHERE 1=1';
+        let queryText = 'SELECT * FROM products WHERE 1=1';
         const params = [];
         let paramCount = 1;
         
         if (barcode) {
-            query += ` AND barcode = $${paramCount++}`;
+            queryText += ` AND barcode = $${paramCount++}`;
             params.push(barcode);
         }
         if (styleCode) {
-            query += ` AND style_code = $${paramCount++}`;
+            queryText += ` AND style_code = $${paramCount++}`;
             params.push(styleCode);
         }
         if (search) {
-            query += ` AND (short_name ILIKE $${paramCount} OR item_name ILIKE $${paramCount} OR barcode ILIKE $${paramCount++})`;
+            queryText += ` AND (short_name ILIKE $${paramCount} OR item_name ILIKE $${paramCount} OR barcode ILIKE $${paramCount++})`;
             params.push(`%${search}%`);
         }
         
-        query += ' ORDER BY created_at DESC';
+        queryText += ' ORDER BY created_at DESC';
         
-        const result = await queryTenant(tenant, query, params);
+        const result = await query(queryText, params);
         res.json(result);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-app.post('/api/:tenant/products', verifyTenantAccess, async (req, res) => {
-    const { tenant } = req.params;
+app.post('/api/products', checkAuth, async (req, res) => {
     const product = req.body;
     
     try {
-        // Check if barcode already exists (conflict prevention)
         if (product.barcode) {
-            const existingCheck = await queryTenant(tenant, 'SELECT id FROM products WHERE barcode = $1', [product.barcode]);
+            const existingCheck = await query('SELECT id FROM products WHERE barcode = $1', [product.barcode]);
             if (existingCheck.length > 0) {
                 return res.status(409).json({ error: `Barcode ${product.barcode} already exists` });
             }
         }
         
-        const query = `INSERT INTO products (
+        const queryText = `INSERT INTO products (
             barcode, sku, style_code, short_name, item_name, metal_type, size, weight,
             purity, rate, mc_rate, mc_type, pcs, box_charges, stone_charges, floor, avg_wt
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
@@ -586,25 +423,23 @@ app.post('/api/:tenant/products', verifyTenantAccess, async (req, res) => {
             product.stoneCharges || 0, product.floor, product.avgWt || product.weight
         ];
         
-        const result = await queryTenant(tenant, query, params);
-        broadcastToTenant(tenant, 'product-created', result[0]);
-        // NOTE: Barcode printing is only done for PV stock-in, not regular product creation
+        const result = await query(queryText, params);
+        broadcast('product-created', result[0]);
         res.json(result[0]);
     } catch (error) {
         if (error.message.includes('unique') || error.message.includes('duplicate')) {
-            const barcode = product?.barcode || req.body?.barcode || 'unknown';
-            return res.status(409).json({ error: `Barcode ${barcode} already exists` });
+            return res.status(409).json({ error: `Barcode ${product.barcode} already exists` });
         }
         res.status(500).json({ error: error.message });
     }
 });
 
-app.put('/api/:tenant/products/:id', verifyTenantAccess, async (req, res) => {
+app.put('/api/products/:id', checkAuth, async (req, res) => {
     try {
-        const { tenant, id } = req.params;
+        const { id } = req.params;
         const product = req.body;
         
-        const query = `UPDATE products SET
+        const queryText = `UPDATE products SET
             barcode = $1, sku = $2, style_code = $3, short_name = $4, item_name = $5,
             metal_type = $6, size = $7, weight = $8, purity = $9, rate = $10,
             mc_rate = $11, mc_type = $12, pcs = $13, box_charges = $14, stone_charges = $15,
@@ -618,96 +453,78 @@ app.put('/api/:tenant/products/:id', verifyTenantAccess, async (req, res) => {
             product.stoneCharges || 0, product.floor, product.avgWt || product.weight, id
         ];
         
-        const result = await queryTenant(tenant, query, params);
-        broadcastToTenant(tenant, 'product-updated', result[0]);
+        const result = await query(queryText, params);
+        broadcast('product-updated', result[0]);
         res.json(result[0]);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-// Bulk insert products endpoint for fast bulk uploads
-app.post('/api/:tenant/products/bulk', verifyTenantAccess, async (req, res) => {
+app.post('/api/products/bulk', checkAuth, async (req, res) => {
     try {
-        const { tenant } = req.params;
         const { products: productsArray } = req.body;
         
         if (!Array.isArray(productsArray) || productsArray.length === 0) {
             return res.status(400).json({ error: 'Products array is required' });
         }
         
-        const pool = getTenantPool(tenant);
-        if (!pool) {
-            return res.status(404).json({ error: 'Tenant not found' });
-        }
-        
-        const client = await pool.connect();
+        const dbPool = getPool();
+        const client = await dbPool.connect();
         try {
             await client.query('BEGIN');
             
             const insertedProducts = [];
             const errors = [];
             
-            // Prepare bulk insert query
-            const query = `INSERT INTO products (
+            const insertQuery = `INSERT INTO products (
                 barcode, sku, style_code, short_name, item_name, metal_type, size, weight,
                 purity, rate, mc_rate, mc_type, pcs, box_charges, stone_charges, floor, avg_wt
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
             RETURNING *`;
             
-            // Insert products in batches of 100 for better performance
-            const batchSize = 100;
-            for (let i = 0; i < productsArray.length; i += batchSize) {
-                const batch = productsArray.slice(i, i + batchSize);
-                
-                for (const product of batch) {
-                    try {
-                        // Check if barcode already exists
-                        const existingCheck = await client.query(
-                            'SELECT id FROM products WHERE barcode = $1',
-                            [product.barcode]
-                        );
-                        
-                        if (existingCheck.rows.length > 0) {
-                            errors.push({ barcode: product.barcode, error: 'Barcode already exists' });
-                            continue;
-                        }
-                        
-                        const params = [
-                            product.barcode, product.sku || '', product.styleCode || '', 
-                            product.shortName, product.itemName || product.shortName,
-                            product.metalType || 'gold', product.size || '', 
-                            product.weight || 0, product.purity || 100, 
-                            product.rate || 0, product.mcRate || 0,
-                            product.mcType || 'MC/GM', product.pcs || 1, 
-                            product.boxCharges || 0, product.stoneCharges || 0,
-                            product.floor || 'Main Floor', product.avgWt || product.weight || 0
-                        ];
-                        
-                        const result = await client.query(query, params);
-                        insertedProducts.push(result.rows[0]);
-                    } catch (error) {
-                        if (error.message.includes('unique') || error.message.includes('duplicate')) {
-                            errors.push({ barcode: product.barcode, error: 'Barcode already exists' });
-                        } else {
-                            errors.push({ barcode: product.barcode, error: error.message });
-                        }
+            for (const product of productsArray) {
+                try {
+                    const existingCheck = await client.query('SELECT id FROM products WHERE barcode = $1', [product.barcode]);
+                    
+                    if (existingCheck.rows.length > 0) {
+                        errors.push({ barcode: product.barcode, error: 'Barcode already exists' });
+                        continue;
+                    }
+                    
+                    const params = [
+                        product.barcode, product.sku || '', product.styleCode || '', 
+                        product.shortName, product.itemName || product.shortName,
+                        product.metalType || 'gold', product.size || '', 
+                        product.weight || 0, product.purity || 100, 
+                        product.rate || 0, product.mcRate || 0,
+                        product.mcType || 'MC/GM', product.pcs || 1, 
+                        product.boxCharges || 0, product.stoneCharges || 0,
+                        product.floor || 'Main Floor', product.avgWt || product.weight || 0
+                    ];
+                    
+                    const result = await client.query(insertQuery, params);
+                    insertedProducts.push(result.rows[0]);
+                } catch (error) {
+                    if (error.message.includes('unique') || error.message.includes('duplicate')) {
+                        errors.push({ barcode: product.barcode, error: 'Barcode already exists' });
+                    } else {
+                        errors.push({ barcode: product.barcode, error: error.message });
                     }
                 }
             }
             
             await client.query('COMMIT');
             
-            // Broadcast product-created events for real-time sync (but NOT barcode-printed)
             insertedProducts.forEach(product => {
-                broadcastToTenant(tenant, 'product-created', product);
+                broadcast('product-created', product);
             });
             
             res.json({
                 success: true,
                 inserted: insertedProducts.length,
                 errors: errors.length,
-                errorDetails: errors.slice(0, 10) // Return first 10 errors
+                errorDetails: errors.slice(0, 10)
             });
         } catch (error) {
             await client.query('ROLLBACK');
@@ -720,51 +537,52 @@ app.post('/api/:tenant/products/bulk', verifyTenantAccess, async (req, res) => {
     }
 });
 
-app.delete('/api/:tenant/products/:id', verifyTenantAccess, async (req, res) => {
+app.delete('/api/products/:id', checkAuth, async (req, res) => {
     try {
-        const { tenant, id } = req.params;
-        await queryTenant(tenant, 'DELETE FROM products WHERE id = $1', [id]);
-        broadcastToTenant(tenant, 'product-deleted', { id: parseInt(id) });
+        const { id } = req.params;
+        await query('DELETE FROM products WHERE id = $1', [id]);
+        broadcast('product-deleted', { id: parseInt(id) });
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
+// ==========================================
+// CUSTOMERS API
+// ==========================================
 
-app.get('/api/:tenant/customers', verifyTenantAccess, async (req, res) => {
+app.get('/api/customers', checkAuth, async (req, res) => {
     try {
-        const { tenant } = req.params;
         const { mobile, search } = req.query;
         
-        let query = 'SELECT * FROM customers WHERE 1=1';
+        let queryText = 'SELECT * FROM customers WHERE 1=1';
         const params = [];
         let paramCount = 1;
         
         if (mobile) {
-            query += ` AND mobile = $${paramCount++}`;
+            queryText += ` AND mobile = $${paramCount++}`;
             params.push(mobile);
         }
         if (search) {
-            query += ` AND (name ILIKE $${paramCount} OR mobile ILIKE $${paramCount++})`;
+            queryText += ` AND (name ILIKE $${paramCount} OR mobile ILIKE $${paramCount++})`;
             params.push(`%${search}%`);
         }
         
-        query += ' ORDER BY name';
+        queryText += ' ORDER BY name';
         
-        const result = await queryTenant(tenant, query, params);
+        const result = await query(queryText, params);
         res.json(result);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-app.post('/api/:tenant/customers', verifyTenantAccess, async (req, res) => {
+app.post('/api/customers', checkAuth, async (req, res) => {
     try {
-        const { tenant } = req.params;
         const customer = req.body;
         
-        const query = `INSERT INTO customers (name, mobile, address1, address2, city, state, pincode, gstin)
+        const queryText = `INSERT INTO customers (name, mobile, address1, address2, city, state, pincode, gstin)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`;
         
         const params = [
@@ -772,20 +590,20 @@ app.post('/api/:tenant/customers', verifyTenantAccess, async (req, res) => {
             customer.city, customer.state, customer.pincode, customer.gstin
         ];
         
-        const result = await queryTenant(tenant, query, params);
-        broadcastToTenant(tenant, 'customer-created', result[0]);
+        const result = await query(queryText, params);
+        broadcast('customer-created', result[0]);
         res.json(result[0]);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-app.put('/api/:tenant/customers/:id', verifyTenantAccess, async (req, res) => {
+app.put('/api/customers/:id', checkAuth, async (req, res) => {
     try {
-        const { tenant, id } = req.params;
+        const { id } = req.params;
         const customer = req.body;
         
-        const query = `UPDATE customers SET
+        const queryText = `UPDATE customers SET
             name = $1, mobile = $2, address1 = $3, address2 = $4, city = $5,
             state = $6, pincode = $7, gstin = $8, updated_at = CURRENT_TIMESTAMP
         WHERE id = $9 RETURNING *`;
@@ -795,149 +613,43 @@ app.put('/api/:tenant/customers/:id', verifyTenantAccess, async (req, res) => {
             customer.city, customer.state, customer.pincode, customer.gstin, id
         ];
         
-        const result = await queryTenant(tenant, query, params);
-        broadcastToTenant(tenant, 'customer-updated', result[0]);
+        const result = await query(queryText, params);
+        broadcast('customer-updated', result[0]);
         res.json(result[0]);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-app.delete('/api/:tenant/customers/:id', verifyTenantAccess, async (req, res) => {
+app.delete('/api/customers/:id', checkAuth, async (req, res) => {
     try {
-        const { tenant, id } = req.params;
-        await queryTenant(tenant, 'DELETE FROM customers WHERE id = $1', [id]);
-        broadcastToTenant(tenant, 'customer-deleted', { id: parseInt(id) });
+        const { id } = req.params;
+        await query('DELETE FROM customers WHERE id = $1', [id]);
+        broadcast('customer-deleted', { id: parseInt(id) });
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-// Cleanup duplicate customers endpoint
-app.post('/api/:tenant/customers/cleanup-duplicates', verifyTenantAccess, async (req, res) => {
-    try {
-        const { tenant } = req.params;
-        
-        // Find duplicate customers by mobile number
-        // Keep the one with the highest ID (most recent) and delete the rest
-        const findDuplicatesQuery = `
-            WITH duplicates AS (
-                SELECT mobile, 
-                       array_agg(id ORDER BY id DESC) as ids,
-                       COUNT(*) as count
-                FROM customers
-                WHERE mobile IS NOT NULL AND mobile != ''
-                GROUP BY mobile
-                HAVING COUNT(*) > 1
-            )
-            SELECT mobile, ids, count
-            FROM duplicates
-        `;
-        
-        const duplicates = await queryTenant(tenant, findDuplicatesQuery, []);
-        
-        if (duplicates.length === 0) {
-            return res.json({ 
-                success: true, 
-                message: 'No duplicate customers found.',
-                deleted: 0 
-            });
-        }
-        
-        let totalDeleted = 0;
-        const deletedCustomers = [];
-        
-        // Delete duplicates (keep the first ID in the array, which is the highest)
-        for (const dup of duplicates) {
-            const idsToKeep = dup.ids[0]; // Keep the highest ID
-            const idsToDelete = dup.ids.slice(1); // Delete the rest
-            
-            for (const idToDelete of idsToDelete) {
-                // Check if customer is referenced in quotations or bills
-                const checkQuotations = await queryTenant(
-                    tenant, 
-                    'SELECT COUNT(*) as count FROM quotations WHERE customer_id = $1',
-                    [idToDelete]
-                );
-                const checkBills = await queryTenant(
-                    tenant,
-                    'SELECT COUNT(*) as count FROM bills WHERE customer_id = $1',
-                    [idToDelete]
-                );
-                
-                if (checkQuotations[0].count > 0 || checkBills[0].count > 0) {
-                    // Customer is referenced, update references to the kept customer
-                    await queryTenant(
-                        tenant,
-                        'UPDATE quotations SET customer_id = $1 WHERE customer_id = $2',
-                        [idsToKeep, idToDelete]
-                    );
-                    await queryTenant(
-                        tenant,
-                        'UPDATE bills SET customer_id = $1 WHERE customer_id = $2',
-                        [idsToKeep, idToDelete]
-                    );
-                }
-                
-                // Now safe to delete
-                await queryTenant(tenant, 'DELETE FROM customers WHERE id = $1', [idToDelete]);
-                deletedCustomers.push({ id: idToDelete, mobile: dup.mobile });
-                totalDeleted++;
-            }
-        }
-        
-        // Also handle customers with null/empty mobile (if any)
-        const nullMobileQuery = `
-            WITH null_mobiles AS (
-                SELECT id, name, mobile,
-                       ROW_NUMBER() OVER (PARTITION BY name, address1, city ORDER BY id DESC) as rn
-                FROM customers
-                WHERE mobile IS NULL OR mobile = ''
-            )
-            SELECT id, name, mobile
-            FROM null_mobiles
-            WHERE rn > 1
-        `;
-        
-        const nullMobiles = await queryTenant(tenant, nullMobileQuery, []);
-        for (const nm of nullMobiles) {
-            await queryTenant(tenant, 'DELETE FROM customers WHERE id = $1', [nm.id]);
-            deletedCustomers.push({ id: nm.id, name: nm.name, mobile: null });
-            totalDeleted++;
-        }
-        
-        broadcastToTenant(tenant, 'customers-cleaned', { deleted: totalDeleted });
-        
-        res.json({
-            success: true,
-            message: `Cleaned up ${totalDeleted} duplicate customer(s).`,
-            deleted: totalDeleted,
-            details: deletedCustomers.slice(0, 10) // Return first 10 for reference
-        });
-    } catch (error) {
-        console.error('Error cleaning up duplicate customers:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
+// ==========================================
+// QUOTATIONS API
+// ==========================================
 
-
-app.get('/api/:tenant/quotations', verifyTenantAccess, async (req, res) => {
+app.get('/api/quotations', checkAuth, async (req, res) => {
     try {
-        const { tenant } = req.params;
-        const result = await queryTenant(tenant, 'SELECT * FROM quotations ORDER BY date DESC');
+        const result = await query('SELECT * FROM quotations ORDER BY date DESC');
         res.json(result);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-app.post('/api/:tenant/quotations', verifyTenantAccess, async (req, res) => {
+app.post('/api/quotations', checkAuth, async (req, res) => {
     try {
-        const { tenant } = req.params;
         const quotation = req.body;
         
-        const query = `INSERT INTO quotations (
+        const queryText = `INSERT INTO quotations (
             quotation_no, customer_id, customer_name, customer_mobile, items, total, gst, net_total,
             discount, advance, final_amount, payment_status, remarks
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`;
@@ -949,20 +661,20 @@ app.post('/api/:tenant/quotations', verifyTenantAccess, async (req, res) => {
             quotation.finalAmount, quotation.paymentStatus, quotation.remarks
         ];
         
-        const result = await queryTenant(tenant, query, params);
-        broadcastToTenant(tenant, 'quotation-created', result[0]);
+        const result = await query(queryText, params);
+        broadcast('quotation-created', result[0]);
         res.json(result[0]);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-app.put('/api/:tenant/quotations/:id', verifyTenantAccess, async (req, res) => {
+app.put('/api/quotations/:id', checkAuth, async (req, res) => {
     try {
-        const { tenant, id } = req.params;
+        const { id } = req.params;
         const quotation = req.body;
         
-        const query = `UPDATE quotations SET
+        const queryText = `UPDATE quotations SET
             customer_id = $1, customer_name = $2, customer_mobile = $3, items = $4,
             total = $5, gst = $6, net_total = $7, discount = $8, advance = $9,
             final_amount = $10, payment_status = $11, remarks = $12
@@ -975,59 +687,73 @@ app.put('/api/:tenant/quotations/:id', verifyTenantAccess, async (req, res) => {
             quotation.finalAmount, quotation.paymentStatus, quotation.remarks, id
         ];
         
-        const result = await queryTenant(tenant, query, params);
-        broadcastToTenant(tenant, 'quotation-updated', result[0]);
+        const result = await query(queryText, params);
+        broadcast('quotation-updated', result[0]);
         res.json(result[0]);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-app.delete('/api/:tenant/quotations/:id', verifyTenantAccess, async (req, res) => {
+app.delete('/api/quotations/:id', checkAuth, async (req, res) => {
     try {
-        const { tenant, id } = req.params;
-        await queryTenant(tenant, 'DELETE FROM quotations WHERE id = $1', [id]);
-        broadcastToTenant(tenant, 'quotation-deleted', { id: parseInt(id) });
+        const { id } = req.params;
+        await query('DELETE FROM quotations WHERE id = $1', [id]);
+        broadcast('quotation-deleted', { id: parseInt(id) });
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
+// ==========================================
+// BILLS API
+// ==========================================
 
-app.get('/api/:tenant/bills', verifyTenantAccess, async (req, res) => {
+app.get('/api/bills', checkAuth, async (req, res) => {
     try {
-        const { tenant } = req.params;
         const { billNo, date } = req.query;
         
-        let query = 'SELECT * FROM bills WHERE 1=1';
+        let queryText = 'SELECT * FROM bills WHERE 1=1';
         const params = [];
         let paramCount = 1;
         
         if (billNo) {
-            query += ` AND bill_no = $${paramCount++}`;
+            queryText += ` AND bill_no = $${paramCount++}`;
             params.push(billNo);
         }
         if (date) {
-            query += ` AND DATE(date) = $${paramCount++}`;
+            queryText += ` AND DATE(date) = $${paramCount++}`;
             params.push(date);
         }
         
-        query += ' ORDER BY date DESC';
+        queryText += ' ORDER BY date DESC';
         
-        const result = await queryTenant(tenant, query, params);
+        const result = await query(queryText, params);
         res.json(result);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-app.post('/api/:tenant/bills', verifyTenantAccess, async (req, res) => {
+app.get('/api/bills/by-number/:billNo', checkAuth, async (req, res) => {
     try {
-        const { tenant } = req.params;
+        const { billNo } = req.params;
+        const result = await query('SELECT * FROM bills WHERE bill_no = $1', [billNo]);
+        if (result.length === 0) {
+            return res.status(404).json({ error: 'Bill not found' });
+        }
+        res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/bills', checkAuth, async (req, res) => {
+    try {
         const bill = req.body;
         
-        const query = `INSERT INTO bills (
+        const queryText = `INSERT INTO bills (
             bill_no, quotation_id, customer_id, customer_name, customer_mobile, items,
             total, gst, cgst, sgst, net_total, payment_method
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`;
@@ -1038,12 +764,12 @@ app.post('/api/:tenant/bills', verifyTenantAccess, async (req, res) => {
             bill.gst || 0, bill.cgst || 0, bill.sgst || 0, bill.netTotal, bill.paymentMethod || 'cash'
         ];
         
-        const result = await queryTenant(tenant, query, params);
-        broadcastToTenant(tenant, 'bill-created', result[0]);
+        const result = await query(queryText, params);
+        broadcast('bill-created', result[0]);
         
         // Update quotation to mark as billed
         if (bill.quotationId) {
-            await queryTenant(tenant, 
+            await query(
                 `UPDATE quotations SET is_billed = true, bill_no = $1, bill_date = CURRENT_TIMESTAMP WHERE id = $2`,
                 [bill.billNo, bill.quotationId]
             );
@@ -1051,7 +777,7 @@ app.post('/api/:tenant/bills', verifyTenantAccess, async (req, res) => {
         
         // Sync to Tally if enabled
         try {
-            const tallyService = new TallySyncService(tenant);
+            const tallyService = new TallySyncService();
             await tallyService.initialize();
             if (tallyService.shouldAutoSync()) {
                 await tallyService.syncSalesBill(result[0], true);
@@ -1066,12 +792,12 @@ app.post('/api/:tenant/bills', verifyTenantAccess, async (req, res) => {
     }
 });
 
-app.put('/api/:tenant/bills/:id', verifyTenantAccess, async (req, res) => {
+app.put('/api/bills/:id', checkAuth, async (req, res) => {
     try {
-        const { tenant, id } = req.params;
+        const { id } = req.params;
         const bill = req.body;
         
-        const query = `UPDATE bills SET
+        const queryText = `UPDATE bills SET
             customer_id = $1, customer_name = $2, customer_mobile = $3, items = $4,
             total = $5, gst = $6, cgst = $7, sgst = $8, net_total = $9, payment_method = $10
         WHERE id = $11 RETURNING *`;
@@ -1082,120 +808,97 @@ app.put('/api/:tenant/bills/:id', verifyTenantAccess, async (req, res) => {
             bill.netTotal, bill.paymentMethod || 'cash', id
         ];
         
-        const result = await queryTenant(tenant, query, params);
-        broadcastToTenant(tenant, 'bill-updated', result[0]);
+        const result = await query(queryText, params);
+        broadcast('bill-updated', result[0]);
         res.json(result[0]);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-app.delete('/api/:tenant/bills/:id', verifyTenantAccess, async (req, res) => {
+app.delete('/api/bills/:id', checkAuth, async (req, res) => {
     try {
-        const { tenant, id } = req.params;
-        await queryTenant(tenant, 'DELETE FROM bills WHERE id = $1', [id]);
-        broadcastToTenant(tenant, 'bill-deleted', { id: parseInt(id) });
+        const { id } = req.params;
+        await query('DELETE FROM bills WHERE id = $1', [id]);
+        broadcast('bill-deleted', { id: parseInt(id) });
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
+// ==========================================
+// RATES API
+// ==========================================
 
-app.get('/api/:tenant/rates', verifyTenantAccess, async (req, res) => {
+app.get('/api/rates', checkAuth, async (req, res) => {
     try {
-        const { tenant } = req.params;
-        const result = await queryTenant(tenant, 'SELECT * FROM rates ORDER BY updated_at DESC LIMIT 1');
+        const result = await query('SELECT * FROM rates ORDER BY updated_at DESC LIMIT 1');
         res.json(result[0] || { gold: 7500, silver: 156, platinum: 3500 });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-// Update rates
-app.post('/api/:tenant/rates', verifyTenantAccess, async (req, res) => {
+app.post('/api/rates', checkAuth, async (req, res) => {
     try {
-        const { tenant } = req.params;
         const { gold, silver, platinum } = req.body;
         
-        const query = `UPDATE rates SET gold = $1, silver = $2, platinum = $3, updated_at = CURRENT_TIMESTAMP
+        const queryText = `UPDATE rates SET gold = $1, silver = $2, platinum = $3, updated_at = CURRENT_TIMESTAMP
         WHERE id = (SELECT id FROM rates ORDER BY updated_at DESC LIMIT 1)
         RETURNING *`;
         
-        const result = await queryTenant(tenant, query, [gold, silver, platinum]);
-        broadcastToTenant(tenant, 'rates-updated', result[0]);
+        const result = await query(queryText, [gold, silver, platinum]);
+        broadcast('rates-updated', result[0]);
         res.json(result[0]);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-// Master User Management (for Google Auth users)
-app.get('/api/admin/users', checkRole('admin'), async (req, res) => {
-    try {
-        const result = await masterPool.query('SELECT * FROM users ORDER BY created_at DESC');
-        res.json(result.rows);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
+// ==========================================
+// LEDGER TRANSACTIONS API
+// ==========================================
 
-app.post('/api/admin/users/:id/status', checkRole('admin'), async (req, res) => {
+app.get('/api/ledger/transactions', checkAuth, async (req, res) => {
     try {
-        const { id } = req.params;
-        const { status, role } = req.body; // status: 'active', 'rejected', 'pending'; role: 'admin', 'employee'
-        
-        const query = `UPDATE users SET account_status = $1, role = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *`;
-        const result = await masterPool.query(query, [status, role || 'employee', id]);
-        
-        res.json(result.rows[0]);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-
-app.get('/api/:tenant/ledger/transactions', verifyTenantAccess, async (req, res) => {
-    try {
-        const { tenant } = req.params;
         const { customerId, type, startDate, endDate } = req.query;
         
-        let query = 'SELECT * FROM ledger_transactions WHERE 1=1';
+        let queryText = 'SELECT * FROM ledger_transactions WHERE 1=1';
         const params = [];
         let paramCount = 1;
         
         if (customerId) {
-            query += ` AND customer_id = $${paramCount++}`;
+            queryText += ` AND customer_id = $${paramCount++}`;
             params.push(customerId);
         }
         if (type) {
-            query += ` AND transaction_type = $${paramCount++}`;
+            queryText += ` AND transaction_type = $${paramCount++}`;
             params.push(type);
         }
         if (startDate) {
-            query += ` AND DATE(date) >= $${paramCount++}`;
+            queryText += ` AND DATE(date) >= $${paramCount++}`;
             params.push(startDate);
         }
         if (endDate) {
-            query += ` AND DATE(date) <= $${paramCount++}`;
+            queryText += ` AND DATE(date) <= $${paramCount++}`;
             params.push(endDate);
         }
         
-        query += ' ORDER BY date DESC';
+        queryText += ' ORDER BY date DESC';
         
-        const result = await queryTenant(tenant, query, params);
+        const result = await query(queryText, params);
         res.json(result);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-app.post('/api/:tenant/ledger/transactions', verifyTenantAccess, async (req, res) => {
+app.post('/api/ledger/transactions', checkAuth, async (req, res) => {
     try {
-        const { tenant } = req.params;
         const transaction = req.body;
         
-        const query = `INSERT INTO ledger_transactions (
+        const queryText = `INSERT INTO ledger_transactions (
             customer_id, transaction_type, amount, description, date, cash_type, is_restricted, payment_method, reference, customer_name, customer_mobile, bill_no
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`;
         
@@ -1208,17 +911,17 @@ app.post('/api/:tenant/ledger/transactions', verifyTenantAccess, async (req, res
             transaction.billNo || ''
         ];
         
-        const result = await queryTenant(tenant, query, params);
+        const result = await query(queryText, params);
         
-        // Sync to Tally if enabled (for cash entries and payment/receipt)
+        // Sync to Tally if enabled
         try {
-            const tallyService = new TallySyncService(tenant);
+            const tallyService = new TallySyncService();
             await tallyService.initialize();
             if (tallyService.shouldAutoSync()) {
-                const transactionType = transaction.transactionType || transaction.transaction_type;
-                if (transactionType === 'Cash Received' || transactionType === 'Cash Paid' || transactionType === 'Cash Transfer') {
+                const transactionType = transaction.transactionType;
+                if (['Cash Received', 'Cash Paid', 'Cash Transfer'].includes(transactionType)) {
                     await tallyService.syncCashEntry(result[0], true);
-                } else if (transactionType === 'Payment Received' || transactionType === 'Payment Made' || transactionType === 'Receipt' || transactionType === 'Payment') {
+                } else if (['Payment Received', 'Payment Made', 'Receipt', 'Payment'].includes(transactionType)) {
                     await tallyService.syncPaymentReceipt(result[0], true);
                 }
             }
@@ -1232,35 +935,36 @@ app.post('/api/:tenant/ledger/transactions', verifyTenantAccess, async (req, res
     }
 });
 
+// ==========================================
+// PURCHASE VOUCHERS API
+// ==========================================
 
-app.get('/api/:tenant/purchase-vouchers', verifyTenantAccess, async (req, res) => {
+app.get('/api/purchase-vouchers', checkAuth, async (req, res) => {
     try {
-        const { tenant } = req.params;
         const { pvNo } = req.query;
         
-        let query = 'SELECT * FROM purchase_vouchers WHERE 1=1';
+        let queryText = 'SELECT * FROM purchase_vouchers WHERE 1=1';
         const params = [];
         
         if (pvNo) {
-            query += ' AND pv_no = $1';
+            queryText += ' AND pv_no = $1';
             params.push(pvNo);
         }
         
-        query += ' ORDER BY date DESC';
+        queryText += ' ORDER BY date DESC';
         
-        const result = await queryTenant(tenant, query, params);
+        const result = await query(queryText, params);
         res.json(result);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-app.post('/api/:tenant/purchase-vouchers', verifyTenantAccess, async (req, res) => {
+app.post('/api/purchase-vouchers', checkAuth, async (req, res) => {
     try {
-        const { tenant } = req.params;
         const pv = req.body;
         
-        const query = `INSERT INTO purchase_vouchers (
+        const queryText = `INSERT INTO purchase_vouchers (
             pv_no, supplier_name, items, total
         ) VALUES ($1, $2, $3, $4) RETURNING *`;
         
@@ -1268,11 +972,11 @@ app.post('/api/:tenant/purchase-vouchers', verifyTenantAccess, async (req, res) 
             pv.pvNo, pv.supplierName || '', JSON.stringify(pv.items), pv.total || 0
         ];
         
-        const result = await queryTenant(tenant, query, params);
+        const result = await query(queryText, params);
         
         // Sync to Tally if enabled
         try {
-            const tallyService = new TallySyncService(tenant);
+            const tallyService = new TallySyncService();
             await tallyService.initialize();
             if (tallyService.shouldAutoSync()) {
                 await tallyService.syncPurchaseVoucher(result[0], true);
@@ -1287,39 +991,39 @@ app.post('/api/:tenant/purchase-vouchers', verifyTenantAccess, async (req, res) 
     }
 });
 
+// ==========================================
+// ROL DATA API
+// ==========================================
 
-app.get('/api/:tenant/rol', verifyTenantAccess, async (req, res) => {
+app.get('/api/rol', checkAuth, async (req, res) => {
     try {
-        const { tenant } = req.params;
         const { barcode, styleCode } = req.query;
         
-        let query = 'SELECT * FROM rol_data WHERE 1=1';
+        let queryText = 'SELECT * FROM rol_data WHERE 1=1';
         const params = [];
         let paramCount = 1;
         
         if (barcode) {
-            query += ` AND barcode = $${paramCount++}`;
+            queryText += ` AND barcode = $${paramCount++}`;
             params.push(barcode);
         }
         if (styleCode) {
-            query += ` AND barcode IN (SELECT barcode FROM products WHERE style_code = $${paramCount++})`;
+            queryText += ` AND barcode IN (SELECT barcode FROM products WHERE style_code = $${paramCount++})`;
             params.push(styleCode);
         }
         
-        const result = await queryTenant(tenant, query, params);
+        const result = await query(queryText, params);
         res.json(result);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-app.post('/api/:tenant/rol', verifyTenantAccess, async (req, res) => {
+app.post('/api/rol', checkAuth, async (req, res) => {
     try {
-        const { tenant } = req.params;
         const rolData = req.body;
         
-        // Upsert ROL data
-        const query = `INSERT INTO rol_data (barcode, rol, available)
+        const queryText = `INSERT INTO rol_data (barcode, rol, available)
         VALUES ($1, $2, $3)
         ON CONFLICT (barcode) DO UPDATE SET
             rol = EXCLUDED.rol,
@@ -1329,606 +1033,46 @@ app.post('/api/:tenant/rol', verifyTenantAccess, async (req, res) => {
         
         const params = [rolData.barcode, rolData.rol || 0, rolData.available || 0];
         
-        const result = await queryTenant(tenant, query, params);
+        const result = await query(queryText, params);
         res.json(result[0]);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-app.put('/api/:tenant/rol/:barcode', verifyTenantAccess, async (req, res) => {
+app.put('/api/rol/:barcode', checkAuth, async (req, res) => {
     try {
-        const { tenant, barcode } = req.params;
+        const { barcode } = req.params;
         const { rol, available } = req.body;
         
-        const query = `UPDATE rol_data SET
+        const queryText = `UPDATE rol_data SET
             rol = $1, available = $2, updated_at = CURRENT_TIMESTAMP
         WHERE barcode = $3 RETURNING *`;
         
-        const result = await queryTenant(tenant, query, [rol, available, barcode]);
+        const result = await query(queryText, [rol, available, barcode]);
         res.json(result[0]);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
+// ==========================================
+// SALES RETURNS API
+// ==========================================
 
-app.get('/api/:tenant/users', checkRole('admin'), async (req, res) => {
+app.get('/api/sales-returns', checkAuth, async (req, res) => {
     try {
-        const { tenant } = req.params;
-        // SECURITY: Never return password hashes
-        const result = await queryTenant(tenant, 'SELECT id, username, role, allowed_tabs, created_at FROM users ORDER BY username');
-        // Double-check: ensure no password field is returned
-        const sanitized = result.map(user => {
-            const { password, ...safeUser } = user;
-            return safeUser;
-        });
-        res.json(sanitized);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-app.post('/api/:tenant/users', checkRole('admin'), async (req, res) => {
-    try {
-        const { tenant } = req.params;
-        const { username, password, role, allowedTabs } = req.body;
-        
-        // Validate role - only 'admin' or 'employee' allowed
-        const validRoles = ['admin', 'employee'];
-        const userRole = role && validRoles.includes(role.toLowerCase()) ? role.toLowerCase() : 'employee';
-        
-        // SECURITY: Always hash passwords
-        if (!password || password.trim() === '') {
-            return res.status(400).json({ error: 'Password is required' });
-        }
-        const hashedPassword = await bcrypt.hash(password, 10);
-        
-        const query = `INSERT INTO users (username, password, role, allowed_tabs)
-        VALUES ($1, $2, $3, $4) RETURNING id, username, role, allowed_tabs, created_at`;
-        
-        const params = [username, hashedPassword, userRole, allowedTabs || ['all']];
-        
-        const result = await queryTenant(tenant, query, params);
-        // SECURITY: Never return password hash in response - explicitly select only safe fields
-        const userResponse = {
-            id: result[0].id,
-            username: result[0].username,
-            role: result[0].role,
-            allowed_tabs: result[0].allowed_tabs,
-            created_at: result[0].created_at
-        };
-        // Double-check: remove any password fields
-        delete userResponse.password;
-        delete userResponse.password_hash;
-        broadcastToTenant(tenant, 'user-created', userResponse);
-        res.json(userResponse);
-    } catch (error) {
-        // SECURITY: Never expose password in error messages
-        res.status(500).json({ error: 'Internal server error' });
-    }
-});
-
-app.put('/api/:tenant/users/:id', checkRole('admin'), async (req, res) => {
-    try {
-        const { tenant, id } = req.params;
-        const { username, password, role, allowedTabs } = req.body;
-        
-        // Validate role - only 'admin' or 'employee' allowed
-        const validRoles = ['admin', 'employee'];
-        const userRole = role && validRoles.includes(role.toLowerCase()) ? role.toLowerCase() : 'employee';
-        
-        let query = 'UPDATE users SET username = $1, role = $2, allowed_tabs = $3';
-        const params = [username, userRole, allowedTabs || ['all']];
-        
-        if (password && password.trim() !== '') {
-            // SECURITY: Always hash passwords
-            const hashedPassword = await bcrypt.hash(password, 10);
-            query += ', password = $4 WHERE id = $5 RETURNING id, username, role, allowed_tabs';
-            params.push(hashedPassword, id);
-        } else {
-            query += ' WHERE id = $4 RETURNING id, username, role, allowed_tabs';
-            params.push(id);
-        }
-        
-        const result = await queryTenant(tenant, query, params);
-        // SECURITY: Never return password hash in response - explicitly select only safe fields
-        const userResponse = {
-            id: result[0].id,
-            username: result[0].username,
-            role: result[0].role,
-            allowed_tabs: result[0].allowed_tabs,
-            created_at: result[0].created_at
-        };
-        // Double-check: remove any password fields
-        delete userResponse.password;
-        delete userResponse.password_hash;
-        broadcastToTenant(tenant, 'user-updated', userResponse);
-        res.json(userResponse);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-app.delete('/api/:tenant/users/:id', checkRole('admin'), async (req, res) => {
-    try {
-        const { tenant, id } = req.params;
-        await queryTenant(tenant, 'DELETE FROM users WHERE id = $1', [id]);
-        res.json({ success: true });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-
-app.get('/api/admin/api-keys', async (req, res) => {
-    try {
-        // Check for master API key in headers
-        const masterKey = req.headers['x-master-api-key'];
-        if (masterKey !== process.env.MASTER_API_KEY) {
-            return res.status(401).json({ error: 'Unauthorized' });
-        }
-        
-        const result = await masterPool.query('SELECT * FROM api_keys ORDER BY created_at DESC');
-        res.json(result.rows);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-app.post('/api/admin/api-keys', async (req, res) => {
-    try {
-        const masterKey = req.headers['x-master-api-key'];
-        if (masterKey !== process.env.MASTER_API_KEY) {
-            return res.status(401).json({ error: 'Unauthorized' });
-        }
-        
-        const { tenantCode, description } = req.body;
-        const apiKey = require('crypto').randomBytes(32).toString('hex');
-        
-        // Create api_keys table if not exists
-        await masterPool.query(`
-            CREATE TABLE IF NOT EXISTS api_keys (
-                id SERIAL PRIMARY KEY,
-                tenant_code VARCHAR(50) REFERENCES tenants(tenant_code),
-                api_key VARCHAR(255) UNIQUE NOT NULL,
-                description TEXT,
-                is_active BOOLEAN DEFAULT true,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                last_used TIMESTAMP
-            )
-        `);
-        
-        const result = await masterPool.query(
-            'INSERT INTO api_keys (tenant_code, api_key, description) VALUES ($1, $2, $3) RETURNING *',
-            [tenantCode, apiKey, description || '']
-        );
-        
-        res.json(result.rows[0]);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-app.post('/api/:tenant/query', checkRole('admin'), async (req, res) => {
-    try {
-        const { tenant } = req.params;
-        const { query: sqlQuery, params = [] } = req.body;
-        
-        // Security: Only allow SELECT queries for safety
-        if (!sqlQuery.trim().toUpperCase().startsWith('SELECT')) {
-            return res.status(403).json({ error: 'Only SELECT queries are allowed' });
-        }
-        
-        const result = await queryTenant(tenant, sqlQuery, params);
+        const result = await query('SELECT * FROM sales_returns ORDER BY date DESC');
         res.json(result);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-// Get table schema
-app.get('/api/:tenant/schema/:table', verifyTenantAccess, async (req, res) => {
+app.get('/api/sales-returns/:id', checkAuth, async (req, res) => {
     try {
-        const { tenant, table } = req.params;
-        const query = `
-            SELECT column_name, data_type, is_nullable, column_default
-            FROM information_schema.columns
-            WHERE table_name = $1
-            ORDER BY ordinal_position
-        `;
-        const result = await queryTenant(tenant, query, [table]);
-        res.json(result);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// List all tables
-app.get('/api/:tenant/tables', verifyTenantAccess, async (req, res) => {
-    try {
-        const { tenant } = req.params;
-        const query = `
-            SELECT table_name
-            FROM information_schema.tables
-            WHERE table_schema = 'public'
-            ORDER BY table_name
-        `;
-        const result = await queryTenant(tenant, query);
-        res.json(result.map(r => r.table_name));
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Error handling middleware - must be before catch-all route
-app.use((err, req, res, next) => {
-    // If it's an API route, return JSON error
-    if (req.path.startsWith('/api/')) {
-        console.error('API Error:', err);
-        res.status(err.status || 500).json({ 
-            error: err.message || 'Internal server error',
-            success: false 
-        });
-    } else {
-        // For non-API routes, pass to next handler
-        next(err);
-    }
-});
-
-// NOTE: Catch-all route moved to end of file (after all API routes)
-
-app.get('/api/update/check', async (req, res) => {
-    try {
-        const packageJson = require('./package.json');
-        const currentVersion = packageJson.version;
-        
-        // Check GitHub releases if configured
-        const githubRepo = process.env.GITHUB_REPO; // Format: "username/repo"
-        
-        if (githubRepo) {
-            try {
-                const https = require('https');
-                const githubUrl = `https://api.github.com/repos/${githubRepo}/releases/latest`;
-                
-                const githubResponse = await new Promise((resolve, reject) => {
-                    https.get(githubUrl, {
-                        headers: {
-                            'User-Agent': 'JP-Jewellery-Estimations'
-                        }
-                    }, (res) => {
-                        let data = '';
-                        res.on('data', chunk => data += chunk);
-                        res.on('end', () => {
-                            if (res.statusCode === 200) {
-                                resolve(JSON.parse(data));
-                            } else {
-                                reject(new Error(`GitHub API returned ${res.statusCode}`));
-                            }
-                        });
-                    }).on('error', reject);
-                });
-                
-                const latestVersion = githubResponse.tag_name.replace('v', '').replace('V', '');
-                const installerAsset = githubResponse.assets.find(asset => 
-                    asset.name.includes('.exe') && asset.name.includes('Setup')
-                );
-                
-                const updateAvailable = latestVersion !== currentVersion;
-                
-                return res.json({
-                    available: updateAvailable,
-                    version: latestVersion,
-                    currentVersion: currentVersion,
-                    downloadUrl: installerAsset ? installerAsset.browser_download_url : null,
-                    releaseNotes: githubResponse.body || 'Latest update with improvements',
-                    mandatory: false
-                });
-            } catch (githubError) {
-                console.error('GitHub check failed:', githubError);
-                // Fall through to local version check
-            }
-        }
-        
-        // Fallback: return current version (no update available)
-        res.json({
-            available: false,
-            version: currentVersion,
-            currentVersion: currentVersion,
-            downloadUrl: null,
-            releaseNotes: 'No updates available',
-            mandatory: false
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-app.get('/api/update/download', (req, res) => {
-    try {
-        // In production, this would serve the actual installer file
-        res.json({
-            message: 'Update download endpoint',
-            note: 'In production, this would serve the installer file',
-            instructions: 'Download the latest installer from your update server and run it to update the application.'
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-const tenantConnections = {};
-
-io.on('connection', (socket) => {
-    console.log('✅ Client connected:', socket.id);
-    
-    // Join tenant room when client connects
-    socket.on('join-tenant', (tenantCode) => {
-        if (tenantCode) {
-            socket.join(`tenant-${tenantCode}`);
-            if (!tenantConnections[tenantCode]) {
-                tenantConnections[tenantCode] = new Set();
-            }
-            tenantConnections[tenantCode].add(socket.id);
-            console.log(`📱 Client ${socket.id} joined tenant: ${tenantCode}`);
-        }
-    });
-    
-    socket.on('disconnect', () => {
-        console.log('❌ Client disconnected:', socket.id);
-        // Remove from tenant connections
-        Object.keys(tenantConnections).forEach(tenant => {
-            tenantConnections[tenant].delete(socket.id);
-            if (tenantConnections[tenant].size === 0) {
-                delete tenantConnections[tenant];
-            }
-        });
-    });
-    
-    // Handle barcode print requests for real-time sync
-    socket.on('barcode-print-request', (data) => {
-        const { tenantCode, barcode, product } = data;
-        if (tenantCode) {
-            // Broadcast to all clients in the tenant (except sender)
-            socket.to(`tenant-${tenantCode}`).emit('barcode-printed', { barcode, product });
-            console.log(`📡 Barcode print sync: ${barcode} for tenant ${tenantCode}`);
-        }
-    });
-});
-
-function broadcastToTenant(tenantCode, event, data) {
-    if (tenantCode) {
-        io.to(`tenant-${tenantCode}`).emit(event, data);
-        console.log(`📡 Broadcasted ${event} to tenant ${tenantCode}`);
-    }
-}
-
-global.broadcastToTenant = broadcastToTenant;
-
-// ========== SERVER SYNC API ==========
-
-app.post('/api/sync/push', async (req, res) => {
-    try {
-        const { tenantCode, table, data } = req.body;
-        const pool = getTenantPool(tenantCode);
-        
-        // Security: Only allow syncing specific tables
-        const allowedTables = [
-            'products', 'customers', 'quotations', 'bills', 'rates',
-            'ledger_transactions', 'purchase_vouchers', 'rol_data',
-            'users', 'tally_config', 'tally_sync_log', 'sales_returns'
-        ];
-        
-        if (!allowedTables.includes(table)) {
-            return res.status(403).json({ error: `Table ${table} is not allowed for sync` });
-        }
-        
-        // Insert or update data
-        for (const row of data) {
-            const { id, ...rowData } = row;
-            const columns = Object.keys(rowData);
-            const values = Object.values(rowData);
-            
-            // Check if exists
-            const exists = await pool.query(`SELECT id FROM ${table} WHERE id = $1`, [id]);
-            
-            if (exists.rows.length > 0) {
-                // Update
-                const setClause = columns.map((col, idx) => `${col} = $${idx + 1}`).join(', ');
-                await pool.query(`UPDATE ${table} SET ${setClause} WHERE id = $${columns.length + 1}`, [...values, id]);
-            } else {
-                // Insert
-                const allColumns = ['id', ...columns];
-                const allValues = [id, ...values];
-                const placeholders = allColumns.map((_, idx) => `$${idx + 1}`).join(', ');
-                await pool.query(`INSERT INTO ${table} (${allColumns.join(', ')}) VALUES (${placeholders})`, allValues);
-            }
-        }
-        
-        broadcastToTenant(tenantCode, 'data-synced', { table, count: data.length });
-        res.json({ success: true, message: `Synced ${data.length} records` });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-app.post('/api/sync/pull', async (req, res) => {
-    try {
-        const { tenantCode, table, lastSync } = req.body;
-        const pool = getTenantPool(tenantCode);
-        
-        // Security: Only allow syncing specific tables
-        const allowedTables = [
-            'products', 'customers', 'quotations', 'bills', 'rates',
-            'ledger_transactions', 'purchase_vouchers', 'rol_data',
-            'users', 'tally_config', 'tally_sync_log', 'sales_returns'
-        ];
-        
-        if (!allowedTables.includes(table)) {
-            return res.status(403).json({ error: `Table ${table} is not allowed for sync` });
-        }
-        
-        let query = `SELECT * FROM ${table}`;
-        if (lastSync) {
-            query += ` WHERE updated_at > $1 OR created_at > $1`;
-            const result = await pool.query(query, [lastSync]);
-            res.json(result.rows);
-        } else {
-            const result = await pool.query(query);
-            res.json(result.rows);
-        }
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// ========== TALLY INTEGRATION API ==========
-
-// Get Tally configuration
-app.get('/api/:tenant/tally/config', async (req, res) => {
-    try {
-        const { tenant } = req.params;
-        const tallyService = new TallySyncService(tenant);
-        const result = await tallyService.getConfig();
-        res.json(result);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Update Tally configuration
-app.put('/api/:tenant/tally/config', async (req, res) => {
-    try {
-        const { tenant } = req.params;
-        const config = req.body;
-        const tallyService = new TallySyncService(tenant);
-        const result = await tallyService.updateConfig(config);
-        res.json(result);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Test Tally connection
-app.post('/api/:tenant/tally/test', async (req, res) => {
-    try {
-        const { tenant } = req.params;
-        const tallyService = new TallySyncService(tenant);
-        const result = await tallyService.testConnection();
-        res.json(result);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Get Tally sync logs
-app.get('/api/:tenant/tally/sync-logs', async (req, res) => {
-    try {
-        const { tenant } = req.params;
-        const { limit = 100, status } = req.query;
-        const tallyService = new TallySyncService(tenant);
-        const logs = await tallyService.getSyncLogs(parseInt(limit), status || null);
-        res.json(logs);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Manual sync - Sales Bill
-app.post('/api/:tenant/tally/sync/sales-bill/:id', async (req, res) => {
-    try {
-        const { tenant, id } = req.params;
-        const pool = getTenantPool(tenant);
-        const billResult = await pool.query('SELECT * FROM bills WHERE id = $1', [id]);
-        
-        if (billResult.rows.length === 0) {
-            return res.status(404).json({ error: 'Bill not found' });
-        }
-        
-        const tallyService = new TallySyncService(tenant);
-        await tallyService.initialize();
-        const result = await tallyService.syncSalesBill(billResult.rows[0], false);
-        res.json(result);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Manual sync - Purchase Voucher
-app.post('/api/:tenant/tally/sync/purchase-voucher/:id', async (req, res) => {
-    try {
-        const { tenant, id } = req.params;
-        const pool = getTenantPool(tenant);
-        const pvResult = await pool.query('SELECT * FROM purchase_vouchers WHERE id = $1', [id]);
-        
-        if (pvResult.rows.length === 0) {
-            return res.status(404).json({ error: 'Purchase voucher not found' });
-        }
-        
-        const tallyService = new TallySyncService(tenant);
-        await tallyService.initialize();
-        const result = await tallyService.syncPurchaseVoucher(pvResult.rows[0], false);
-        res.json(result);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Manual sync - Cash Entry
-app.post('/api/:tenant/tally/sync/cash-entry/:id', async (req, res) => {
-    try {
-        const { tenant, id } = req.params;
-        const pool = getTenantPool(tenant);
-        const transactionResult = await pool.query('SELECT * FROM ledger_transactions WHERE id = $1', [id]);
-        
-        if (transactionResult.rows.length === 0) {
-            return res.status(404).json({ error: 'Transaction not found' });
-        }
-        
-        const tallyService = new TallySyncService(tenant);
-        await tallyService.initialize();
-        const result = await tallyService.syncCashEntry(transactionResult.rows[0], false);
-        res.json(result);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Manual sync - Payment/Receipt
-app.post('/api/:tenant/tally/sync/payment-receipt/:id', async (req, res) => {
-    try {
-        const { tenant, id } = req.params;
-        const pool = getTenantPool(tenant);
-        const transactionResult = await pool.query('SELECT * FROM ledger_transactions WHERE id = $1', [id]);
-        
-        if (transactionResult.rows.length === 0) {
-            return res.status(404).json({ error: 'Transaction not found' });
-        }
-        
-        const tallyService = new TallySyncService(tenant);
-        await tallyService.initialize();
-        const result = await tallyService.syncPaymentReceipt(transactionResult.rows[0], false);
-        res.json(result);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Sales Returns API
-app.get('/api/:tenant/sales-returns', async (req, res) => {
-    try {
-        const { tenant } = req.params;
-        const result = await queryTenant(tenant, 'SELECT * FROM sales_returns ORDER BY date DESC');
-        res.json(result);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-app.get('/api/:tenant/sales-returns/:id', async (req, res) => {
-    try {
-        const { tenant, id } = req.params;
-        const result = await queryTenant(tenant, 'SELECT * FROM sales_returns WHERE id = $1', [id]);
+        const { id } = req.params;
+        const result = await query('SELECT * FROM sales_returns WHERE id = $1', [id]);
         if (result.length === 0) {
             return res.status(404).json({ error: 'Sales return not found' });
         }
@@ -1938,12 +1082,11 @@ app.get('/api/:tenant/sales-returns/:id', async (req, res) => {
     }
 });
 
-app.post('/api/:tenant/sales-returns', async (req, res) => {
+app.post('/api/sales-returns', checkAuth, async (req, res) => {
     try {
-        const { tenant } = req.params;
         const salesReturn = req.body;
         
-        const query = `INSERT INTO sales_returns (
+        const queryText = `INSERT INTO sales_returns (
             ssr_no, bill_id, bill_no, quotation_id, customer_id, customer_name, customer_mobile,
             items, total, gst, cgst, sgst, net_total, reason, remarks
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`;
@@ -1956,11 +1099,11 @@ app.post('/api/:tenant/sales-returns', async (req, res) => {
             salesReturn.netTotal, salesReturn.reason || '', salesReturn.remarks || ''
         ];
         
-        const result = await queryTenant(tenant, query, params);
-        broadcastToTenant(tenant, 'sales-return-created', result[0]);
+        const result = await query(queryText, params);
+        broadcast('sales-return-created', result[0]);
         
         // Add to ledger as negative transaction
-        await queryTenant(tenant, `
+        await query(`
             INSERT INTO ledger_transactions (
                 customer_id, transaction_type, amount, description, date,
                 customer_name, customer_mobile, reference, bill_no
@@ -1968,7 +1111,7 @@ app.post('/api/:tenant/sales-returns', async (req, res) => {
         `, [
             salesReturn.customerId,
             'Sales Return',
-            -Math.abs(salesReturn.netTotal), // Negative amount
+            -Math.abs(salesReturn.netTotal),
             `Sales Return ${salesReturn.ssrNo} - ${salesReturn.reason || 'Product Return'}`,
             salesReturn.customerName,
             salesReturn.customerMobile,
@@ -1978,7 +1121,7 @@ app.post('/api/:tenant/sales-returns', async (req, res) => {
         
         // Sync to Tally if enabled
         try {
-            const tallyService = new TallySyncService(tenant);
+            const tallyService = new TallySyncService();
             await tallyService.initialize();
             if (tallyService.shouldAutoSync()) {
                 await tallyService.syncSalesReturn(result[0], true);
@@ -1993,58 +1136,134 @@ app.post('/api/:tenant/sales-returns', async (req, res) => {
     }
 });
 
-// Get bill by bill number for sales return
-app.get('/api/:tenant/bills/by-number/:billNo', async (req, res) => {
-    try {
-        const { tenant, billNo } = req.params;
-        const result = await queryTenant(tenant, 'SELECT * FROM bills WHERE bill_no = $1', [billNo]);
-        if (result.length === 0) {
-            return res.status(404).json({ error: 'Bill not found' });
-        }
-        res.json(result[0]);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
+// ==========================================
+// USER MANAGEMENT API
+// ==========================================
 
-// Manual sync - Sales Return
-app.post('/api/:tenant/tally/sync/sales-return/:id', async (req, res) => {
+app.get('/api/users', checkRole('admin'), async (req, res) => {
     try {
-        const { tenant, id } = req.params;
-        const pool = getTenantPool(tenant);
-        const salesReturnResult = await pool.query('SELECT * FROM sales_returns WHERE id = $1', [id]);
-        
-        if (salesReturnResult.rows.length === 0) {
-            return res.status(404).json({ error: 'Sales return not found' });
-        }
-        
-        const tallyService = new TallySyncService(tenant);
-        await tallyService.initialize();
-        const result = await tallyService.syncSalesReturn(salesReturnResult.rows[0], false);
+        const result = await query('SELECT id, username, email, name, role, allowed_tabs, account_status, created_at FROM users ORDER BY created_at DESC');
         res.json(result);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-// Retry failed syncs
-app.post('/api/:tenant/tally/retry-failed', async (req, res) => {
+app.post('/api/users', checkRole('admin'), async (req, res) => {
     try {
-        const { tenant } = req.params;
-        const { maxRetries = 3 } = req.body;
-        const tallyService = new TallySyncService(tenant);
-        await tallyService.initialize();
-        const results = await tallyService.retryFailedSyncs(maxRetries);
-        res.json({ success: true, results });
+        const { username, email, password, name, role, allowedTabs } = req.body;
+        
+        const validRoles = ['admin', 'employee'];
+        const userRole = role && validRoles.includes(role.toLowerCase()) ? role.toLowerCase() : 'employee';
+        
+        if (!password || password.trim() === '') {
+            return res.status(400).json({ error: 'Password is required' });
+        }
+        const hashedPassword = await bcrypt.hash(password, 10);
+        
+        const queryText = `INSERT INTO users (username, email, password, name, role, allowed_tabs, account_status)
+        VALUES ($1, $2, $3, $4, $5, $6, 'active') RETURNING id, username, email, name, role, allowed_tabs, created_at`;
+        
+        const params = [username, email || `${username}@local.user`, hashedPassword, name || username, userRole, allowedTabs || ['all']];
+        
+        const result = await query(queryText, params);
+        broadcast('user-created', result[0]);
+        res.json(result[0]);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-// ========== LABEL PRINTING API ==========
+app.put('/api/users/:id', checkRole('admin'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { username, email, password, name, role, allowedTabs, accountStatus } = req.body;
+        
+        const validRoles = ['admin', 'employee'];
+        const userRole = role && validRoles.includes(role.toLowerCase()) ? role.toLowerCase() : 'employee';
+        
+        let queryText = 'UPDATE users SET username = $1, email = $2, name = $3, role = $4, allowed_tabs = $5, account_status = $6';
+        const params = [username, email, name, userRole, allowedTabs || ['all'], accountStatus || 'active'];
+        
+        if (password && password.trim() !== '') {
+            const hashedPassword = await bcrypt.hash(password, 10);
+            queryText += ', password = $7 WHERE id = $8 RETURNING id, username, email, name, role, allowed_tabs';
+            params.push(hashedPassword, id);
+        } else {
+            queryText += ' WHERE id = $7 RETURNING id, username, email, name, role, allowed_tabs';
+            params.push(id);
+        }
+        
+        const result = await query(queryText, params);
+        broadcast('user-updated', result[0]);
+        res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.delete('/api/users/:id', checkRole('admin'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        await query('DELETE FROM users WHERE id = $1', [id]);
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ==========================================
+// TALLY INTEGRATION API
+// ==========================================
+
+app.get('/api/tally/config', checkAuth, async (req, res) => {
+    try {
+        const tallyService = new TallySyncService();
+        const result = await tallyService.getConfig();
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.put('/api/tally/config', checkAuth, async (req, res) => {
+    try {
+        const config = req.body;
+        const tallyService = new TallySyncService();
+        const result = await tallyService.updateConfig(config);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/tally/test', checkAuth, async (req, res) => {
+    try {
+        const tallyService = new TallySyncService();
+        const result = await tallyService.testConnection();
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/tally/sync-logs', checkAuth, async (req, res) => {
+    try {
+        const { limit = 100, status } = req.query;
+        const tallyService = new TallySyncService();
+        const logs = await tallyService.getSyncLogs(parseInt(limit), status || null);
+        res.json(logs);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ==========================================
+// LABEL PRINTING API
+// ==========================================
+
 const labelPrinter = require('./scripts/label-printer');
 
-// Print label endpoint
 app.post('/api/print/label', async (req, res) => {
     try {
         const { itemData, printerConfig } = req.body;
@@ -2057,12 +1276,10 @@ app.post('/api/print/label', async (req, res) => {
             return res.status(400).json({ error: 'printerConfig is required' });
         }
         
-        // Validate printer config
         if (!printerConfig.type || !printerConfig.address) {
             return res.status(400).json({ error: 'printerConfig must have type and address' });
         }
         
-        // Print label
         const success = await labelPrinter.printLabel(itemData, printerConfig);
         
         if (success) {
@@ -2080,7 +1297,6 @@ app.post('/api/print/label', async (req, res) => {
     }
 });
 
-// Generate TSPL command only (without printing)
 app.post('/api/print/label/tspl', async (req, res) => {
     try {
         const { itemData } = req.body;
@@ -2097,14 +1313,145 @@ app.post('/api/print/label/tspl', async (req, res) => {
     }
 });
 
-// Catch-all route for non-API routes (MUST BE LAST - after all API routes)
+// ==========================================
+// BACKWARD COMPATIBLE ROUTES (for existing frontend)
+// These routes accept :tenant param but ignore it
+// ==========================================
+
+// Redirect old tenant routes to new routes
+const oldRoutes = [
+    'products', 'customers', 'quotations', 'bills', 'rates',
+    'ledger/transactions', 'purchase-vouchers', 'rol', 'sales-returns',
+    'users', 'tally/config', 'tally/test', 'tally/sync-logs'
+];
+
+oldRoutes.forEach(route => {
+    // GET with tenant prefix
+    app.get(`/api/:tenant/${route}`, (req, res, next) => {
+        req.url = `/api/${route}`;
+        next('route');
+    });
+    
+    // POST with tenant prefix
+    app.post(`/api/:tenant/${route}`, (req, res, next) => {
+        req.url = `/api/${route}`;
+        next('route');
+    });
+});
+
+// Also handle individual resource routes
+app.get('/api/:tenant/products/:id', (req, res) => res.redirect(`/api/products/${req.params.id}`));
+app.put('/api/:tenant/products/:id', checkAuth, async (req, res) => {
+    req.params.tenant = undefined;
+    // Forward to main route handler
+    const { id } = req.params;
+    const product = req.body;
+    try {
+        const queryText = `UPDATE products SET
+            barcode = $1, sku = $2, style_code = $3, short_name = $4, item_name = $5,
+            metal_type = $6, size = $7, weight = $8, purity = $9, rate = $10,
+            mc_rate = $11, mc_type = $12, pcs = $13, box_charges = $14, stone_charges = $15,
+            floor = $16, avg_wt = $17, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $18 RETURNING *`;
+        const params = [
+            product.barcode, product.sku, product.styleCode, product.shortName, product.itemName,
+            product.metalType, product.size, product.weight, product.purity, product.rate,
+            product.mcRate, product.mcType, product.pcs || 1, product.boxCharges || 0,
+            product.stoneCharges || 0, product.floor, product.avgWt || product.weight, id
+        ];
+        const result = await query(queryText, params);
+        broadcast('product-updated', result[0]);
+        res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+app.delete('/api/:tenant/products/:id', checkAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        await query('DELETE FROM products WHERE id = $1', [id]);
+        broadcast('product-deleted', { id: parseInt(id) });
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/:tenant/bills/by-number/:billNo', checkAuth, async (req, res) => {
+    try {
+        const { billNo } = req.params;
+        const result = await query('SELECT * FROM bills WHERE bill_no = $1', [billNo]);
+        if (result.length === 0) {
+            return res.status(404).json({ error: 'Bill not found' });
+        }
+        res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ==========================================
+// SOCKET.IO FOR REAL-TIME SYNC
+// ==========================================
+
+const connectedClients = new Set();
+
+io.on('connection', (socket) => {
+    console.log('✅ Client connected:', socket.id);
+    connectedClients.add(socket.id);
+    
+    socket.on('join-tenant', (tenantCode) => {
+        // In single-tenant mode, all clients join the same room
+        socket.join('main');
+        console.log(`📱 Client ${socket.id} joined main room`);
+    });
+    
+    socket.on('disconnect', () => {
+        console.log('❌ Client disconnected:', socket.id);
+        connectedClients.delete(socket.id);
+    });
+    
+    socket.on('barcode-print-request', (data) => {
+        const { barcode, product } = data;
+        socket.to('main').emit('barcode-printed', { barcode, product });
+        console.log(`📡 Barcode print sync: ${barcode}`);
+    });
+});
+
+function broadcast(event, data) {
+    io.to('main').emit(event, data);
+    console.log(`📡 Broadcasted ${event}`);
+}
+
+global.broadcast = broadcast;
+
+// ==========================================
+// ERROR HANDLING
+// ==========================================
+
+app.use((err, req, res, next) => {
+    if (req.path.startsWith('/api/')) {
+        console.error('API Error:', err);
+        res.status(err.status || 500).json({ 
+            error: err.message || 'Internal server error',
+            success: false 
+        });
+    } else {
+        next(err);
+    }
+});
+
+// Catch-all route (MUST BE LAST)
 app.get('*', (req, res) => {
-    // Don't catch API routes
     if (req.path.startsWith('/api/')) {
         return res.status(404).json({ error: 'API endpoint not found', success: false });
     }
     res.sendFile(path.join(__dirname, 'public/index.html'));
 });
+
+// ==========================================
+// START SERVER
+// ==========================================
 
 const DOMAIN = process.env.DOMAIN || 'localhost';
 const PROTOCOL = process.env.NODE_ENV === 'production' ? 'https' : 'http';
@@ -2113,19 +1460,12 @@ const BASE_URL = process.env.NODE_ENV === 'production'
   : `http://localhost:${PORT}`;
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ Server running on port ${PORT}`);
-  if (process.env.NODE_ENV === 'production') {
-    console.log(`🌐 Cloud deployment: ${BASE_URL}`);
-  } else {
-    console.log(`💻 Local development: ${BASE_URL}`);
-  }
-  console.log(`📊 Database API available at ${BASE_URL}/api`);
-  console.log(`🔐 Multi-tenant architecture enabled`);
-  console.log(`🔄 Update API available at ${BASE_URL}/api/update`);
-  console.log(`🔌 Real-time sync enabled (Socket.IO)`);
-  console.log(`🔄 Server sync API available at ${BASE_URL}/api/sync`);
-  if (process.env.NODE_ENV === 'production') {
-    console.log(`🌐 Cloud deployment active`);
-    console.log(`🔒 HTTPS enabled via Nginx`);
-  }
+    console.log(`✅ Server running on port ${PORT}`);
+    console.log(`🌐 URL: ${BASE_URL}`);
+    console.log(`📊 API available at ${BASE_URL}/api`);
+    console.log(`🔄 Self-Update API: ${BASE_URL}/api/update-software`);
+    console.log(`🔌 Real-time sync enabled (Socket.IO)`);
+    if (process.env.NODE_ENV === 'production') {
+        console.log(`☁️ Production mode active`);
+    }
 });
