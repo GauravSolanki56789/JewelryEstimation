@@ -3,7 +3,7 @@
   "version": "2.1.0",
   "description": "Single-Tenant Jewelry Estimation Software with Self-Update",
   "author": "Gaurav Softwares",
-  "main": "electron-main.js",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
@@ -17,17 +17,7 @@
     "backup-cloud": "node scripts/cloud-backup.js",
     "restore-db": "node scripts/restore-database.js",
     "sync-db": "node scripts/sync-database.js",
-    "update": "bash update.sh",
-    "electron": "electron .",
-    "clean": "powershell -ExecutionPolicy Bypass -File clean-build.ps1",
-    "force-clean": "powershell -ExecutionPolicy Bypass -File force-clean.ps1",
-    "unlock": "powershell -ExecutionPolicy Bypass -File unlock-file.ps1",
-    "build": "electron-builder",
-    "build:win": "powershell -ExecutionPolicy Bypass -File build-no-sign.ps1",
-    "build:win-simple": "electron-builder --win",
-    "rebuild": "npm run clean && npm run build:win",
-    "force-rebuild": "npm run force-clean && npm run build:win",
-    "build-fresh": "electron-builder --win"
+    "update": "bash update.sh"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
@@ -43,51 +33,9 @@
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
-    "electron": "^39.2.3",
-    "electron-builder": "^26.0.12",
-    "electron-updater": "^6.6.2",
     "nodemon": "^3.0.1"
   },
   "engines": {
     "node": "18.x"
-  },
-  "build": {
-    "appId": "com.gauravsoftwares.jewelry",
-    "productName": "JP Jewellery Estimations",
-    "publish": {
-      "provider": "github",
-      "owner": "YOUR_GITHUB_USERNAME",
-      "repo": "YOUR_REPO_NAME"
-    },
-    "directories": {
-      "output": "dist-build"
-    },
-    "files": [
-      "public/**/*",
-      "config/**/*",
-      "server.js",
-      "electron-main.js",
-      "preload.js",
-      "package.json",
-      "node_modules/**/*",
-      "!node_modules/**/*.{md,ts,map}",
-      "!**/*.md",
-      "!.env",
-      "!.env.example"
-    ],
-    "asarUnpack": [
-      "config/**/*",
-      "server.js",
-      "node_modules/bcrypt/**/*",
-      "node_modules/pg/**/*"
-    ],
-    "win": {
-      "target": "nsis",
-      "icon": "icon.ico"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true
-    }
   }
 }

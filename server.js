@@ -1419,75 +1419,118 @@ app.post('/api/sales-returns', checkAuth, async (req, res) => {
 });
 
 // ==========================================
-// USER MANAGEMENT API
+// USER MANAGEMENT API (Whitelist-Based - No Passwords)
+// Users authenticate via Google OAuth only
 // ==========================================
 
+// Get all whitelisted users
 app.get('/api/users', checkRole('admin'), async (req, res) => {
     try {
-        const result = await query('SELECT id, username, email, name, role, allowed_tabs, account_status, created_at FROM users ORDER BY created_at DESC');
+        const result = await query(`
+            SELECT id, email, name, role, allowed_tabs, account_status, created_at, updated_at 
+            FROM users 
+            ORDER BY created_at DESC
+        `);
         res.json(result);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
+// Add user to whitelist (Google OAuth - no password)
 app.post('/api/users', checkRole('admin'), async (req, res) => {
     try {
-        const { username, email, password, name, role, allowedTabs } = req.body;
+        const { email, name, role, allowedTabs } = req.body;
         
+        // Validate email
+        if (!email || !email.trim()) {
+            return res.status(400).json({ error: 'Email is required' });
+        }
+        
+        const emailLower = email.toLowerCase().trim();
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(emailLower)) {
+            return res.status(400).json({ error: 'Invalid email format' });
+        }
+        
+        // Check if user already exists
+        const existing = await query('SELECT * FROM users WHERE email = $1', [emailLower]);
+        if (existing.length > 0) {
+            return res.status(409).json({ error: 'User with this email already exists' });
+        }
+        
+        // Validate role
         const validRoles = ['admin', 'employee'];
         const userRole = role && validRoles.includes(role.toLowerCase()) ? role.toLowerCase() : 'employee';
         
-        if (!password || password.trim() === '') {
-            return res.status(400).json({ error: 'Password is required' });
-        }
-        const hashedPassword = await bcrypt.hash(password, 10);
+        // Insert new whitelisted user (no password - Google OAuth only)
+        const result = await query(`
+            INSERT INTO users (email, name, role, allowed_tabs, account_status, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) 
+            RETURNING id, email, name, role, allowed_tabs, account_status, created_at
+        `, [emailLower, name || 'New User', userRole, allowedTabs || ['all']]);
         
-        const queryText = `INSERT INTO users (username, email, password, name, role, allowed_tabs, account_status)
-        VALUES ($1, $2, $3, $4, $5, $6, 'active') RETURNING id, username, email, name, role, allowed_tabs, created_at`;
-        
-        const params = [username, email || `${username}@local.user`, hashedPassword, name || username, userRole, allowedTabs || ['all']];
-        
-        const result = await query(queryText, params);
+        console.log(`✅ User whitelisted: ${emailLower} (Role: ${userRole})`);
         broadcast('user-created', result[0]);
-        res.json(result[0]);
+        res.json({ success: true, user: result[0] });
     } catch (error) {
+        console.error('Error creating user:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
+// Update user (role, name, tabs, status)
 app.put('/api/users/:id', checkRole('admin'), async (req, res) => {
     try {
         const { id } = req.params;
-        const { username, email, password, name, role, allowedTabs, accountStatus } = req.body;
+        const { email, name, role, allowedTabs, accountStatus } = req.body;
         
-        const validRoles = ['admin', 'employee'];
-        const userRole = role && validRoles.includes(role.toLowerCase()) ? role.toLowerCase() : 'employee';
-        
-        let queryText = 'UPDATE users SET username = $1, email = $2, name = $3, role = $4, allowed_tabs = $5, account_status = $6';
-        const params = [username, email, name, userRole, allowedTabs || ['all'], accountStatus || 'active'];
-        
-        if (password && password.trim() !== '') {
-            const hashedPassword = await bcrypt.hash(password, 10);
-            queryText += ', password = $7 WHERE id = $8 RETURNING id, username, email, name, role, allowed_tabs';
-            params.push(hashedPassword, id);
-        } else {
-            queryText += ' WHERE id = $7 RETURNING id, username, email, name, role, allowed_tabs';
-            params.push(id);
+        // Prevent editing super admin email
+        const existingUser = await query('SELECT * FROM users WHERE id = $1', [id]);
+        if (existingUser.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
         }
         
-        const result = await query(queryText, params);
+        if (existingUser[0].email === 'jaigaurav56789@gmail.com' && email && email !== 'jaigaurav56789@gmail.com') {
+            return res.status(403).json({ error: 'Cannot change super admin email' });
+        }
+        
+        // Validate role
+        const validRoles = ['admin', 'employee'];
+        const userRole = role && validRoles.includes(role.toLowerCase()) ? role.toLowerCase() : existingUser[0].role;
+        
+        const result = await query(`
+            UPDATE users SET 
+                name = COALESCE($1, name),
+                role = $2,
+                allowed_tabs = COALESCE($3, allowed_tabs),
+                account_status = COALESCE($4, account_status),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $5 
+            RETURNING id, email, name, role, allowed_tabs, account_status
+        `, [name, userRole, allowedTabs, accountStatus, id]);
+        
         broadcast('user-updated', result[0]);
-        res.json(result[0]);
+        res.json({ success: true, user: result[0] });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
+// Remove user from whitelist
 app.delete('/api/users/:id', checkRole('admin'), async (req, res) => {
     try {
         const { id } = req.params;
+        
+        // Prevent deleting super admin
+        const user = await query('SELECT * FROM users WHERE id = $1', [id]);
+        if (user.length > 0 && user[0].email === 'jaigaurav56789@gmail.com') {
+            return res.status(403).json({ error: 'Cannot delete super admin' });
+        }
+        
         await query('DELETE FROM users WHERE id = $1', [id]);
+        console.log(`🗑️ User removed from whitelist: ID ${id}`);
+        broadcast('user-deleted', { id: parseInt(id) });
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: error.message });

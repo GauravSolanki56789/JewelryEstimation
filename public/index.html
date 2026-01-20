@@ -2079,48 +2079,58 @@
     <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-4">
             <h3 class="text-2xl font-bold text-gray-800">👥 User Whitelist Management</h3>
-            <button onclick="document.getElementById('userManagementModal').classList.add('hidden')" 
+            <button onclick="closeUserManagementModal()" 
                 class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+        </div>
+        
+        <!-- Info Banner -->
+        <div class="bg-blue-50 border-l-4 border-blue-500 p-3 mb-4">
+            <p class="text-sm text-blue-700">
+                <strong>🔐 Google OAuth Whitelist:</strong> Only pre-approved emails can login. 
+                No passwords are stored - users authenticate via Google.
+            </p>
         </div>
         
         <!-- Add New User Form -->
         <div class="bg-green-50 border-l-4 border-green-500 p-4 mb-4">
-            <h4 class="font-bold text-green-800 mb-3">➕ Add New User to Whitelist</h4>
-            <p class="text-sm text-green-700 mb-3">Only whitelisted emails can login via Google OAuth</p>
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <h4 class="font-bold text-green-800 mb-3">➕ Add User to Whitelist</h4>
+            <form onsubmit="event.preventDefault(); addUserToWhitelist();" class="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <div>
-                    <input type="email" id="newUserEmail" placeholder="Email (required)" 
+                    <label class="block text-xs font-medium text-green-700 mb-1">Email *</label>
+                    <input type="email" id="newUserEmail" placeholder="user@example.com" required
                         class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500">
                 </div>
                 <div>
-                    <input type="text" id="newUserName" placeholder="Name (optional)" 
+                    <label class="block text-xs font-medium text-green-700 mb-1">Name</label>
+                    <input type="text" id="newUserName" placeholder="Full Name" 
                         class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500">
                 </div>
                 <div>
+                    <label class="block text-xs font-medium text-green-700 mb-1">Role</label>
                     <select id="newUserRole" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500">
-                        <option value="employee">Employee</option>
-                        <option value="admin">Admin</option>
+                        <option value="employee">👤 Employee</option>
+                        <option value="admin">👑 Admin</option>
                     </select>
                 </div>
-                <div>
-                    <button onclick="addUserToWhitelist()" 
+                <div class="flex items-end">
+                    <button type="submit" 
                         class="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">
                         ➕ Add User
                     </button>
                 </div>
-            </div>
+            </form>
         </div>
         
         <!-- Existing Users List -->
         <div class="mb-4 flex justify-between items-center">
-            <h4 class="font-bold text-gray-700">📋 Whitelisted Users</h4>
+            <h4 class="font-bold text-gray-700">📋 Whitelisted Users (<span id="userCount">0</span>)</h4>
             <button onclick="loadWhitelistedUsers()" 
                 class="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
                 🔄 Refresh
             </button>
         </div>
         
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto border rounded-lg">
             <table class="w-full text-left border-collapse">
                 <thead>
                     <tr class="bg-gray-100 border-b">
@@ -2128,7 +2138,7 @@
                         <th class="p-3 font-bold text-sm">Name</th>
                         <th class="p-3 font-bold text-sm">Role</th>
                         <th class="p-3 font-bold text-sm">Status</th>
-                        <th class="p-3 font-bold text-sm">Actions</th>
+                        <th class="p-3 font-bold text-sm text-center">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="userManagementList">
@@ -2136,6 +2146,64 @@
                 </tbody>
             </table>
         </div>
+    </div>
+</div>
+
+<!-- Edit User Modal -->
+<div id="editUserModal" class="fixed inset-0 flex items-center justify-center z-[60] hidden bg-black bg-opacity-50 p-4">
+    <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-bold text-gray-800">✏️ Edit User</h3>
+            <button onclick="closeEditUserModal()" 
+                class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+        </div>
+        
+        <form onsubmit="event.preventDefault(); saveUserEdit();">
+            <input type="hidden" id="editUserId">
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input type="email" id="editUserEmail" readonly
+                        class="w-full px-3 py-2 border rounded-lg bg-gray-100 text-gray-600">
+                    <p class="text-xs text-gray-500 mt-1">Email cannot be changed (Google OAuth identifier)</p>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                    <input type="text" id="editUserName" placeholder="Full Name"
+                        class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                    <select id="editUserRole" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <option value="employee">👤 Employee - Limited access</option>
+                        <option value="admin">👑 Admin - Full access</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Account Status</label>
+                    <select id="editUserStatus" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <option value="active">✅ Active</option>
+                        <option value="pending">⏳ Pending</option>
+                        <option value="suspended">🚫 Suspended</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="flex gap-3 mt-6">
+                <button type="submit" 
+                    class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold">
+                    💾 Save Changes
+                </button>
+                <button type="button" onclick="closeEditUserModal()" 
+                    class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                    Cancel
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -3950,6 +4018,11 @@ function updateTallyStatus(message, type) {
     statusText.textContent = message;
 }
 
+// ==========================================
+// USER WHITELIST MANAGEMENT (Google OAuth)
+// No passwords - email whitelist only
+// ==========================================
+
 async function showUserManagement() {
     // SECURITY: Only admin can manage users
     const permissions = currentUser?.permissions || {};
@@ -3969,7 +4042,11 @@ async function showUserManagement() {
     await loadWhitelistedUsers();
 }
 
-// Add user to whitelist (Admin only)
+function closeUserManagementModal() {
+    document.getElementById('userManagementModal')?.classList.add('hidden');
+}
+
+// Add user to whitelist (Admin only) - No password needed
 async function addUserToWhitelist() {
     const emailInput = document.getElementById('newUserEmail');
     const nameInput = document.getElementById('newUserName');
@@ -3981,6 +4058,7 @@ async function addUserToWhitelist() {
     
     if (!email) {
         showDialog('Error', 'Email is required', 'error');
+        emailInput?.focus();
         return;
     }
     
@@ -3988,11 +4066,13 @@ async function addUserToWhitelist() {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
         showDialog('Error', 'Please enter a valid email address', 'error');
+        emailInput?.focus();
         return;
     }
     
     try {
-        const response = await fetch('/api/admin/add-user', {
+        // Use /api/users endpoint (cleaned up, no password)
+        const response = await fetch('/api/users', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, name, role })
@@ -4001,7 +4081,7 @@ async function addUserToWhitelist() {
         const result = await response.json();
         
         if (response.ok && result.success) {
-            showDialog('Success', `User ${email} added to whitelist successfully!`, 'success');
+            showDialog('Success', `✅ User ${email} added to whitelist!\n\nThey can now login via Google OAuth.`, 'success');
             // Clear inputs
             if (emailInput) emailInput.value = '';
             if (nameInput) nameInput.value = '';
@@ -4020,18 +4100,24 @@ async function addUserToWhitelist() {
 // Load whitelisted users from server
 async function loadWhitelistedUsers() {
     const userListDiv = document.getElementById('userManagementList');
+    const userCountEl = document.getElementById('userCount');
     if (!userListDiv) return;
     
     userListDiv.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-500">Loading users...</td></tr>';
     
     try {
-        const response = await fetch('/api/admin/users');
+        const response = await fetch('/api/users');
         
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
         }
         
         const users = await response.json();
+        
+        // Update count
+        if (userCountEl) {
+            userCountEl.textContent = users.length || 0;
+        }
         
         if (!users || users.length === 0) {
             userListDiv.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-500">No users found. Add a user above.</td></tr>';
@@ -4043,38 +4129,35 @@ async function loadWhitelistedUsers() {
             const statusClass = user.account_status === 'active' ? 'bg-green-100 text-green-800' : 
                                user.account_status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
                                'bg-red-100 text-red-800';
+            const roleClass = user.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800';
             
             return `
                 <tr class="border-b hover:bg-gray-50">
                     <td class="p-3">
-                        <div class="font-medium">${user.email}</div>
-                        ${isSuperAdmin ? '<span class="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">Super Admin</span>' : ''}
+                        <div class="font-medium text-gray-900">${user.email}</div>
+                        ${isSuperAdmin ? '<span class="text-xs bg-yellow-200 text-yellow-800 px-2 py-0.5 rounded font-bold">🔐 Super Admin</span>' : ''}
                     </td>
-                    <td class="p-3">${user.name || '-'}</td>
+                    <td class="p-3 text-gray-600">${user.name || '-'}</td>
                     <td class="p-3">
-                        <select onchange="updateUserRole(${user.id}, this.value)" 
-                            class="text-xs border rounded p-1" ${isSuperAdmin ? 'disabled' : ''}>
-                            <option value="employee" ${user.role === 'employee' ? 'selected' : ''}>Employee</option>
-                            <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
-                        </select>
+                        <span class="px-2 py-1 rounded text-xs font-medium ${roleClass}">
+                            ${user.role === 'admin' ? '👑 Admin' : '👤 Employee'}
+                        </span>
                     </td>
                     <td class="p-3">
                         <span class="px-2 py-1 rounded-full text-xs font-bold ${statusClass}">
                             ${(user.account_status || 'pending').toUpperCase()}
                         </span>
                     </td>
-                    <td class="p-3">
-                        <div class="flex gap-2">
-                            ${user.account_status !== 'active' ? `
-                                <button onclick="updateUserStatus(${user.id}, 'active')" 
-                                    class="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700">
-                                    ✓ Approve
-                                </button>
-                            ` : ''}
+                    <td class="p-3 text-center">
+                        <div class="flex gap-1 justify-center">
+                            <button onclick="openEditUserModal(${user.id}, '${user.email}', '${user.name || ''}', '${user.role}', '${user.account_status}')" 
+                                class="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700" title="Edit User">
+                                ✏️
+                            </button>
                             ${!isSuperAdmin ? `
                                 <button onclick="removeUserFromWhitelist(${user.id}, '${user.email}')" 
-                                    class="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700">
-                                    🗑️ Remove
+                                    class="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700" title="Remove User">
+                                    🗑️
                                 </button>
                             ` : ''}
                         </div>
@@ -4089,13 +4172,61 @@ async function loadWhitelistedUsers() {
     }
 }
 
-// Update user status
+// Open Edit User Modal
+function openEditUserModal(userId, email, name, role, status) {
+    document.getElementById('editUserId').value = userId;
+    document.getElementById('editUserEmail').value = email;
+    document.getElementById('editUserName').value = name;
+    document.getElementById('editUserRole').value = role || 'employee';
+    document.getElementById('editUserStatus').value = status || 'active';
+    
+    // Disable role change for super admin
+    const isSuperAdmin = email === 'jaigaurav56789@gmail.com';
+    document.getElementById('editUserRole').disabled = isSuperAdmin;
+    document.getElementById('editUserStatus').disabled = isSuperAdmin;
+    
+    document.getElementById('editUserModal').classList.remove('hidden');
+}
+
+function closeEditUserModal() {
+    document.getElementById('editUserModal')?.classList.add('hidden');
+}
+
+// Save user edit
+async function saveUserEdit() {
+    const userId = document.getElementById('editUserId').value;
+    const name = document.getElementById('editUserName').value.trim();
+    const role = document.getElementById('editUserRole').value;
+    const accountStatus = document.getElementById('editUserStatus').value;
+    
+    try {
+        const response = await fetch(`/api/users/${userId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, role, accountStatus })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            showDialog('Success', 'User updated successfully!', 'success');
+            closeEditUserModal();
+            await loadWhitelistedUsers();
+        } else {
+            showDialog('Error', result.error || 'Failed to update user', 'error');
+        }
+    } catch (error) {
+        showDialog('Error', 'Failed to update user: ' + error.message, 'error');
+    }
+}
+
+// Update user status (quick action)
 async function updateUserStatus(userId, status) {
     try {
-        const response = await fetch(`/api/admin/users/${userId}/status`, {
-            method: 'POST',
+        const response = await fetch(`/api/users/${userId}`, {
+            method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status })
+            body: JSON.stringify({ accountStatus: status })
         });
         
         if (response.ok) {
@@ -4109,11 +4240,11 @@ async function updateUserStatus(userId, status) {
     }
 }
 
-// Update user role
+// Update user role (quick action from dropdown)
 async function updateUserRole(userId, role) {
     try {
-        const response = await fetch(`/api/admin/users/${userId}/status`, {
-            method: 'POST',
+        const response = await fetch(`/api/users/${userId}`, {
+            method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ role })
         });
@@ -4129,12 +4260,12 @@ async function updateUserRole(userId, role) {
 
 // Remove user from whitelist
 async function removeUserFromWhitelist(userId, email) {
-    if (!confirm(`Are you sure you want to remove ${email} from the whitelist? They will no longer be able to login.`)) {
+    if (!confirm(`⚠️ Remove ${email} from whitelist?\n\nThey will no longer be able to login via Google OAuth.`)) {
         return;
     }
     
     try {
-        const response = await fetch(`/api/admin/users/${userId}`, {
+        const response = await fetch(`/api/users/${userId}`, {
             method: 'DELETE'
         });
         
@@ -4151,454 +4282,53 @@ async function removeUserFromWhitelist(userId, email) {
 }
 
 // Make user management functions globally accessible
+// Uses new whitelist-based API (no passwords)
 window.renderUserManagement = async function() {
-    const userListDiv = document.getElementById('userManagementList');
-    if (!userListDiv) return;
-    
-    userListDiv.innerHTML = '<p class="text-gray-500">Loading users...</p>';
-    
+    await loadWhitelistedUsers();
+}
+
+// Legacy edit function - redirects to new modal-based edit
+window.editUser = async function(usernameOrEmail) {
+    // Find user by email or username
     try {
-        // Load users from API
-        let apiUsers = [];
-        try {
-            apiUsers = await api.getUsers();
-        } catch (apiError) {
-            console.warn('Failed to load users from API:', apiError);
-            // Continue with empty array - will show localStorage users as fallback
-            apiUsers = [];
+        const response = await fetch('/api/users');
+        const users = await response.json();
+        const user = users.find(u => u.email === usernameOrEmail || u.name === usernameOrEmail);
+        
+        if (user) {
+            openEditUserModal(user.id, user.email, user.name || '', user.role, user.account_status);
+        } else {
+            showDialog('Error', 'User not found', 'error');
         }
-        
-        // Always show admin and Gaurav if user can manage users
-        const canManageUsers = (currentUser.username === 'admin' || 
-                                currentUser.username === 'Gaurav' || 
-                                currentUser.role === 'admin' || 
-                                currentUser.isMasterAdmin === true) &&
-                               currentUser.role !== 'employee';
-        
-        // Combine API users with protected users
-        const allUsers = [];
-        
-        // Always show 'admin' if current user is admin or master admin
-        if (canManageUsers) {
-            allUsers.push({
-                username: 'admin',
-                role: 'admin',
-                allowedTabs: ['all'],
-                isProtected: true
-            });
-        }
-        
-        // Always show 'Gaurav' if current user is master admin
-        if (currentUser.isMasterAdmin || currentUser.username === 'Gaurav') {
-            allUsers.push({
-                username: 'Gaurav',
-                role: 'super_admin',
-                allowedTabs: ['all'],
-                isProtected: true
-            });
-        }
-        
-        // Add API users
-        if (Array.isArray(apiUsers)) {
-            apiUsers.forEach(user => {
-                allUsers.push({
-                    username: user.username,
-                    role: user.role || 'user',
-                    allowedTabs: user.allowed_tabs || [],
-                    isProtected: false
-                });
-            });
-        }
-        
-        // Include localStorage users for backward compatibility
-        Object.keys(AUTH_USERS).forEach(username => {
-            // Skip protected users and users already in API list
-            if ((username === 'admin' || username === 'Gaurav') || allUsers.find(u => u.username === username)) {
-                return;
-            }
-            const user = AUTH_USERS[username];
-            // Only add if user has valid data
-            if (user && (user.role || user.allowedTabs)) {
-                allUsers.push({
-                    username: username,
-                    role: user.role || 'employee',
-                    allowedTabs: user.allowedTabs || [],
-                    isProtected: false
-                });
-            }
-        });
-        
-        if (allUsers.length === 0) {
-            userListDiv.innerHTML = '<p class="text-gray-500">No users found. Click "Add New User" to create one.</p>';
-            return;
-        }
-        
-        userListDiv.innerHTML = '';
-        
-        allUsers.forEach(user => {
-            const isProtected = user.isProtected || user.username === 'admin' || user.username === 'Gaurav';
-            
-            const userCard = document.createElement('div');
-            userCard.className = 'bg-white p-4 rounded-lg border-2 border-gray-200 mb-3';
-            userCard.innerHTML = `
-                <div class="flex justify-between items-start">
-                    <div class="flex-1">
-                        <div class="flex items-center gap-2 mb-2">
-                            <span class="font-bold text-lg">${user.username}</span>
-                            ${isProtected ? '<span class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">Protected</span>' : ''}
-                            <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">${user.role || 'user'}</span>
-                        </div>
-                        <div class="text-sm text-gray-600 mb-2">
-                            <div><strong>Role Type:</strong> ${user.role === 'admin' || user.role === 'super_admin' ? 'Admin' : (user.role === 'employee' ? 'Employee' : (user.role || 'Employee'))}</div>
-                            <div><strong>Allowed Tabs:</strong> ${user.allowedTabs && user.allowedTabs.includes('all') ? 'All Tabs' : (user.allowedTabs || []).join(', ') || 'None'}</div>
-                        </div>
-                    </div>
-                    <div class="flex gap-2">
-                        <button onclick="editUser('${user.username}')" class="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">✏️ Edit</button>
-                        ${!isProtected ? `<button onclick="deleteUser('${user.username}')" class="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700">🗑️ Delete</button>` : ''}
-                    </div>
-                </div>
-            `;
-            userListDiv.appendChild(userCard);
-        });
     } catch (error) {
-        console.error('Error loading users:', error);
-        // Fallback to localStorage users
-        userListDiv.innerHTML = '';
-        Object.keys(AUTH_USERS).forEach(username => {
-            const user = AUTH_USERS[username];
-            const isProtected = username === 'admin' || username === 'Gaurav';
-            
-            const userCard = document.createElement('div');
-            userCard.className = 'bg-white p-4 rounded-lg border-2 border-gray-200 mb-3';
-            userCard.innerHTML = `
-                <div class="flex justify-between items-start">
-                    <div class="flex-1">
-                        <div class="flex items-center gap-2 mb-2">
-                            <span class="font-bold text-lg">${username}</span>
-                            ${isProtected ? '<span class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">Protected</span>' : ''}
-                            <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">${user.role || 'user'}</span>
-                        </div>
-                        <div class="text-sm text-gray-600 mb-2">
-                            <div><strong>Role Type:</strong> ${user.role === 'admin' ? 'Admin' : (user.role === 'employee' ? 'Employee' : (user.role || 'Employee'))}</div>
-                            <div><strong>Allowed Tabs:</strong> ${user.allowedTabs && user.allowedTabs.includes('all') ? 'All Tabs' : (user.allowedTabs || []).join(', ') || 'None'}</div>
-                        </div>
-                    </div>
-                    <div class="flex gap-2">
-                        <button onclick="editUser('${username}')" class="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">✏️ Edit</button>
-                        ${!isProtected ? `<button onclick="deleteUser('${username}')" class="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700">🗑️ Delete</button>` : ''}
-                    </div>
-                </div>
-            `;
-            userListDiv.appendChild(userCard);
-        });
+        showDialog('Error', 'Failed to load user data', 'error');
     }
 }
 
-window.editUser = async function(username) {
-    // Protected users cannot be edited (except password)
-    if (username === 'admin' || username === 'Gaurav') {
-        showDialog('Info', 'Protected users cannot be edited. Only their password can be changed.', 'info');
-        return;
-    }
-    
+// Legacy delete function - redirects to new whitelist remove
+window.deleteUser = async function(usernameOrEmail) {
+    // Find user by email or username
     try {
-        // Try to get user from API first with error handling
-        let user = null;
-        try {
-            const apiUsers = await api.getUsers();
-            user = apiUsers.find(u => u.username === username);
-        } catch (apiError) {
-            console.warn('Failed to load users from API:', apiError);
-            // Fallback to localStorage
-            user = AUTH_USERS[username];
+        const response = await fetch('/api/users');
+        const users = await response.json();
+        const user = users.find(u => u.email === usernameOrEmail || u.name === usernameOrEmail);
+        
+        if (user) {
+            await removeUserFromWhitelist(user.id, user.email);
+        } else {
+            showDialog('Error', 'User not found', 'error');
         }
-        
-        if (!user) {
-            user = AUTH_USERS[username];
-        }
-        
-        if (!user) {
-            showDialog('Error', 'User not found!', 'error');
-            return;
-        }
-        
-        const newPassword = await showInputDialog(
-            'Edit User Password',
-            `Enter new password for ${username} (leave empty to keep current):`,
-            '',
-            'Enter password or leave empty'
-        );
-        
-        // Only allow 'admin' or 'employee' roles
-        const currentRole = user.role || 'employee';
-        const isCurrentlyAdmin = currentRole === 'admin' || currentRole === 'super_admin';
-        
-        showConfirmDialog(
-            'Set User Role',
-            `Current role: ${isCurrentlyAdmin ? 'Admin' : 'Employee'}\n\nChoose the role for ${username}:\n\n• Admin: Full access including user management\n• Employee: Limited access, cannot manage users`,
-            async () => {
-                // User clicked "Yes" = Admin
-                await proceedWithTabsSelection('admin', newPassword);
-            },
-            async () => {
-                // User clicked "No" = Employee
-                await proceedWithTabsSelection('employee', newPassword);
-            }
-        );
-        
-        async function proceedWithTabsSelection(role, password) {
-            const allTabs = ['billing', 'products', 'customers', 'rol', 'quotations', 'salesbill', 'billhistory', 'ledger', 'pv', 'tagsplit', 'tagsearch', 'floor'];
-            const currentTabs = user.allowed_tabs || user.allowedTabs || [];
-            const hasAllTabs = currentTabs.includes('all');
-            
-            let tabsMessage = `Select tabs for ${username}:\n\nCurrent: ${hasAllTabs ? 'All Tabs' : currentTabs.join(', ') || 'None'}\n\nEnter "all" for all tabs, or comma-separated list:\n${allTabs.join(', ')}`;
-            
-            try {
-                const tabsInput = await showInputDialog(
-                    'Select Tabs',
-                    tabsMessage,
-                    hasAllTabs ? 'all' : currentTabs.join(', '),
-                    'all or comma-separated list'
-                );
-                
-                let allowedTabs = [];
-                if (tabsInput && tabsInput.trim().toLowerCase() === 'all') {
-                    allowedTabs = ['all'];
-                } else if (tabsInput) {
-                    allowedTabs = tabsInput.split(',').map(t => t.trim()).filter(t => allTabs.includes(t));
-                }
-                
-                // Update via API
-                try {
-                    const updateData = {
-                        role: role,
-                        allowed_tabs: allowedTabs
-                    };
-                    if (password) {
-                        updateData.password = password;
-                    }
-                    await api.updateUser(username, updateData);
-                    showDialog('Success', `User ${username} updated successfully!`, 'success');
-                } catch (apiError) {
-                    console.error('Failed to update user via API:', apiError);
-                    // Show error to user
-                    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-                        showDialog('Error', `Failed to update user: ${apiError.message || 'Network error. Please check your connection.'}`, 'error');
-                        return;
-                    }
-                    // Local fallback only for localhost
-                    // Never store passwords in localStorage
-                    user.role = role;
-                    user.allowedTabs = allowedTabs;
-                    // NO PASSWORD stored in localStorage
-                    delete user.password; // Remove password if exists
-                    AUTH_USERS[username] = user;
-                    saveAuthUsers();
-                    showDialog('Warning', `User ${username} updated locally but password changes not saved. Please use API for secure storage.`, 'warning');
-                }
-                
-                await window.renderUserManagement();
-            } catch (e) {
-                // User cancelled
-            }
-        }
-    } catch (e) {
-        // User cancelled
+    } catch (error) {
+        showDialog('Error', 'Failed to delete user', 'error');
     }
 }
 
-window.deleteUser = async function(username) {
-    if (username === 'admin' || username === 'Gaurav') {
-        showDialog('Error', 'Cannot delete protected users!', 'error');
-        return;
-    }
-    
-    showConfirmDialog('Delete User', `Are you sure you want to delete user "${username}"?`, async () => {
-        try {
-            // First, find the user by username to get their ID with error handling
-            let apiUsers = [];
-            try {
-                apiUsers = await api.getUsers();
-            } catch (apiError) {
-                console.warn('Failed to load users from API:', apiError);
-                // Continue with empty array
-            }
-            const userToDelete = apiUsers.find(u => u.username === username);
-            
-            if (userToDelete && userToDelete.id) {
-                // Delete via API using the user ID with error handling
-                try {
-                    await api.deleteUser(userToDelete.id);
-                    // Also remove from localStorage if exists (cleanup)
-                    if (AUTH_USERS[username]) {
-                        delete AUTH_USERS[username];
-                        saveAuthUsers();
-                    }
-                    showDialog('Success', `User ${username} deleted successfully!`, 'success');
-                } catch (deleteError) {
-                    console.error('Delete user error:', deleteError);
-                    // Show error to user
-                    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-                        showDialog('Error', `Failed to delete user: ${deleteError.message || 'Network error. Please check your connection.'}`, 'error');
-                        return;
-                    }
-                    // Local fallback only for localhost
-                    if (AUTH_USERS[username]) {
-                        delete AUTH_USERS[username];
-                        saveAuthUsers();
-                        showDialog('Success', `User ${username} deleted (from local storage)!`, 'success');
-                    } else {
-                        showDialog('Error', `Failed to delete user ${username}. Please try again.`, 'error');
-                    }
-                }
-            } else {
-                // User not found in API, try localStorage fallback (only for localhost)
-                if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                    if (AUTH_USERS[username]) {
-                        delete AUTH_USERS[username];
-                        saveAuthUsers();
-                        showDialog('Success', `User ${username} deleted (from local storage)!`, 'success');
-                    } else {
-                        showDialog('Error', `User ${username} not found!`, 'error');
-                    }
-                } else {
-                    showDialog('Error', `User ${username} not found in database!`, 'error');
-                }
-            }
-        } catch (apiError) {
-            console.error('Delete user error:', apiError);
-            // Show error to user
-            if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-                showDialog('Error', `Failed to delete user: ${apiError.message || 'Network error. Please check your connection.'}`, 'error');
-                return;
-            }
-            // Local fallback only for localhost
-            if (AUTH_USERS[username]) {
-                delete AUTH_USERS[username];
-                saveAuthUsers();
-                showDialog('Success', `User ${username} deleted (from local storage)!`, 'success');
-            } else {
-                showDialog('Error', `Failed to delete user ${username}. Please try again.`, 'error');
-            }
-        }
-        // Always refresh the user list after deletion (with a small delay to ensure API processed)
-        setTimeout(async () => {
-            await window.renderUserManagement();
-        }, 300);
-    });
-}
-
-window.addNewUser = async function() {
-    try {
-        const username = await showInputDialog('Add New User', 'Enter username:', '', 'Enter username');
-        if (!username || !username.trim()) return;
-        
-        // Check if username exists in API with error handling
-        try {
-            const apiUsers = await api.getUsers();
-            if (apiUsers.find(u => u.username === username)) {
-                showDialog('Error', 'Username already exists!', 'error');
-                return;
-            }
-        } catch (apiError) {
-            console.warn('Failed to check users from API:', apiError);
-            // Check localStorage as fallback
-            if (AUTH_USERS[username]) {
-                showDialog('Error', 'Username already exists!', 'error');
-                return;
-            }
-        }
-        
-        const password = await showInputDialog('Add New User', 'Enter password:', '', 'Enter password');
-        if (!password) return;
-        
-        // Only allow 'admin' or 'employee' roles
-        // Use a custom role selection dialog
-        const roleSelected = await new Promise((resolve) => {
-            const dialog = document.createElement('div');
-            dialog.className = 'fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50';
-            dialog.innerHTML = `
-                <div class="bg-white p-6 rounded-lg shadow-2xl max-w-md w-full mx-4 border-2 border-blue-500">
-                    <div class="flex items-center gap-3 mb-4">
-                        <span class="text-3xl">👤</span>
-                        <h3 class="text-xl font-bold text-gray-800">Select User Role</h3>
-                    </div>
-                    <p class="text-gray-700 mb-6">Choose the role for <strong>${username}</strong>:</p>
-                    <div class="space-y-3 mb-6">
-                        <div class="border-2 border-blue-200 rounded-lg p-4 hover:bg-blue-50 cursor-pointer" onclick="selectRole('admin')">
-                            <div class="font-bold text-blue-700">Admin</div>
-                            <div class="text-sm text-gray-600">Full access including user management</div>
-                        </div>
-                        <div class="border-2 border-gray-200 rounded-lg p-4 hover:bg-gray-50 cursor-pointer" onclick="selectRole('employee')">
-                            <div class="font-bold text-gray-700">Employee</div>
-                            <div class="text-sm text-gray-600">Limited access, cannot manage users</div>
-                        </div>
-                    </div>
-                    <div class="flex justify-end">
-                        <button onclick="closeRoleDialog()" class="px-6 py-2 bg-gray-500 text-white rounded-lg font-medium hover:bg-gray-600">
-                            Cancel
-                        </button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(dialog);
-            
-            window.selectRole = (role) => {
-                document.body.removeChild(dialog);
-                resolve(role);
-            };
-            
-            window.closeRoleDialog = () => {
-                document.body.removeChild(dialog);
-                resolve(null);
-            };
-        });
-        
-        if (!roleSelected) return; // User cancelled
-        
-        await proceedWithTabsSelection(roleSelected, password);
-        
-        async function proceedWithTabsSelection(role, password) {
-            const allTabs = ['billing', 'products', 'customers', 'rol', 'quotations', 'salesbill', 'billhistory', 'ledger', 'pv', 'tagsplit', 'tagsearch', 'floor'];
-            let tabsMessage = `Select tabs for ${username}:\n\nEnter "all" for all tabs, or comma-separated list:\n${allTabs.join(', ')}`;
-            
-            try {
-                const tabsInput = await showInputDialog('Select Tabs', tabsMessage, 'all', 'all or comma-separated list');
-                
-                let allowedTabs = [];
-                if (tabsInput && tabsInput.trim().toLowerCase() === 'all') {
-                    allowedTabs = ['all'];
-                } else if (tabsInput) {
-                    allowedTabs = tabsInput.split(',').map(t => t.trim()).filter(t => allTabs.includes(t));
-                }
-                
-                // Create via API
-                try {
-                    await api.createUser({
-                        username: username,
-                        password: password,
-                        role: role,
-                        allowed_tabs: allowedTabs
-                    });
-                    showDialog('Success', `User ${username} created successfully!`, 'success');
-                } catch (apiError) {
-                    // Never store passwords in localStorage
-                    AUTH_USERS[username] = {
-                        role: role,
-                        allowedTabs: allowedTabs
-                    };
-                    saveAuthUsers();
-                    showDialog('Warning', `User ${username} created locally but password not saved. Please use API for secure storage.`, 'warning');
-                }
-                
-                await window.renderUserManagement();
-            } catch (e) {
-                // User cancelled
-            }
-        }
-    } catch (e) {
-        // User cancelled
+// Legacy function - redirects to new user management modal
+window.addNewUser = function() {
+    // Focus the email input in the user management modal
+    const emailInput = document.getElementById('newUserEmail');
+    if (emailInput) {
+        emailInput.focus();
     }
 }
 
