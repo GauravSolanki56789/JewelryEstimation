@@ -374,18 +374,38 @@ app.post('/api/update-software', checkAuth, async (req, res) => {
     
     // Only allow admin/super_admin to update
     if (req.user && !['admin', 'super_admin'].includes(req.user.role)) {
-        return res.status(403).json({ success: false, message: 'Admin access required' });
+        return res.status(403).json({ success: false, message: 'Admin access required', output: 'Access denied: Admin privileges required' });
     }
     
-    // Execute the shell script
-    exec('bash update.sh', { cwd: __dirname }, (error, stdout, stderr) => {
+    // Execute the shell script with extended timeout (5 minutes) and capture all output
+    exec('bash update.sh 2>&1', { 
+        cwd: __dirname, 
+        timeout: 300000, // 5 minute timeout
+        maxBuffer: 1024 * 1024 * 10 // 10MB buffer for output
+    }, (error, stdout, stderr) => {
+        const fullOutput = stdout + (stderr ? '\n--- STDERR ---\n' + stderr : '');
+        
         if (error) {
-            console.error(`❌ Update error: ${error}`);
-            return res.status(500).json({ success: false, message: 'Update failed', error: error.message });
+            console.error(`❌ Update error: ${error.message}`);
+            console.error(`Output: ${fullOutput}`);
+            
+            // Return error but include the output for debugging
+            return res.status(500).json({ 
+                success: false, 
+                message: 'Update failed: ' + (error.message || 'Unknown error'),
+                output: fullOutput,
+                error: error.message
+            });
         }
-        console.log(`✅ Update Output: ${stdout}`);
-        if (stderr) console.log(`Update Stderr: ${stderr}`);
-        res.json({ success: true, message: 'Server updated & restarted successfully!' });
+        
+        console.log(`✅ Update Output:\n${fullOutput}`);
+        
+        // Return success with full output
+        res.json({ 
+            success: true, 
+            message: 'Server updated & restarted successfully!',
+            output: fullOutput
+        });
     });
 });
 
