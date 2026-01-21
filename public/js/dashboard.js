@@ -287,9 +287,57 @@ function closeAllDropdowns() {
 
 // Close dropdowns when clicking outside
 document.addEventListener('click', (e) => {
+    // Don't close if clicking inside a dropdown container
     if (!e.target.closest('[data-dropdown]')) {
         closeAllDropdowns();
     }
+});
+
+// ==========================================
+// DROPDOWN INITIALIZATION (Robust Event Binding)
+// ==========================================
+
+function initDropdownListeners() {
+    // Desktop dropdown triggers
+    const dropdownMappings = {
+        'crmMenu': 'navCrmDropdown',
+        'inventoryMenu': 'navInventoryDropdown',
+        'reportsMenu': 'navReportsDropdown',
+        'adminMenu': 'navAdminDropdown'
+    };
+    
+    // Attach click handlers to dropdown trigger buttons
+    Object.entries(dropdownMappings).forEach(([menuId, containerId]) => {
+        const container = document.getElementById(containerId);
+        if (container) {
+            const triggerBtn = container.querySelector('button');
+            if (triggerBtn) {
+                // Remove any existing onclick to prevent double-firing
+                triggerBtn.removeAttribute('onclick');
+                
+                // Add robust click listener
+                triggerBtn.addEventListener('click', (e) => {
+                    e.stopPropagation(); // Prevent document click from immediately closing
+                    toggleDropdown(menuId);
+                });
+            }
+        }
+    });
+    
+    console.log('✅ Dropdown listeners initialized');
+}
+
+// Initialize dropdowns when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initDropdownListeners);
+} else {
+    // DOM already loaded, initialize immediately
+    initDropdownListeners();
+}
+
+// Also re-initialize after navigation init (in case elements were hidden/shown)
+window.addEventListener('permissionsLoaded', () => {
+    setTimeout(initDropdownListeners, 100);
 });
 
 // Toggle mobile menu
@@ -353,6 +401,7 @@ window.closeAllDropdowns = closeAllDropdowns;
 window.toggleMobileMenu = toggleMobileMenu;
 window.closeMobileMenu = closeMobileMenu;
 window.focusBarcodeScanner = focusBarcodeScanner;
+window.initDropdownListeners = initDropdownListeners;
 
 // ==========================================
 // USER MANAGEMENT MODULE

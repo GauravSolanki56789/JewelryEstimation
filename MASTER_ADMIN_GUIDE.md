@@ -9,6 +9,21 @@
 
 ## Table of Contents
 
+# 1. Go to folder
+cd JewelryEstimation
+
+# 2. Force the update manually
+git fetch --all
+git reset --hard origin/master
+
+# 3. Make the script executable (just in case)
+chmod +x update.sh
+
+# 4. Restart
+pm2 restart gaurav-app
+
+to update app on server
+
 1. [Daily Operations](#daily-operations)
 2. [New Client Deployment (SOP)](#new-client-deployment-sop)
 3. [Disaster Recovery](#disaster-recovery)

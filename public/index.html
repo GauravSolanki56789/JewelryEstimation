@@ -4200,45 +4200,6 @@
                 return this.request(`/bills/by-number/${encodeURIComponent(billNo)}`);
             },
             
-            // Tenants API (for login)
-            // SECURITY: Changed to POST to avoid passwords in URL
-            async getTenants(username = null, password = null) {
-                try {
-                    const url = `${API_BASE.replace('/api', '')}/api/tenants`;
-                    let response;
-                    
-                    if (username && password) {
-                        // Use POST instead of GET to avoid passwords in URL
-                        response = await fetch(url, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ username, password })
-                        });
-                    } else {
-                        // POST without credentials returns empty array
-                        response = await fetch(url, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({})
-                        });
-                    }
-                    
-                    // Check if response is JSON
-                    const contentType = response.headers.get('content-type');
-                    if (contentType && contentType.includes('application/json')) {
-                        const data = await response.json();
-                        return data;
-                    } else {
-                        // If not JSON, return empty array
-                        console.warn('Tenants API returned non-JSON response');
-                        return [];
-                    }
-                } catch (error) {
-                    console.error('Error fetching tenants:', error);
-                    return [];
-                }
-            },
-            
             async login(username, password) {
                 try {
                     const response = await fetch(`${API_BASE.replace('/api', '')}/api/auth/login`, {
@@ -4264,53 +4225,8 @@
             },
         };
         
-        // Load tenants on page load (only for master admin preview)
-        async function loadTenants() {
-            // Store tenants for suggestions dropdown
-            window.tenantList = [];
-            try {
-                // Try to get tenants (will return empty for non-admin)
-                const tenants = await api.getTenants();
-                window.tenantList = tenants;
-            } catch (error) {
-                console.error('Error loading tenant suggestions:', error);
-            }
-        }
-        
-        // Load tenants after login (for master admin)
-        async function loadTenantsForUser(username, tenantCode) {
-            const select = document.getElementById('authTenant');
-            if (!select) return;
-            
-            try {
-                // Use API_BASE_URL for cloud compatibility
-                const baseUrl = window.API_BASE_URL ? window.API_BASE_URL.replace('/api', '') : 'http://localhost:3000';
-                const tenants = await fetch(`${baseUrl}/api/tenants/for-user?username=${encodeURIComponent(username)}&tenantCode=${encodeURIComponent(tenantCode || '')}`)
-                    .then(r => r.json());
-                
-                select.innerHTML = '<option value="">Select Client...</option>';
-                
-                tenants.forEach(tenant => {
-                    const option = document.createElement('option');
-                    option.value = tenant.tenant_code;
-                    option.textContent = tenant.tenant_name || tenant.tenant_code;
-                    select.appendChild(option);
-                });
-                
-                // If only one tenant, auto-select it
-                if (tenants.length === 1 && !currentUser?.isMasterAdmin) {
-                    select.value = tenants[0].tenant_code;
-                    select.disabled = true; // Lock it for regular users
-                }
-            } catch (error) {
-                console.error('Error loading tenants for user:', error);
-            }
-        }
-        
         // ✅ COMPLETE DATA INTEGRITY CHECKS
             document.addEventListener('DOMContentLoaded', function () {
-                // Load tenants on page load
-                loadTenants();
                 // Verify all critical data structures exist
                 if (!localStorage.getItem('products')) {
                     localStorage.setItem('products', JSON.stringify([]));
@@ -4836,13 +4752,7 @@ async function showTallyConfig() {
     
     // Load current configuration
     try {
-        const tenantCode = currentUser?.tenantCode || getCachedItem('currentTenant', '');
-        if (!tenantCode) {
-            updateTallyStatus('No tenant selected', 'error');
-            return;
-        }
-        
-        const response = await fetch(`/api/${tenantCode}/tally/config`);
+        const response = await fetch(`${API_BASE}/tally/config`);
         
         // Check if response is JSON
         const contentType = response.headers.get('content-type');
@@ -4904,7 +4814,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function saveTallyConfig() {
     try {
-        const tenantCode = currentUser?.tenantCode || getCachedItem('currentTenant', '');
         const connectionType = document.getElementById('tallyConnectionType').value;
         
         const config = {
@@ -4925,7 +4834,7 @@ async function saveTallyConfig() {
             if (apiSecret) config.api_secret = apiSecret;
         }
         
-        const response = await fetch(`/api/${tenantCode}/tally/config`, {
+        const response = await fetch(`${API_BASE}/tally/config`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(config)
@@ -4949,10 +4858,9 @@ async function saveTallyConfig() {
 
 async function testTallyConnection() {
     try {
-        const tenantCode = currentUser?.tenantCode || getCachedItem('currentTenant', '');
         updateTallyStatus('Testing connection...', 'info');
         
-        const response = await fetch(`/api/${tenantCode}/tally/test`, {
+        const response = await fetch(`${API_BASE}/tally/test`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
         });
@@ -8199,7 +8107,7 @@ async function generateSalesBillPDF() {
         const searchTerm = searchEl ? searchEl.value.trim() : '';
         
         // Try API search first, fallback to local
-        if (currentTenant && searchTerm.length >= 2) {
+        if (searchTerm.length >= 2) {
             debouncedSearchAPI(searchTerm);
         } else {
             debouncedUpdateProductsTable();
@@ -8994,9 +8902,8 @@ async function deleteProduct(idx) {
                 }));
                 
                 // Use bulk insert endpoint for fast upload
-                const tenant = api.getTenant();
                 const API_BASE = window.API_BASE_URL || 'http://localhost:3000/api';
-                const response = await fetch(`${API_BASE}/${tenant}/products/bulk`, {
+                const response = await fetch(`${API_BASE}/products/bulk`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ products: productsToInsert })
@@ -10634,55 +10541,6 @@ function updateMCTypeLabel() {
                             }, 200);
                         }
                         
-                        function showTenantSuggestions() {
-                            const input = document.getElementById('authTenant');
-                            const dropdown = document.getElementById('tenantSuggestionsDropdown');
-                            if (!input || !dropdown) return;
-                            
-                            const searchTerm = input.value.toLowerCase().trim();
-                            const tenants = window.tenantList || [];
-                            
-                            // Filter tenants based on search term
-                            const filtered = tenants.filter(tenant => {
-                                const code = (tenant.tenant_code || '').toLowerCase();
-                                const name = (tenant.tenant_name || '').toLowerCase();
-                                return code.includes(searchTerm) || name.includes(searchTerm);
-                            }).slice(0, 10);
-                            
-                            dropdown.innerHTML = '';
-                            
-                            if (filtered.length === 0 && searchTerm) {
-                                dropdown.innerHTML = '<div class="px-4 py-2 text-sm text-gray-500">No tenants found</div>';
-                            } else if (filtered.length === 0) {
-                                dropdown.innerHTML = '<div class="px-4 py-2 text-sm text-gray-500">Start typing to search tenants...</div>';
-                            } else {
-                                filtered.forEach(tenant => {
-                                    const item = document.createElement('div');
-                                    item.className = 'px-4 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0';
-                                    item.innerHTML = `
-                                        <div class="font-medium text-gray-900">${tenant.tenant_name || tenant.tenant_code}</div>
-                                        <div class="text-xs text-gray-500">${tenant.tenant_code}</div>
-                                    `;
-                                    item.onclick = () => {
-                                        input.value = tenant.tenant_code;
-                                        hideTenantSuggestions();
-                                    };
-                                    dropdown.appendChild(item);
-                                });
-                            }
-                            
-                            dropdown.classList.remove('hidden');
-                        }
-                        
-                        function hideTenantSuggestions() {
-                            setTimeout(() => {
-                                const dropdown = document.getElementById('tenantSuggestionsDropdown');
-                                if (dropdown) {
-                                    dropdown.classList.add('hidden');
-                                }
-                            }, 200);
-                        }
-
                     function loadROLForStyleCode() {
                         const styleCodeInput = getCachedElement('rolSelectedStyleCode');
                         if (!styleCodeInput) return;
