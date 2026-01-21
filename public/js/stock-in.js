@@ -448,12 +448,13 @@ const StockInGrid = {
             return;
         }
         
-        // Show loading state
+        // Show loading state with global loader
         const btn = document.querySelector('button[onclick="StockInGrid.validateAll()"]');
         if (btn) {
             btn.disabled = true;
             btn.innerHTML = '⏳ Validating...';
         }
+        if (typeof showLoader === 'function') showLoader('Validating stock entries...');
         
         try {
             const API_BASE = window.API_BASE_URL || 'http://localhost:3000/api';
@@ -497,6 +498,7 @@ const StockInGrid = {
             console.error('Validation error:', error);
             this.showNotification('Validation failed. Please try again.', 'error');
         } finally {
+            if (typeof hideLoader === 'function') hideLoader();
             if (btn) {
                 btn.disabled = false;
                 btn.innerHTML = '✅ Validate All';
