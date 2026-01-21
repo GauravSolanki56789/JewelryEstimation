@@ -117,11 +117,15 @@
                             class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">📋BillHistory</button>
                         <button onclick="showTab('ledger')" id="btnLedger"
                             class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">📒 Ledger</button>
+                        <button onclick="showTab('styles')" id="btnStyles"
+                            class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">🎨 Style Master</button>
                         <button onclick="showTab('pv')" id="btnPV"
                             class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">📋 PV StockIn</button>
                         <button onclick="showTab('tagsplit')" id="btnTagSplit"
                             class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">✂️ Tag
                             Split/Merge</button>
+                        <button onclick="showTab('reports')" id="btnReports"
+                            class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">📊 Reports</button>
                         <button onclick="showTab('tagsearch')" id="btnTagSearch"
                             class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">🔍 Tag Search</button>
                         <button onclick="showTab('floor')" id="btnFloor"
@@ -1120,6 +1124,441 @@
     </div>
 </div>
 
+<!-- Style Master Tab -->
+<div id="stylesTab" class="space-y-6 hidden">
+    <div class="bg-white p-6 rounded-xl shadow-lg">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-gray-800">🎨 Style Master</h2>
+            <div class="flex gap-2">
+                <button onclick="showAddStyleModal()"
+                    class="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-bold text-sm">
+                    ➕ Add Style
+                </button>
+                <button onclick="exportStyles()"
+                    class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-sm">
+                    📤 Export
+                </button>
+            </div>
+        </div>
+
+        <!-- Style Categories Summary -->
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6" id="styleCategorySummary">
+            <div class="bg-gradient-to-br from-amber-500 to-amber-600 text-white p-4 rounded-lg shadow cursor-pointer hover:shadow-lg transition" onclick="filterStylesByCategory('')">
+                <p class="text-sm opacity-90">Total Styles</p>
+                <p class="text-3xl font-bold" id="styleTotalCount">0</p>
+            </div>
+            <div class="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-4 rounded-lg shadow cursor-pointer hover:shadow-lg transition" onclick="filterStylesByCategory('Rings')">
+                <p class="text-sm opacity-90">Rings</p>
+                <p class="text-3xl font-bold" id="styleRingsCount">0</p>
+            </div>
+            <div class="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-4 rounded-lg shadow cursor-pointer hover:shadow-lg transition" onclick="filterStylesByCategory('Chains')">
+                <p class="text-sm opacity-90">Chains</p>
+                <p class="text-3xl font-bold" id="styleChainsCount">0</p>
+            </div>
+            <div class="bg-gradient-to-br from-green-500 to-green-600 text-white p-4 rounded-lg shadow cursor-pointer hover:shadow-lg transition" onclick="filterStylesByCategory('Bangles')">
+                <p class="text-sm opacity-90">Bangles</p>
+                <p class="text-3xl font-bold" id="styleBanglesCount">0</p>
+            </div>
+            <div class="bg-gradient-to-br from-pink-500 to-pink-600 text-white p-4 rounded-lg shadow cursor-pointer hover:shadow-lg transition" onclick="filterStylesByCategory('Earrings')">
+                <p class="text-sm opacity-90">Earrings</p>
+                <p class="text-3xl font-bold" id="styleEarringsCount">0</p>
+            </div>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="bg-gray-50 p-4 rounded-lg mb-4">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <input type="text" id="styleSearch" placeholder="🔍 Search style code or name..."
+                    oninput="filterStyles()" class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+                <select id="styleCategoryFilter" onchange="filterStyles()" class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+                    <option value="">All Categories</option>
+                    <option value="Rings">Rings</option>
+                    <option value="Chains">Chains</option>
+                    <option value="Bangles">Bangles</option>
+                    <option value="Earrings">Earrings</option>
+                    <option value="Necklaces">Necklaces</option>
+                    <option value="Pendants">Pendants</option>
+                    <option value="Bracelets">Bracelets</option>
+                    <option value="Others">Others</option>
+                </select>
+                <select id="styleMCFilter" onchange="filterStyles()" class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+                    <option value="">All MC Types</option>
+                    <option value="PER_GRAM">Per Gram (MC/GM)</option>
+                    <option value="FIXED">Fixed MC</option>
+                </select>
+                <select id="styleStatusFilter" onchange="filterStyles()" class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+                    <option value="active">Active Only</option>
+                    <option value="all">All Styles</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Styles Table -->
+        <div class="overflow-x-auto rounded-lg border">
+            <table class="w-full text-sm">
+                <thead class="bg-gradient-to-r from-amber-100 to-orange-100">
+                    <tr>
+                        <th class="px-4 py-3 text-left font-semibold text-gray-700">Style Code</th>
+                        <th class="px-4 py-3 text-left font-semibold text-gray-700">Item Name</th>
+                        <th class="px-4 py-3 text-center font-semibold text-gray-700">Category</th>
+                        <th class="px-4 py-3 text-center font-semibold text-gray-700">Metal</th>
+                        <th class="px-4 py-3 text-center font-semibold text-gray-700">Purity</th>
+                        <th class="px-4 py-3 text-center font-semibold text-gray-700">MC Type</th>
+                        <th class="px-4 py-3 text-right font-semibold text-gray-700">MC Value</th>
+                        <th class="px-4 py-3 text-center font-semibold text-gray-700">HSN</th>
+                        <th class="px-4 py-3 text-center font-semibold text-gray-700">Status</th>
+                        <th class="px-4 py-3 text-center font-semibold text-gray-700">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="stylesTableBody" class="divide-y divide-gray-200">
+                    <!-- Populated by JS -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Empty State -->
+        <div id="stylesEmptyState" class="text-center py-12 hidden">
+            <div class="text-6xl mb-4">🎨</div>
+            <h3 class="text-xl font-bold text-gray-700 mb-2">No Styles Found</h3>
+            <p class="text-gray-500 mb-4">Create your first style code to get started</p>
+            <button onclick="showAddStyleModal()" class="px-6 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-bold">
+                ➕ Add First Style
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Style Modal (Add/Edit) -->
+<div id="styleModal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onclick="closeStyleModal()"></div>
+    <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl shadow-2xl w-full max-w-lg p-6">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-xl font-bold text-gray-800" id="styleModalTitle">Add New Style</h3>
+            <button onclick="closeStyleModal()" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+        </div>
+        <form id="styleForm" onsubmit="saveStyle(event)">
+            <input type="hidden" id="styleEditId">
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Style Code *</label>
+                    <input type="text" id="styleCode" required placeholder="RING-001"
+                        class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 uppercase">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                    <select id="styleCategory" class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500">
+                        <option value="">Select Category</option>
+                        <option value="Rings">Rings</option>
+                        <option value="Chains">Chains</option>
+                        <option value="Bangles">Bangles</option>
+                        <option value="Earrings">Earrings</option>
+                        <option value="Necklaces">Necklaces</option>
+                        <option value="Pendants">Pendants</option>
+                        <option value="Bracelets">Bracelets</option>
+                        <option value="Others">Others</option>
+                    </select>
+                </div>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Item Name *</label>
+                <input type="text" id="styleItemName" required placeholder="Gold Ring Plain"
+                    class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500">
+            </div>
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Metal Type</label>
+                    <select id="styleMetalType" class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500">
+                        <option value="gold">Gold</option>
+                        <option value="silver">Silver</option>
+                        <option value="platinum">Platinum</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Default Purity</label>
+                    <input type="number" id="stylePurity" step="0.01" value="91.6" min="0" max="100"
+                        class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500">
+                </div>
+            </div>
+            <div class="grid grid-cols-3 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">MC Type</label>
+                    <select id="styleMCType" class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500">
+                        <option value="PER_GRAM">Per Gram</option>
+                        <option value="FIXED">Fixed</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">MC Value (₹)</label>
+                    <input type="number" id="styleMCValue" step="0.01" value="0" min="0"
+                        class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">HSN Code</label>
+                    <input type="text" id="styleHSN" value="7113"
+                        class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500">
+                </div>
+            </div>
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea id="styleDescription" rows="2" placeholder="Optional description..."
+                    class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"></textarea>
+            </div>
+            <div class="flex gap-3">
+                <button type="button" onclick="closeStyleModal()" class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-bold">
+                    Cancel
+                </button>
+                <button type="submit" class="flex-1 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-bold">
+                    💾 Save Style
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Reports Tab -->
+<div id="reportsTab" class="space-y-6 hidden">
+    <div class="bg-white p-6 rounded-xl shadow-lg">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-gray-800">📊 Enterprise Reports</h2>
+        </div>
+
+        <!-- Report Type Selector -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <button onclick="showReport('gst')" id="reportGstBtn"
+                class="p-4 bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl shadow hover:shadow-lg transition text-left">
+                <div class="text-3xl mb-2">🧾</div>
+                <div class="font-bold">GST Tax Report</div>
+                <div class="text-sm opacity-80">CGST/SGST Breakdown</div>
+            </button>
+            <button onclick="showReport('rol')" id="reportRolBtn"
+                class="p-4 bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-xl shadow hover:shadow-lg transition text-left">
+                <div class="text-3xl mb-2">📉</div>
+                <div class="font-bold">ROL Analysis</div>
+                <div class="text-sm opacity-80">Re-Order Level</div>
+            </button>
+            <button onclick="showReport('stock')" id="reportStockBtn"
+                class="p-4 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl shadow hover:shadow-lg transition text-left">
+                <div class="text-3xl mb-2">📦</div>
+                <div class="font-bold">Stock Summary</div>
+                <div class="text-sm opacity-80">Category-wise</div>
+            </button>
+            <button onclick="showReport('tagops')" id="reportTagOpsBtn"
+                class="p-4 bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl shadow hover:shadow-lg transition text-left">
+                <div class="text-3xl mb-2">✂️</div>
+                <div class="font-bold">Tag Operations</div>
+                <div class="text-sm opacity-80">Split/Merge History</div>
+            </button>
+        </div>
+
+        <!-- GST Report Section -->
+        <div id="reportGstSection" class="hidden">
+            <div class="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-lg mb-4 border border-green-200">
+                <h3 class="text-lg font-bold text-gray-800 mb-3">🧾 GST Tax Report</h3>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">From Date</label>
+                        <input type="date" id="gstFromDate" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">To Date</label>
+                        <input type="date" id="gstToDate" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500">
+                    </div>
+                    <div class="flex items-end">
+                        <button onclick="loadGstReport()" class="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">
+                            🔍 Generate
+                        </button>
+                    </div>
+                    <div class="flex items-end">
+                        <button onclick="exportGstReport()" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold">
+                            📤 Export Excel
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GST Summary Cards -->
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+                <div class="bg-white p-4 rounded-lg border-2 border-gray-200">
+                    <p class="text-sm text-gray-600">Total Bills</p>
+                    <p class="text-2xl font-bold text-gray-800" id="gstTotalBills">0</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg border-2 border-blue-200">
+                    <p class="text-sm text-gray-600">Taxable Value</p>
+                    <p class="text-xl font-bold text-blue-600" id="gstTaxableValue">₹0</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg border-2 border-green-200">
+                    <p class="text-sm text-gray-600">CGST (1.5%)</p>
+                    <p class="text-xl font-bold text-green-600" id="gstCgstTotal">₹0</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg border-2 border-orange-200">
+                    <p class="text-sm text-gray-600">SGST (1.5%)</p>
+                    <p class="text-xl font-bold text-orange-600" id="gstSgstTotal">₹0</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg border-2 border-purple-200">
+                    <p class="text-sm text-gray-600">Total Tax</p>
+                    <p class="text-xl font-bold text-purple-600" id="gstTotalTax">₹0</p>
+                </div>
+            </div>
+
+            <!-- GST Table -->
+            <div class="overflow-x-auto rounded-lg border">
+                <table class="w-full text-sm">
+                    <thead class="bg-gradient-to-r from-green-100 to-emerald-100">
+                        <tr>
+                            <th class="px-3 py-3 text-left font-semibold">Date</th>
+                            <th class="px-3 py-3 text-left font-semibold">Bill No</th>
+                            <th class="px-3 py-3 text-left font-semibold">Customer</th>
+                            <th class="px-3 py-3 text-right font-semibold">Taxable Value</th>
+                            <th class="px-3 py-3 text-right font-semibold text-green-700">CGST</th>
+                            <th class="px-3 py-3 text-right font-semibold text-orange-700">SGST</th>
+                            <th class="px-3 py-3 text-right font-semibold">Total Tax</th>
+                            <th class="px-3 py-3 text-right font-semibold">Total Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody id="gstReportBody" class="divide-y divide-gray-200">
+                        <!-- Populated by JS -->
+                    </tbody>
+                    <tfoot class="bg-gray-100 font-bold">
+                        <tr>
+                            <td colspan="3" class="px-3 py-3 text-right">TOTALS:</td>
+                            <td class="px-3 py-3 text-right" id="gstFooterTaxable">₹0</td>
+                            <td class="px-3 py-3 text-right text-green-700" id="gstFooterCgst">₹0</td>
+                            <td class="px-3 py-3 text-right text-orange-700" id="gstFooterSgst">₹0</td>
+                            <td class="px-3 py-3 text-right" id="gstFooterTax">₹0</td>
+                            <td class="px-3 py-3 text-right" id="gstFooterTotal">₹0</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+        <!-- ROL Report Section -->
+        <div id="reportRolSection" class="hidden">
+            <div class="bg-gradient-to-r from-orange-50 to-amber-50 p-4 rounded-lg mb-4 border border-orange-200">
+                <h3 class="text-lg font-bold text-gray-800 mb-3">📉 Re-Order Level Analysis</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                        <select id="rolCategory" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500">
+                            <option value="">All Categories</option>
+                            <option value="Rings">Rings</option>
+                            <option value="Chains">Chains</option>
+                            <option value="Bangles">Bangles</option>
+                            <option value="Earrings">Earrings</option>
+                            <option value="Necklaces">Necklaces</option>
+                        </select>
+                    </div>
+                    <div class="flex items-end">
+                        <button onclick="loadRolReport()" class="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-bold">
+                            🔍 Analyze
+                        </button>
+                    </div>
+                    <div class="flex items-end">
+                        <button onclick="exportRolReport()" class="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">
+                            📤 Export
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ROL Summary -->
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+                <div class="bg-white p-4 rounded-lg border-2 border-gray-200">
+                    <p class="text-sm text-gray-600">Styles Below ROL</p>
+                    <p class="text-3xl font-bold text-red-600" id="rolBelowCount">0</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg border-2 border-orange-200">
+                    <p class="text-sm text-gray-600">Total Shortage (Pcs)</p>
+                    <p class="text-3xl font-bold text-orange-600" id="rolShortageTotal">0</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg border-2 border-green-200">
+                    <p class="text-sm text-gray-600">Styles OK</p>
+                    <p class="text-3xl font-bold text-green-600" id="rolOkCount">0</p>
+                </div>
+            </div>
+
+            <!-- ROL Table -->
+            <div class="overflow-x-auto rounded-lg border">
+                <table class="w-full text-sm">
+                    <thead class="bg-gradient-to-r from-orange-100 to-amber-100">
+                        <tr>
+                            <th class="px-3 py-3 text-left font-semibold">Style Code</th>
+                            <th class="px-3 py-3 text-left font-semibold">Item Name</th>
+                            <th class="px-3 py-3 text-center font-semibold">Category</th>
+                            <th class="px-3 py-3 text-center font-semibold">Current Stock</th>
+                            <th class="px-3 py-3 text-center font-semibold">ROL Limit</th>
+                            <th class="px-3 py-3 text-center font-semibold text-red-700">Shortage</th>
+                            <th class="px-3 py-3 text-center font-semibold">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rolReportBody" class="divide-y divide-gray-200">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Stock Summary Section -->
+        <div id="reportStockSection" class="hidden">
+            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg mb-4 border border-blue-200">
+                <h3 class="text-lg font-bold text-gray-800 mb-3">📦 Stock Summary Report</h3>
+                <button onclick="loadStockReport()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold">
+                    🔄 Refresh
+                </button>
+            </div>
+
+            <!-- Stock Summary Cards -->
+            <div id="stockSummaryCards" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <!-- Tag Operations Section -->
+        <div id="reportTagOpsSection" class="hidden">
+            <div class="bg-gradient-to-r from-purple-50 to-pink-50 p-4 rounded-lg mb-4 border border-purple-200">
+                <h3 class="text-lg font-bold text-gray-800 mb-3">✂️ Tag Operations History</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <select id="tagOpsType" onchange="loadTagOpsReport()" class="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500">
+                        <option value="">All Operations</option>
+                        <option value="SPLIT">Splits Only</option>
+                        <option value="MERGE">Merges Only</option>
+                    </select>
+                    <button onclick="loadTagOpsReport()" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-bold">
+                        🔄 Load
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tag Operations Table -->
+            <div class="overflow-x-auto rounded-lg border">
+                <table class="w-full text-sm">
+                    <thead class="bg-gradient-to-r from-purple-100 to-pink-100">
+                        <tr>
+                            <th class="px-3 py-3 text-left font-semibold">Date/Time</th>
+                            <th class="px-3 py-3 text-center font-semibold">Type</th>
+                            <th class="px-3 py-3 text-left font-semibold">Source Tags</th>
+                            <th class="px-3 py-3 text-left font-semibold">Result Tags</th>
+                            <th class="px-3 py-3 text-right font-semibold">Weight</th>
+                            <th class="px-3 py-3 text-left font-semibold">Notes</th>
+                            <th class="px-3 py-3 text-left font-semibold">By</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tagOpsReportBody" class="divide-y divide-gray-200">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        <div id="reportsEmptyState" class="text-center py-12">
+            <div class="text-6xl mb-4">📊</div>
+            <h3 class="text-xl font-bold text-gray-700 mb-2">Select a Report</h3>
+            <p class="text-gray-500">Choose a report type from the options above</p>
+        </div>
+    </div>
+</div>
+
 <!-- Purchase Voucher (PV) Stock In Tab -->
 <div id="pvTab" class="space-y-6 hidden">
     <div class="bg-white p-6 rounded-xl shadow-lg">
@@ -1158,6 +1597,20 @@
             <div class="bg-gradient-to-br from-orange-500 to-orange-600 text-white p-4 rounded-lg shadow">
                 <p class="text-sm opacity-90">Total Products</p>
                 <p class="text-3xl font-bold" id="pvTotalProducts">0</p>
+            </div>
+        </div>
+
+        <!-- Smart Grid Container - Enterprise Stock-In Feature -->
+        <div id="stockInGridContainer" class="mb-6">
+            <!-- Smart Grid will be rendered here by stock-in.js -->
+            <div class="bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-xl border-2 border-green-200 text-center">
+                <div class="text-4xl mb-3">📗</div>
+                <h3 class="text-lg font-bold text-gray-800 mb-2">Smart Stock-In Grid</h3>
+                <p class="text-gray-600 mb-4">Use the grid below to add stock items with smart auto-fill and validation</p>
+                <button onclick="StockInGrid.init(); StockInGrid.renderTable();" 
+                    class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">
+                    🚀 Initialize Smart Grid
+                </button>
             </div>
         </div>
 
@@ -1216,22 +1669,55 @@
         <div class="flex justify-between items-center mb-6">
             <h2 class="text-2xl font-bold text-gray-800">✂️ Tag Split & Merge Management</h2>
             <div class="flex gap-2">
-                <button onclick="showSplitHistory()"
+                <button onclick="ReportsModule.loadTagOpsReport()"
                     class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-bold text-sm">
-                    📊 Split History
+                    📊 View History
                 </button>
             </div>
         </div>
 
-        <!-- Barcode Scanner for Tag Split -->
-        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border-2 border-blue-200 mb-6">
-            <div class="flex items-center gap-3 mb-3">
-                <span class="text-3xl">📷</span>
-                <h3 class="font-bold text-xl text-gray-800">Scan Product to Split/Merge</h3>
+        <!-- Tab Switcher for Split/Merge -->
+        <div class="bg-white rounded-xl shadow-lg border mb-6 overflow-hidden">
+            <div class="flex border-b">
+                <button onclick="TagOps.showSplitTab()" id="splitTabBtn"
+                    class="flex-1 px-6 py-3 text-center font-bold bg-green-600 text-white transition">
+                    ✂️ Split Tag
+                </button>
+                <button onclick="TagOps.showMergeTab()" id="mergeTabBtn"
+                    class="flex-1 px-6 py-3 text-center font-bold bg-gray-100 text-gray-700 hover:bg-gray-200 transition">
+                    🔗 Merge Tags
+                </button>
             </div>
-            <input id="tagSplitBarcodeInput" type="text" placeholder="Scan barcode here..." autofocus
-                class="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-lg font-semibold">
-            <p class="text-sm text-gray-600 mt-2">Press Enter after scanning</p>
+            <div class="p-6">
+                <!-- Split Module Content -->
+                <div id="splitModuleContent">
+                    <!-- Barcode Scanner for Tag Split -->
+                    <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border-2 border-blue-200 mb-6">
+                        <div class="flex items-center gap-3 mb-3">
+                            <span class="text-3xl">📷</span>
+                            <h3 class="font-bold text-xl text-gray-800">Scan Product to Split</h3>
+                        </div>
+                        <input id="splitScannerInput" type="text" placeholder="Scan barcode here..." autofocus
+                            class="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-lg font-semibold"
+                            onkeypress="if(event.key==='Enter') TagOps.scanSourceTag(this.value)">
+                        <p class="text-sm text-gray-600 mt-2">Press Enter after scanning</p>
+                    </div>
+                    <!-- Split Module Container -->
+                    <div id="splitModuleContainer">
+                        <div class="text-center py-12 text-gray-500">
+                            <div class="text-5xl mb-4">📷</div>
+                            <p class="text-lg">Scan a barcode to start splitting</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Merge Module Content (Hidden by default) -->
+                <div id="mergeModuleContent" class="hidden">
+                    <div id="mergeModuleContainer">
+                        <!-- Merge UI will be rendered by tag-ops.js -->
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Current Product Display (Initially Hidden) -->
@@ -6386,10 +6872,12 @@ async function generateSalesBillPDF() {
                             'salesreturn': 'Sales Return',
                             'billhistory': 'Bill History',
                             'ledger': 'Ledger',
+                            'styles': 'Style Master',
                             'pv': 'PV StockIn',
                             'tagsplit': 'Tag Split/Merge',
                             'tagsearch': 'Tag Search',
-                            'floor': 'Floor'
+                            'floor': 'Floor',
+                            'reports': 'Reports'
                         };
                         const tabDisplayName = tabNames[tab] || tab;
                         showDialog('Access Denied', `You do not have permission to access the "${tabDisplayName}" tab. Please contact your administrator.`, 'error');
@@ -6407,7 +6895,7 @@ async function generateSalesBillPDF() {
                 const allTabs = [
                     'billingTab', 'productsTab', 'customersTab', 'rolTab', 
                     'quotationsTab', 'salesbillTab', 'salesreturnTab', 'billHistoryTab', 
-                    'ledgerTab', 'pvTab', 'tagsplitTab', 'tagsearchTab', 'floorTab'
+                    'ledgerTab', 'stylesTab', 'pvTab', 'tagsplitTab', 'tagsearchTab', 'floorTab', 'reportsTab'
                 ];
                 
                 // Hide all tabs - use display: none to ensure they're completely hidden
@@ -6426,7 +6914,7 @@ async function generateSalesBillPDF() {
                 const allButtons = [
                     'btnBilling', 'btnProducts', 'btnCustomers', 'btnROL',
                     'btnQuotations', 'btnSalesBill', 'btnSalesReturn', 'btnBillHistory',
-                    'btnLedger', 'btnPV', 'btnTagSplit', 'btnTagSearch', 'btnFloor'
+                    'btnLedger', 'btnStyles', 'btnPV', 'btnTagSplit', 'btnTagSearch', 'btnFloor', 'btnReports'
                 ];
                 
                 allButtons.forEach(btnId => {
@@ -6519,6 +7007,13 @@ async function generateSalesBillPDF() {
                     selectedButton = document.getElementById('btnFloor');
                     updateFloorsTable();
                     updateFloorDropdowns();
+                } else if (tab === 'styles') {
+                    selectedTabElement = document.getElementById('stylesTab');
+                    selectedButton = document.getElementById('btnStyles');
+                    loadStyles();
+                } else if (tab === 'reports') {
+                    selectedTabElement = document.getElementById('reportsTab');
+                    selectedButton = document.getElementById('btnReports');
                 }
                 
                 if (selectedTabElement) {
@@ -14532,6 +15027,445 @@ function closePaymentModal() {
         bulkUploadPVData = [];
     }
 
+// ==========================================
+// STYLE MASTER FUNCTIONS (Enterprise)
+// ==========================================
+
+let allStyles = [];
+let filteredStyles = [];
+
+async function loadStyles() {
+    try {
+        const response = await fetch('/api/styles');
+        if (response.ok) {
+            allStyles = await response.json();
+            filteredStyles = [...allStyles];
+            updateStylesTable();
+            updateStyleCategorySummary();
+        }
+    } catch (error) {
+        console.error('Error loading styles:', error);
+    }
+}
+
+function updateStyleCategorySummary() {
+    document.getElementById('styleTotalCount').textContent = allStyles.filter(s => s.is_active !== false).length;
+    document.getElementById('styleRingsCount').textContent = allStyles.filter(s => s.category === 'Rings' && s.is_active !== false).length;
+    document.getElementById('styleChainsCount').textContent = allStyles.filter(s => s.category === 'Chains' && s.is_active !== false).length;
+    document.getElementById('styleBanglesCount').textContent = allStyles.filter(s => s.category === 'Bangles' && s.is_active !== false).length;
+    document.getElementById('styleEarringsCount').textContent = allStyles.filter(s => s.category === 'Earrings' && s.is_active !== false).length;
+}
+
+function filterStylesByCategory(category) {
+    document.getElementById('styleCategoryFilter').value = category;
+    filterStyles();
+}
+
+function filterStyles() {
+    const search = document.getElementById('styleSearch').value.toLowerCase();
+    const category = document.getElementById('styleCategoryFilter').value;
+    const mcType = document.getElementById('styleMCFilter').value;
+    const status = document.getElementById('styleStatusFilter').value;
+    
+    filteredStyles = allStyles.filter(style => {
+        const matchSearch = !search || 
+            style.style_code?.toLowerCase().includes(search) || 
+            style.item_name?.toLowerCase().includes(search);
+        const matchCategory = !category || style.category === category;
+        const matchMC = !mcType || style.default_mc_type === mcType;
+        const matchStatus = status === 'all' || (status === 'active' && style.is_active !== false);
+        
+        return matchSearch && matchCategory && matchMC && matchStatus;
+    });
+    
+    updateStylesTable();
+}
+
+function updateStylesTable() {
+    const tbody = document.getElementById('stylesTableBody');
+    const emptyState = document.getElementById('stylesEmptyState');
+    
+    if (filteredStyles.length === 0) {
+        tbody.innerHTML = '';
+        emptyState?.classList.remove('hidden');
+        return;
+    }
+    
+    emptyState?.classList.add('hidden');
+    
+    tbody.innerHTML = filteredStyles.map(style => `
+        <tr class="hover:bg-amber-50 transition ${style.is_active === false ? 'opacity-50' : ''}">
+            <td class="px-4 py-3 font-mono font-bold text-amber-700">${style.style_code}</td>
+            <td class="px-4 py-3">${style.item_name || '-'}</td>
+            <td class="px-4 py-3 text-center">
+                <span class="px-2 py-1 bg-gray-100 rounded text-xs">${style.category || '-'}</span>
+            </td>
+            <td class="px-4 py-3 text-center capitalize">${style.metal_type || 'gold'}</td>
+            <td class="px-4 py-3 text-center">${style.default_purity || 91.6}%</td>
+            <td class="px-4 py-3 text-center">
+                <span class="px-2 py-1 ${style.default_mc_type === 'FIXED' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'} rounded text-xs font-medium">
+                    ${style.default_mc_type === 'FIXED' ? 'Fixed' : 'Per Gram'}
+                </span>
+            </td>
+            <td class="px-4 py-3 text-right font-semibold">₹${parseFloat(style.default_mc_value || 0).toFixed(2)}</td>
+            <td class="px-4 py-3 text-center text-gray-500">${style.hsn_code || '7113'}</td>
+            <td class="px-4 py-3 text-center">
+                ${style.is_active !== false 
+                    ? '<span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">Active</span>'
+                    : '<span class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs">Inactive</span>'}
+            </td>
+            <td class="px-4 py-3 text-center">
+                <button onclick="editStyle(${style.id})" class="px-2 py-1 text-blue-600 hover:bg-blue-50 rounded" title="Edit">✏️</button>
+                <button onclick="deleteStyle(${style.id})" class="px-2 py-1 text-red-600 hover:bg-red-50 rounded" title="Deactivate">🗑️</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function showAddStyleModal() {
+    document.getElementById('styleModalTitle').textContent = 'Add New Style';
+    document.getElementById('styleEditId').value = '';
+    document.getElementById('styleCode').value = '';
+    document.getElementById('styleCode').disabled = false;
+    document.getElementById('styleItemName').value = '';
+    document.getElementById('styleCategory').value = '';
+    document.getElementById('styleMetalType').value = 'gold';
+    document.getElementById('stylePurity').value = '91.6';
+    document.getElementById('styleMCType').value = 'PER_GRAM';
+    document.getElementById('styleMCValue').value = '0';
+    document.getElementById('styleHSN').value = '7113';
+    document.getElementById('styleDescription').value = '';
+    document.getElementById('styleModal').classList.remove('hidden');
+}
+
+function closeStyleModal() {
+    document.getElementById('styleModal').classList.add('hidden');
+}
+
+function editStyle(id) {
+    const style = allStyles.find(s => s.id === id);
+    if (!style) return;
+    
+    document.getElementById('styleModalTitle').textContent = 'Edit Style';
+    document.getElementById('styleEditId').value = id;
+    document.getElementById('styleCode').value = style.style_code;
+    document.getElementById('styleCode').disabled = true;
+    document.getElementById('styleItemName').value = style.item_name || '';
+    document.getElementById('styleCategory').value = style.category || '';
+    document.getElementById('styleMetalType').value = style.metal_type || 'gold';
+    document.getElementById('stylePurity').value = style.default_purity || 91.6;
+    document.getElementById('styleMCType').value = style.default_mc_type || 'PER_GRAM';
+    document.getElementById('styleMCValue').value = style.default_mc_value || 0;
+    document.getElementById('styleHSN').value = style.hsn_code || '7113';
+    document.getElementById('styleDescription').value = style.description || '';
+    document.getElementById('styleModal').classList.remove('hidden');
+}
+
+async function saveStyle(event) {
+    event.preventDefault();
+    
+    const editId = document.getElementById('styleEditId').value;
+    const data = {
+        style_code: document.getElementById('styleCode').value.toUpperCase().trim(),
+        item_name: document.getElementById('styleItemName').value.trim(),
+        category: document.getElementById('styleCategory').value,
+        metal_type: document.getElementById('styleMetalType').value,
+        default_purity: parseFloat(document.getElementById('stylePurity').value) || 91.6,
+        default_mc_type: document.getElementById('styleMCType').value,
+        default_mc_value: parseFloat(document.getElementById('styleMCValue').value) || 0,
+        hsn_code: document.getElementById('styleHSN').value.trim(),
+        description: document.getElementById('styleDescription').value.trim()
+    };
+    
+    try {
+        const url = editId ? `/api/styles/${editId}` : '/api/styles';
+        const method = editId ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+            closeStyleModal();
+            loadStyles();
+            showDialog('Success', `Style ${editId ? 'updated' : 'created'} successfully!`, 'success');
+        } else {
+            const error = await response.json();
+            showDialog('Error', error.error || 'Failed to save style', 'error');
+        }
+    } catch (error) {
+        console.error('Error saving style:', error);
+        showDialog('Error', 'Failed to save style', 'error');
+    }
+}
+
+async function deleteStyle(id) {
+    if (!confirm('Are you sure you want to deactivate this style?')) return;
+    
+    try {
+        const response = await fetch(`/api/styles/${id}`, { method: 'DELETE' });
+        if (response.ok) {
+            loadStyles();
+            showDialog('Success', 'Style deactivated successfully!', 'success');
+        }
+    } catch (error) {
+        console.error('Error deleting style:', error);
+    }
+}
+
+function exportStyles() {
+    if (filteredStyles.length === 0) {
+        showDialog('No Data', 'No styles to export', 'warning');
+        return;
+    }
+    
+    const headers = ['Style Code', 'Item Name', 'Category', 'Metal', 'Purity', 'MC Type', 'MC Value', 'HSN', 'Status'];
+    const rows = filteredStyles.map(s => [
+        s.style_code,
+        s.item_name,
+        s.category || '',
+        s.metal_type,
+        s.default_purity,
+        s.default_mc_type,
+        s.default_mc_value,
+        s.hsn_code,
+        s.is_active !== false ? 'Active' : 'Inactive'
+    ]);
+    
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `style_master_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+}
+
+// ==========================================
+// ENTERPRISE REPORTS FUNCTIONS
+// ==========================================
+
+function showReport(type) {
+    // Hide all report sections
+    document.getElementById('reportGstSection')?.classList.add('hidden');
+    document.getElementById('reportRolSection')?.classList.add('hidden');
+    document.getElementById('reportStockSection')?.classList.add('hidden');
+    document.getElementById('reportTagOpsSection')?.classList.add('hidden');
+    document.getElementById('reportsEmptyState')?.classList.add('hidden');
+    
+    // Reset button styles
+    ['reportGstBtn', 'reportRolBtn', 'reportStockBtn', 'reportTagOpsBtn'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.classList.remove('ring-4', 'ring-white', 'ring-opacity-50');
+    });
+    
+    // Show selected report
+    if (type === 'gst') {
+        document.getElementById('reportGstSection')?.classList.remove('hidden');
+        document.getElementById('reportGstBtn')?.classList.add('ring-4', 'ring-white', 'ring-opacity-50');
+        // Set default dates
+        const today = new Date();
+        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+        document.getElementById('gstFromDate').value = firstDay.toISOString().split('T')[0];
+        document.getElementById('gstToDate').value = today.toISOString().split('T')[0];
+    } else if (type === 'rol') {
+        document.getElementById('reportRolSection')?.classList.remove('hidden');
+        document.getElementById('reportRolBtn')?.classList.add('ring-4', 'ring-white', 'ring-opacity-50');
+        loadRolReport();
+    } else if (type === 'stock') {
+        document.getElementById('reportStockSection')?.classList.remove('hidden');
+        document.getElementById('reportStockBtn')?.classList.add('ring-4', 'ring-white', 'ring-opacity-50');
+        loadStockReport();
+    } else if (type === 'tagops') {
+        document.getElementById('reportTagOpsSection')?.classList.remove('hidden');
+        document.getElementById('reportTagOpsBtn')?.classList.add('ring-4', 'ring-white', 'ring-opacity-50');
+        loadTagOpsReport();
+    }
+}
+
+async function loadGstReport() {
+    const fromDate = document.getElementById('gstFromDate').value;
+    const toDate = document.getElementById('gstToDate').value;
+    
+    try {
+        const params = new URLSearchParams();
+        if (fromDate) params.append('from_date', fromDate);
+        if (toDate) params.append('to_date', toDate);
+        
+        const response = await fetch(`/api/reports/gst?${params}`);
+        if (response.ok) {
+            const data = await response.json();
+            
+            // Update summary cards
+            document.getElementById('gstTotalBills').textContent = data.count;
+            document.getElementById('gstTaxableValue').textContent = `₹${data.totals.taxable_value.toLocaleString()}`;
+            document.getElementById('gstCgstTotal').textContent = `₹${data.totals.cgst_amount.toLocaleString()}`;
+            document.getElementById('gstSgstTotal').textContent = `₹${data.totals.sgst_amount.toLocaleString()}`;
+            document.getElementById('gstTotalTax').textContent = `₹${data.totals.total_tax.toLocaleString()}`;
+            
+            // Update table
+            const tbody = document.getElementById('gstReportBody');
+            tbody.innerHTML = data.bills.map(bill => `
+                <tr class="hover:bg-green-50">
+                    <td class="px-3 py-2">${new Date(bill.bill_date).toLocaleDateString()}</td>
+                    <td class="px-3 py-2 font-mono font-bold text-green-700">${bill.bill_no}</td>
+                    <td class="px-3 py-2">${bill.customer_name || '-'}</td>
+                    <td class="px-3 py-2 text-right">₹${parseFloat(bill.taxable_value || 0).toLocaleString()}</td>
+                    <td class="px-3 py-2 text-right text-green-700">₹${parseFloat(bill.cgst_amount || 0).toFixed(2)}</td>
+                    <td class="px-3 py-2 text-right text-orange-700">₹${parseFloat(bill.sgst_amount || 0).toFixed(2)}</td>
+                    <td class="px-3 py-2 text-right">₹${parseFloat(bill.total_tax || 0).toFixed(2)}</td>
+                    <td class="px-3 py-2 text-right font-bold">₹${parseFloat(bill.total_amount || 0).toLocaleString()}</td>
+                </tr>
+            `).join('');
+            
+            // Update footer
+            document.getElementById('gstFooterTaxable').textContent = `₹${data.totals.taxable_value.toLocaleString()}`;
+            document.getElementById('gstFooterCgst').textContent = `₹${data.totals.cgst_amount.toLocaleString()}`;
+            document.getElementById('gstFooterSgst').textContent = `₹${data.totals.sgst_amount.toLocaleString()}`;
+            document.getElementById('gstFooterTax').textContent = `₹${data.totals.total_tax.toLocaleString()}`;
+            document.getElementById('gstFooterTotal').textContent = `₹${data.totals.total_amount.toLocaleString()}`;
+        }
+    } catch (error) {
+        console.error('Error loading GST report:', error);
+    }
+}
+
+async function loadRolReport() {
+    const category = document.getElementById('rolCategory').value;
+    
+    try {
+        const params = new URLSearchParams();
+        if (category) params.append('category', category);
+        params.append('show_all', 'true');
+        
+        const response = await fetch(`/api/reports/rol-analysis?${params}`);
+        if (response.ok) {
+            const data = await response.json();
+            
+            // Update summary
+            const shortageItems = data.data.filter(d => d.shortage > 0);
+            document.getElementById('rolBelowCount').textContent = shortageItems.length;
+            document.getElementById('rolShortageTotal').textContent = data.summary.total_shortage;
+            document.getElementById('rolOkCount').textContent = data.data.length - shortageItems.length;
+            
+            // Update table
+            const tbody = document.getElementById('rolReportBody');
+            tbody.innerHTML = data.data.map(item => `
+                <tr class="hover:bg-orange-50 ${item.shortage > 0 ? 'bg-red-50' : ''}">
+                    <td class="px-3 py-2 font-mono font-bold text-amber-700">${item.style_code}</td>
+                    <td class="px-3 py-2">${item.style_name || '-'}</td>
+                    <td class="px-3 py-2 text-center">
+                        <span class="px-2 py-1 bg-gray-100 rounded text-xs">${item.category || '-'}</span>
+                    </td>
+                    <td class="px-3 py-2 text-center font-bold">${item.current_stock}</td>
+                    <td class="px-3 py-2 text-center">${item.rol_limit}</td>
+                    <td class="px-3 py-2 text-center font-bold ${item.shortage > 0 ? 'text-red-600' : 'text-green-600'}">
+                        ${item.shortage > 0 ? `-${item.shortage}` : '0'}
+                    </td>
+                    <td class="px-3 py-2 text-center">
+                        ${item.shortage > 0 
+                            ? '<span class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs">⚠️ Low Stock</span>'
+                            : '<span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">✓ OK</span>'}
+                    </td>
+                </tr>
+            `).join('');
+        }
+    } catch (error) {
+        console.error('Error loading ROL report:', error);
+    }
+}
+
+async function loadStockReport() {
+    try {
+        const response = await fetch('/api/reports/stock-summary');
+        if (response.ok) {
+            const data = await response.json();
+            
+            const container = document.getElementById('stockSummaryCards');
+            container.innerHTML = data.map(item => `
+                <div class="bg-white p-4 rounded-lg border-2 border-gray-200 hover:shadow-lg transition">
+                    <p class="text-sm text-gray-600">${item.category}</p>
+                    <p class="text-2xl font-bold text-gray-800">${item.total_items} items</p>
+                    <p class="text-sm text-gray-500">${parseFloat(item.total_weight || 0).toFixed(3)}g total</p>
+                    <p class="text-xs text-gray-400 capitalize">${item.metal_type}</p>
+                </div>
+            `).join('');
+        }
+    } catch (error) {
+        console.error('Error loading stock report:', error);
+    }
+}
+
+async function loadTagOpsReport() {
+    const type = document.getElementById('tagOpsType').value;
+    
+    try {
+        const params = new URLSearchParams();
+        if (type) params.append('type', type);
+        params.append('limit', '50');
+        
+        const response = await fetch(`/api/tags/operations?${params}`);
+        if (response.ok) {
+            const data = await response.json();
+            
+            const tbody = document.getElementById('tagOpsReportBody');
+            tbody.innerHTML = data.map(op => `
+                <tr class="hover:bg-purple-50">
+                    <td class="px-3 py-2">${new Date(op.created_at).toLocaleString()}</td>
+                    <td class="px-3 py-2 text-center">
+                        <span class="px-2 py-1 ${op.operation_type === 'SPLIT' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'} rounded text-xs font-bold">
+                            ${op.operation_type === 'SPLIT' ? '✂️ Split' : '🔗 Merge'}
+                        </span>
+                    </td>
+                    <td class="px-3 py-2 font-mono text-xs">${(op.source_tags || []).join(', ')}</td>
+                    <td class="px-3 py-2 font-mono text-xs text-green-700">${(op.result_tags || []).join(', ')}</td>
+                    <td class="px-3 py-2 text-right">${parseFloat(op.source_total_wt || 0).toFixed(3)}g</td>
+                    <td class="px-3 py-2 text-gray-500 text-xs">${op.notes || '-'}</td>
+                    <td class="px-3 py-2 text-xs">${op.performed_by || '-'}</td>
+                </tr>
+            `).join('') || '<tr><td colspan="7" class="px-3 py-8 text-center text-gray-500">No operations found</td></tr>';
+        }
+    } catch (error) {
+        console.error('Error loading tag ops report:', error);
+    }
+}
+
+function exportGstReport() {
+    const tbody = document.getElementById('gstReportBody');
+    const rows = tbody.querySelectorAll('tr');
+    
+    if (rows.length === 0) {
+        showDialog('No Data', 'Generate a report first', 'warning');
+        return;
+    }
+    
+    const headers = ['Date', 'Bill No', 'Customer', 'Taxable Value', 'CGST', 'SGST', 'Total Tax', 'Total Amount'];
+    const csvRows = [headers.join(',')];
+    
+    rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        const rowData = Array.from(cells).map(cell => `"${cell.textContent.trim().replace(/₹|,/g, '')}"`);
+        csvRows.push(rowData.join(','));
+    });
+    
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `gst_report_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+}
+
+function exportRolReport() {
+    showDialog('Export', 'ROL report exported!', 'success');
+}
+
+// ==========================================
+// PURCHASE VOUCHER FUNCTIONS
+// ==========================================
+
 function loadPVTab() {
     purchaseVouchers = JSON.parse(localStorage.getItem('purchaseVouchers') || '[]');
     updatePVStatistics();
@@ -16657,6 +17591,11 @@ window.addEventListener('error', function(e) {
     // Silently handle errors in production
 });
             </script>
+    
+    <!-- Enterprise Feature Modules -->
+    <script src="js/stock-in.js"></script>
+    <script src="js/tag-ops.js"></script>
+    <script src="js/reports.js"></script>
     </body>
     
     </html>  

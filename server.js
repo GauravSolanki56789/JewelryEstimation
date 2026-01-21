@@ -1584,6 +1584,725 @@ app.get('/api/tally/sync-logs', checkAuth, async (req, res) => {
 });
 
 // ==========================================
+// STYLES MASTER API (Enterprise Feature)
+// ==========================================
+
+app.get('/api/styles', checkAuth, async (req, res) => {
+    try {
+        const { search, category, active_only } = req.query;
+        let queryText = 'SELECT * FROM styles WHERE 1=1';
+        const params = [];
+        let idx = 1;
+        
+        if (search) {
+            queryText += ` AND (style_code ILIKE $${idx} OR item_name ILIKE $${idx++})`;
+            params.push(`%${search}%`);
+        }
+        if (category) {
+            queryText += ` AND category = $${idx++}`;
+            params.push(category);
+        }
+        if (active_only === 'true') {
+            queryText += ' AND is_active = true';
+        }
+        queryText += ' ORDER BY style_code';
+        
+        const result = await query(queryText, params);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/styles/:code', checkAuth, async (req, res) => {
+    try {
+        const { code } = req.params;
+        const result = await query('SELECT * FROM styles WHERE style_code = $1', [code.toUpperCase()]);
+        if (result.length === 0) {
+            return res.status(404).json({ error: 'Style not found' });
+        }
+        res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/styles', checkRole('admin'), async (req, res) => {
+    try {
+        const { style_code, item_name, category, metal_type, default_purity, default_mc_type, default_mc_value, hsn_code, description } = req.body;
+        
+        if (!style_code || !item_name) {
+            return res.status(400).json({ error: 'style_code and item_name are required' });
+        }
+        
+        const result = await query(`
+            INSERT INTO styles (style_code, item_name, category, metal_type, default_purity, default_mc_type, default_mc_value, hsn_code, description)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *
+        `, [
+            style_code.toUpperCase().trim(),
+            item_name,
+            category || '',
+            metal_type || 'gold',
+            parseFloat(default_purity) || 91.6,
+            default_mc_type || 'PER_GRAM',
+            parseFloat(default_mc_value) || 0,
+            hsn_code || '7113',
+            description || ''
+        ]);
+        
+        broadcast('style-created', result[0]);
+        res.json(result[0]);
+    } catch (error) {
+        if (error.message.includes('unique') || error.message.includes('duplicate')) {
+            return res.status(409).json({ error: 'Style code already exists' });
+        }
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.put('/api/styles/:id', checkRole('admin'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { item_name, category, metal_type, default_purity, default_mc_type, default_mc_value, hsn_code, description, is_active } = req.body;
+        
+        const result = await query(`
+            UPDATE styles SET
+                item_name = COALESCE($1, item_name),
+                category = COALESCE($2, category),
+                metal_type = COALESCE($3, metal_type),
+                default_purity = COALESCE($4, default_purity),
+                default_mc_type = COALESCE($5, default_mc_type),
+                default_mc_value = COALESCE($6, default_mc_value),
+                hsn_code = COALESCE($7, hsn_code),
+                description = COALESCE($8, description),
+                is_active = COALESCE($9, is_active),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $10 RETURNING *
+        `, [item_name, category, metal_type, default_purity, default_mc_type, default_mc_value, hsn_code, description, is_active, id]);
+        
+        if (result.length === 0) {
+            return res.status(404).json({ error: 'Style not found' });
+        }
+        broadcast('style-updated', result[0]);
+        res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.delete('/api/styles/:id', checkRole('admin'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        await query('UPDATE styles SET is_active = false, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [id]);
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get style categories
+app.get('/api/styles/meta/categories', checkAuth, async (req, res) => {
+    try {
+        const result = await query('SELECT DISTINCT category FROM styles WHERE category IS NOT NULL AND category != \'\' ORDER BY category');
+        res.json(result.map(r => r.category));
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ==========================================
+// VENDORS MASTER API
+// ==========================================
+
+app.get('/api/vendors', checkAuth, async (req, res) => {
+    try {
+        const { search, active_only } = req.query;
+        let queryText = 'SELECT * FROM vendors WHERE 1=1';
+        const params = [];
+        let idx = 1;
+        
+        if (search) {
+            queryText += ` AND (vendor_code ILIKE $${idx} OR name ILIKE $${idx++})`;
+            params.push(`%${search}%`);
+        }
+        if (active_only === 'true') {
+            queryText += ' AND is_active = true';
+        }
+        queryText += ' ORDER BY name';
+        
+        const result = await query(queryText, params);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/vendors', checkRole('admin'), async (req, res) => {
+    try {
+        const { vendor_code, name, contact_person, mobile, email, address, city, state, pincode, gstin } = req.body;
+        
+        if (!vendor_code || !name) {
+            return res.status(400).json({ error: 'vendor_code and name are required' });
+        }
+        
+        const result = await query(`
+            INSERT INTO vendors (vendor_code, name, contact_person, mobile, email, address, city, state, pincode, gstin)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *
+        `, [vendor_code.toUpperCase(), name, contact_person, mobile, email, address, city, state, pincode, gstin]);
+        
+        res.json(result[0]);
+    } catch (error) {
+        if (error.message.includes('unique')) {
+            return res.status(409).json({ error: 'Vendor code already exists' });
+        }
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ==========================================
+// PURCHASE VOUCHER API (Stock-In)
+// ==========================================
+
+app.get('/api/purchase-vouchers', checkAuth, async (req, res) => {
+    try {
+        const { status, vendor_code, from_date, to_date } = req.query;
+        let queryText = 'SELECT * FROM purchase_vouchers WHERE 1=1';
+        const params = [];
+        let idx = 1;
+        
+        if (status) {
+            queryText += ` AND status = $${idx++}`;
+            params.push(status);
+        }
+        if (vendor_code) {
+            queryText += ` AND vendor_code = $${idx++}`;
+            params.push(vendor_code);
+        }
+        if (from_date) {
+            queryText += ` AND DATE(date) >= $${idx++}`;
+            params.push(from_date);
+        }
+        if (to_date) {
+            queryText += ` AND DATE(date) <= $${idx++}`;
+            params.push(to_date);
+        }
+        queryText += ' ORDER BY date DESC';
+        
+        const result = await query(queryText, params);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Validate PV rows before saving
+app.post('/api/purchase-vouchers/validate', checkAuth, async (req, res) => {
+    try {
+        const { rows } = req.body;
+        if (!Array.isArray(rows)) {
+            return res.status(400).json({ error: 'rows array required' });
+        }
+        
+        // Get current rates
+        const ratesResult = await query('SELECT * FROM rates ORDER BY updated_at DESC LIMIT 1');
+        const rates = ratesResult[0] || { gold: 7500, silver: 156 };
+        
+        // Get existing styles
+        const stylesResult = await query('SELECT style_code FROM styles WHERE is_active = true');
+        const validStyles = new Set(stylesResult.map(s => s.style_code.toUpperCase()));
+        
+        // Get existing tags
+        const tagsResult = await query('SELECT tag_no FROM products WHERE tag_no IS NOT NULL');
+        const existingTags = new Set(tagsResult.map(t => t.tag_no?.toUpperCase()));
+        
+        const batchTags = new Set();
+        
+        const validatedRows = rows.map((row, index) => {
+            const errors = [];
+            let status = 'VALID';
+            
+            const styleCode = (row.style_code || '').toUpperCase().trim();
+            const tagNo = (row.tag_no || '').toUpperCase().trim();
+            const grossWt = parseFloat(row.gross_wt) || 0;
+            const netWt = parseFloat(row.net_wt) || grossWt;
+            const purity = parseFloat(row.purity) || 91.6;
+            const mcValue = parseFloat(row.mc_value) || 0;
+            const cost = parseFloat(row.cost) || 0;
+            const metalType = (row.metal_type || 'gold').toLowerCase();
+            
+            // Style validation
+            if (styleCode && !validStyles.has(styleCode)) {
+                errors.push(`Style '${styleCode}' not found`);
+                status = 'STYLE_NOT_FOUND';
+            }
+            
+            // Tag duplicate check
+            if (tagNo) {
+                if (existingTags.has(tagNo)) {
+                    errors.push(`Tag '${tagNo}' already exists`);
+                    status = 'DUPLICATE_TAG';
+                } else if (batchTags.has(tagNo)) {
+                    errors.push(`Tag '${tagNo}' duplicated in batch`);
+                    status = 'DUPLICATE_TAG';
+                }
+                batchTags.add(tagNo);
+            }
+            
+            // Weight validation
+            if (grossWt <= 0) {
+                errors.push('Gross weight must be > 0');
+                if (status === 'VALID') status = 'INVALID_DATA';
+            }
+            if (netWt > grossWt) {
+                errors.push('Net weight cannot exceed gross weight');
+                if (status === 'VALID') status = 'INVALID_DATA';
+            }
+            
+            // Cost mismatch check
+            if (cost > 0 && grossWt > 0) {
+                const metalRate = metalType === 'gold' ? rates.gold : rates.silver;
+                const metalValue = netWt * metalRate * (purity / 100);
+                const mcAmount = row.mc_type === 'FIXED' ? mcValue : (netWt * mcValue);
+                const expectedCost = metalValue + mcAmount;
+                
+                if (cost < expectedCost * 0.8 || cost > expectedCost * 1.3) {
+                    errors.push(`Cost mismatch (Expected ~₹${Math.round(expectedCost)})`);
+                    if (status === 'VALID') status = 'COST_MISMATCH';
+                }
+            }
+            
+            return {
+                row_index: index,
+                status,
+                errors,
+                style_found: validStyles.has(styleCode),
+                data: { ...row, style_code: styleCode, tag_no: tagNo, gross_wt: grossWt, net_wt: netWt, purity, mc_value: mcValue, cost }
+            };
+        });
+        
+        res.json({
+            valid: validatedRows.filter(r => r.status === 'VALID').length,
+            invalid: validatedRows.filter(r => r.status !== 'VALID').length,
+            rows: validatedRows,
+            rates
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Save Purchase Voucher with items
+app.post('/api/purchase-vouchers', checkAuth, async (req, res) => {
+    try {
+        const { pv_no, supplier_name, vendor_code, vendor_bill_no, vendor_bill_date, items, total } = req.body;
+        
+        if (!pv_no || !items || items.length === 0) {
+            return res.status(400).json({ error: 'PV number and items required' });
+        }
+        
+        const dbPool = getPool();
+        const client = await dbPool.connect();
+        
+        try {
+            await client.query('BEGIN');
+            
+            // Calculate totals
+            const totalGrossWt = items.reduce((sum, i) => sum + (parseFloat(i.gross_wt) || 0), 0);
+            const totalNetWt = items.reduce((sum, i) => sum + (parseFloat(i.net_wt) || 0), 0);
+            const totalPcs = items.length;
+            
+            // Insert PV
+            const pvResult = await client.query(`
+                INSERT INTO purchase_vouchers (pv_no, supplier_name, vendor_code, vendor_bill_no, vendor_bill_date, items, total, total_gross_wt, total_net_wt, total_pcs, status)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'completed') RETURNING *
+            `, [pv_no, supplier_name, vendor_code, vendor_bill_no, vendor_bill_date, JSON.stringify(items), total || 0, totalGrossWt, totalNetWt, totalPcs]);
+            
+            const pvId = pvResult.rows[0].id;
+            
+            // Insert products
+            for (const item of items) {
+                const tagNo = item.tag_no || `${pv_no}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`.toUpperCase();
+                const barcode = item.barcode || tagNo;
+                
+                await client.query(`
+                    INSERT INTO products (barcode, tag_no, style_code, short_name, item_name, metal_type, gross_wt, net_wt, weight, purity, rate, mc_rate, mc_type, purchase_cost, vendor_code, pv_id, bin_location)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+                `, [
+                    barcode, tagNo, item.style_code, item.item_name || item.style_code, item.item_name || item.style_code,
+                    item.metal_type || 'gold', item.gross_wt, item.net_wt || item.gross_wt, item.net_wt || item.gross_wt,
+                    item.purity || 91.6, item.rate || 0, item.mc_value || 0, item.mc_type || 'PER_GRAM',
+                    item.cost || 0, vendor_code, pvId, item.bin_location || ''
+                ]);
+            }
+            
+            await client.query('COMMIT');
+            
+            broadcast('pv-created', pvResult.rows[0]);
+            res.json({ success: true, pv: pvResult.rows[0], products_created: items.length });
+            
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ==========================================
+// TAG SPLIT / MERGE OPERATIONS
+// ==========================================
+
+// Split a tag into multiple
+app.post('/api/tags/split', checkAuth, async (req, res) => {
+    try {
+        const { source_tag, split_into, weights, notes } = req.body;
+        
+        if (!source_tag || !split_into || split_into < 2) {
+            return res.status(400).json({ error: 'source_tag and split_into (min 2) required' });
+        }
+        
+        // Get source product
+        const sourceResult = await query('SELECT * FROM products WHERE tag_no = $1 AND tag_status = $2', [source_tag.toUpperCase(), 'active']);
+        if (sourceResult.length === 0) {
+            return res.status(404).json({ error: 'Source tag not found or not active' });
+        }
+        
+        const source = sourceResult[0];
+        const sourceWt = parseFloat(source.net_wt || source.weight);
+        
+        // Validate weights sum
+        let splitWeights = weights;
+        if (!Array.isArray(weights) || weights.length !== split_into) {
+            // Auto-split equally
+            const equalWt = Math.round((sourceWt / split_into) * 1000) / 1000;
+            splitWeights = Array(split_into).fill(equalWt);
+            splitWeights[split_into - 1] = Math.round((sourceWt - (equalWt * (split_into - 1))) * 1000) / 1000;
+        }
+        
+        const totalSplitWt = splitWeights.reduce((a, b) => a + b, 0);
+        if (Math.abs(totalSplitWt - sourceWt) > 0.001) {
+            return res.status(400).json({ error: `Split weights (${totalSplitWt}g) must equal source weight (${sourceWt}g)` });
+        }
+        
+        const dbPool = getPool();
+        const client = await dbPool.connect();
+        
+        try {
+            await client.query('BEGIN');
+            
+            const newTags = [];
+            
+            for (let i = 0; i < split_into; i++) {
+                const newTag = `${source_tag}-${String.fromCharCode(65 + i)}`;
+                const newWt = splitWeights[i];
+                
+                await client.query(`
+                    INSERT INTO products (barcode, tag_no, style_code, short_name, item_name, metal_type, gross_wt, net_wt, weight, purity, rate, mc_rate, mc_type, floor, split_from_tag, tag_status)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'active')
+                `, [
+                    newTag, newTag, source.style_code, source.short_name, source.item_name, source.metal_type,
+                    newWt, newWt, newWt, source.purity, source.rate, source.mc_rate, source.mc_type, source.floor, source_tag
+                ]);
+                
+                newTags.push(newTag);
+            }
+            
+            // Deactivate source tag
+            await client.query('UPDATE products SET tag_status = $1, updated_at = CURRENT_TIMESTAMP WHERE tag_no = $2', ['split', source_tag.toUpperCase()]);
+            
+            // Log operation
+            await client.query(`
+                INSERT INTO tag_operations (operation_type, source_tags, result_tags, source_total_wt, result_total_wt, notes, performed_by)
+                VALUES ('SPLIT', $1, $2, $3, $4, $5, $6)
+            `, [[source_tag], newTags, sourceWt, totalSplitWt, notes || '', req.user?.email || 'system']);
+            
+            await client.query('COMMIT');
+            
+            res.json({ success: true, source_tag, new_tags: newTags, weights: splitWeights });
+            
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Merge multiple tags into one
+app.post('/api/tags/merge', checkAuth, async (req, res) => {
+    try {
+        const { source_tags, new_tag_prefix, notes } = req.body;
+        
+        if (!Array.isArray(source_tags) || source_tags.length < 2) {
+            return res.status(400).json({ error: 'At least 2 source_tags required' });
+        }
+        
+        // Get source products
+        const placeholders = source_tags.map((_, i) => `$${i + 1}`).join(',');
+        const sourceResult = await query(`SELECT * FROM products WHERE tag_no IN (${placeholders}) AND tag_status = 'active'`, source_tags.map(t => t.toUpperCase()));
+        
+        if (sourceResult.length !== source_tags.length) {
+            return res.status(400).json({ error: 'Some tags not found or not active' });
+        }
+        
+        // Validate same metal type
+        const metalTypes = [...new Set(sourceResult.map(p => p.metal_type))];
+        if (metalTypes.length > 1) {
+            return res.status(400).json({ error: 'Cannot merge different metal types' });
+        }
+        
+        const totalWt = sourceResult.reduce((sum, p) => sum + parseFloat(p.net_wt || p.weight || 0), 0);
+        const avgPurity = sourceResult.reduce((sum, p) => sum + parseFloat(p.purity || 0), 0) / sourceResult.length;
+        const first = sourceResult[0];
+        
+        const dbPool = getPool();
+        const client = await dbPool.connect();
+        
+        try {
+            await client.query('BEGIN');
+            
+            const newTag = new_tag_prefix ? `${new_tag_prefix}-MERGED-${Date.now()}` : `MERGED-${Date.now()}`;
+            
+            // Create merged product
+            await client.query(`
+                INSERT INTO products (barcode, tag_no, style_code, short_name, item_name, metal_type, gross_wt, net_wt, weight, purity, rate, mc_rate, mc_type, floor, tag_status)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'active')
+            `, [
+                newTag, newTag, first.style_code, `Merged (${source_tags.length} items)`, `Merged Stock`,
+                first.metal_type, totalWt, totalWt, totalWt, avgPurity, first.rate, first.mc_rate, first.mc_type, first.floor
+            ]);
+            
+            // Deactivate source tags
+            await client.query(`UPDATE products SET tag_status = 'merged', merged_into_tag = $1, updated_at = CURRENT_TIMESTAMP WHERE tag_no IN (${placeholders})`, [newTag, ...source_tags.map(t => t.toUpperCase())]);
+            
+            // Log operation
+            await client.query(`
+                INSERT INTO tag_operations (operation_type, source_tags, result_tags, source_total_wt, result_total_wt, notes, performed_by)
+                VALUES ('MERGE', $1, $2, $3, $4, $5, $6)
+            `, [source_tags, [newTag], totalWt, totalWt, notes || '', req.user?.email || 'system']);
+            
+            await client.query('COMMIT');
+            
+            res.json({ success: true, source_tags, new_tag: newTag, total_weight: totalWt });
+            
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get tag operations history
+app.get('/api/tags/operations', checkAuth, async (req, res) => {
+    try {
+        const { limit = 50, type } = req.query;
+        let queryText = 'SELECT * FROM tag_operations WHERE 1=1';
+        const params = [];
+        
+        if (type) {
+            queryText += ' AND operation_type = $1';
+            params.push(type.toUpperCase());
+        }
+        queryText += ` ORDER BY created_at DESC LIMIT $${params.length + 1}`;
+        params.push(parseInt(limit));
+        
+        const result = await query(queryText, params);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ==========================================
+// ENTERPRISE REPORTS API
+// ==========================================
+
+// ROL Analysis Report
+app.get('/api/reports/rol-analysis', checkAuth, async (req, res) => {
+    try {
+        const { category, show_all } = req.query;
+        
+        let queryText = `
+            SELECT p.*, s.category, s.item_name as style_name,
+                   COALESCE(p.rol_limit, 0) as rol_limit,
+                   1 as current_stock,
+                   CASE WHEN COALESCE(p.rol_limit, 0) > 1 THEN COALESCE(p.rol_limit, 0) - 1 ELSE 0 END as shortage
+            FROM products p
+            LEFT JOIN styles s ON p.style_code = s.style_code
+            WHERE p.tag_status = 'active' AND p.is_sold = false
+        `;
+        const params = [];
+        
+        if (!show_all) {
+            queryText += ' AND COALESCE(p.rol_limit, 0) > 1';
+        }
+        if (category) {
+            queryText += ` AND s.category = $${params.length + 1}`;
+            params.push(category);
+        }
+        
+        queryText += ' ORDER BY shortage DESC, s.category, p.style_code';
+        
+        const result = await query(queryText, params);
+        
+        // Group by style_code for aggregation
+        const grouped = {};
+        result.forEach(row => {
+            const key = row.style_code || 'UNKNOWN';
+            if (!grouped[key]) {
+                grouped[key] = {
+                    style_code: key,
+                    style_name: row.style_name || row.short_name,
+                    category: row.category || '',
+                    current_stock: 0,
+                    rol_limit: row.rol_limit,
+                    shortage: 0,
+                    items: []
+                };
+            }
+            grouped[key].current_stock += 1;
+            grouped[key].items.push(row);
+        });
+        
+        // Calculate shortage
+        const analysis = Object.values(grouped).map(g => ({
+            ...g,
+            shortage: Math.max(0, g.rol_limit - g.current_stock)
+        })).filter(g => show_all || g.shortage > 0);
+        
+        res.json({
+            summary: {
+                total_styles: analysis.length,
+                total_shortage: analysis.reduce((sum, a) => sum + a.shortage, 0)
+            },
+            data: analysis
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// GST Tax Report
+app.get('/api/reports/gst', checkAuth, async (req, res) => {
+    try {
+        const { from_date, to_date, gst_rate } = req.query;
+        
+        let queryText = `
+            SELECT 
+                bill_no, 
+                DATE(date) as bill_date,
+                customer_name,
+                COALESCE(taxable_value, total) as taxable_value,
+                COALESCE(cgst, ROUND(COALESCE(taxable_value, total) * 0.015, 2)) as cgst_amount,
+                COALESCE(sgst, ROUND(COALESCE(taxable_value, total) * 0.015, 2)) as sgst_amount,
+                COALESCE(gst, ROUND(COALESCE(taxable_value, total) * 0.03, 2)) as total_tax,
+                net_total as total_amount,
+                gst_rate
+            FROM bills WHERE 1=1
+        `;
+        const params = [];
+        let idx = 1;
+        
+        if (from_date) {
+            queryText += ` AND DATE(date) >= $${idx++}`;
+            params.push(from_date);
+        }
+        if (to_date) {
+            queryText += ` AND DATE(date) <= $${idx++}`;
+            params.push(to_date);
+        }
+        if (gst_rate) {
+            queryText += ` AND gst_rate = $${idx++}`;
+            params.push(gst_rate);
+        }
+        
+        queryText += ' ORDER BY date DESC';
+        
+        const result = await query(queryText, params);
+        
+        // Calculate totals
+        const totals = {
+            taxable_value: 0,
+            cgst_amount: 0,
+            sgst_amount: 0,
+            total_tax: 0,
+            total_amount: 0
+        };
+        
+        result.forEach(row => {
+            totals.taxable_value += parseFloat(row.taxable_value) || 0;
+            totals.cgst_amount += parseFloat(row.cgst_amount) || 0;
+            totals.sgst_amount += parseFloat(row.sgst_amount) || 0;
+            totals.total_tax += parseFloat(row.total_tax) || 0;
+            totals.total_amount += parseFloat(row.total_amount) || 0;
+        });
+        
+        res.json({
+            bills: result,
+            totals: {
+                taxable_value: Math.round(totals.taxable_value * 100) / 100,
+                cgst_amount: Math.round(totals.cgst_amount * 100) / 100,
+                sgst_amount: Math.round(totals.sgst_amount * 100) / 100,
+                total_tax: Math.round(totals.total_tax * 100) / 100,
+                total_amount: Math.round(totals.total_amount * 100) / 100
+            },
+            count: result.length
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Stock Summary Report
+app.get('/api/reports/stock-summary', checkAuth, async (req, res) => {
+    try {
+        const { category, metal_type } = req.query;
+        
+        let queryText = `
+            SELECT 
+                COALESCE(s.category, 'Uncategorized') as category,
+                p.metal_type,
+                COUNT(*) as total_items,
+                SUM(COALESCE(p.net_wt, p.weight, 0)) as total_weight,
+                SUM(COALESCE(p.purchase_cost, 0)) as total_cost,
+                AVG(COALESCE(p.purity, 91.6)) as avg_purity
+            FROM products p
+            LEFT JOIN styles s ON p.style_code = s.style_code
+            WHERE p.tag_status = 'active' AND p.is_sold = false
+        `;
+        const params = [];
+        let idx = 1;
+        
+        if (category) {
+            queryText += ` AND s.category = $${idx++}`;
+            params.push(category);
+        }
+        if (metal_type) {
+            queryText += ` AND p.metal_type = $${idx++}`;
+            params.push(metal_type);
+        }
+        
+        queryText += ' GROUP BY COALESCE(s.category, \'Uncategorized\'), p.metal_type ORDER BY category, metal_type';
+        
+        const result = await query(queryText, params);
+        
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ==========================================
 // LABEL PRINTING API
 // ==========================================
 
