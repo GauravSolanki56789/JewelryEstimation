@@ -15,6 +15,7 @@ const {
     getPool
 } = require('./config/database');
 const { checkRole, checkAuth, checkAdmin, noCache, securityHeaders, getUserPermissions } = require('./middleware/auth');
+const { hasPermission, getPermissionContext } = require('./middleware/checkPermission');
 const TallyIntegration = require('./config/tally-integration');
 const TallySyncService = require('./config/tally-sync-service');
 
@@ -159,10 +160,13 @@ app.get('/auth/google/callback',
     }
 );
 
-// Current user endpoint - include permissions
+// Current user endpoint - include full permissions context
 app.get('/api/auth/current_user', (req, res) => {
     if (req.isAuthenticated()) {
-        const permissions = getUserPermissions(req.user);
+        // Get both legacy and new permission formats
+        const legacyPermissions = getUserPermissions(req.user);
+        const permissionContext = getPermissionContext(req.user);
+        
         res.json({ 
             isAuthenticated: true, 
             user: {
@@ -171,14 +175,19 @@ app.get('/api/auth/current_user', (req, res) => {
                 name: req.user.name,
                 role: req.user.role,
                 account_status: req.user.account_status,
-                allowed_tabs: req.user.allowed_tabs
+                allowed_tabs: req.user.allowed_tabs || [],
+                permissions: req.user.permissions || {}
             },
-            permissions: permissions
+            // Legacy format for backward compatibility
+            permissions: legacyPermissions,
+            // New granular permission context
+            permissionContext: permissionContext
         });
     } else {
         res.json({ 
             isAuthenticated: false,
-            permissions: getUserPermissions(null)
+            permissions: getUserPermissions(null),
+            permissionContext: getPermissionContext(null)
         });
     }
 });
@@ -467,9 +476,10 @@ app.get('/api/update/check', async (req, res) => {
 
 // ==========================================
 // PRODUCTS API (Single Tenant - No :tenant prefix)
+// Protected by: hasPermission('products')
 // ==========================================
 
-app.get('/api/products', checkAuth, async (req, res) => {
+app.get('/api/products', checkAuth, hasPermission('products'), async (req, res) => {
     try {
         const { barcode, styleCode, search } = req.query;
         
@@ -499,7 +509,7 @@ app.get('/api/products', checkAuth, async (req, res) => {
     }
 });
 
-app.post('/api/products', checkAuth, async (req, res) => {
+app.post('/api/products', checkAuth, hasPermission('products'), async (req, res) => {
     const product = req.body;
     
     try {
@@ -534,7 +544,7 @@ app.post('/api/products', checkAuth, async (req, res) => {
     }
 });
 
-app.put('/api/products/:id', checkAuth, async (req, res) => {
+app.put('/api/products/:id', checkAuth, hasPermission('products'), async (req, res) => {
     try {
         const { id } = req.params;
         const product = req.body;
@@ -561,7 +571,7 @@ app.put('/api/products/:id', checkAuth, async (req, res) => {
     }
 });
 
-app.post('/api/products/bulk', checkAuth, async (req, res) => {
+app.post('/api/products/bulk', checkAuth, hasPermission('products'), async (req, res) => {
     try {
         const { products: productsArray } = req.body;
         
@@ -637,7 +647,7 @@ app.post('/api/products/bulk', checkAuth, async (req, res) => {
     }
 });
 
-app.delete('/api/products/:id', checkAuth, async (req, res) => {
+app.delete('/api/products/:id', checkAuth, hasPermission('products'), async (req, res) => {
     try {
         const { id } = req.params;
         await query('DELETE FROM products WHERE id = $1', [id]);
@@ -652,7 +662,7 @@ app.delete('/api/products/:id', checkAuth, async (req, res) => {
 // CUSTOMERS API
 // ==========================================
 
-app.get('/api/customers', checkAuth, async (req, res) => {
+app.get('/api/customers', checkAuth, hasPermission('customers'), async (req, res) => {
     try {
         const { mobile, search } = req.query;
         
@@ -678,7 +688,7 @@ app.get('/api/customers', checkAuth, async (req, res) => {
     }
 });
 
-app.post('/api/customers', checkAuth, async (req, res) => {
+app.post('/api/customers', checkAuth, hasPermission('customers'), async (req, res) => {
     try {
         const customer = req.body;
         
@@ -698,7 +708,7 @@ app.post('/api/customers', checkAuth, async (req, res) => {
     }
 });
 
-app.put('/api/customers/:id', checkAuth, async (req, res) => {
+app.put('/api/customers/:id', checkAuth, hasPermission('customers'), async (req, res) => {
     try {
         const { id } = req.params;
         const customer = req.body;
@@ -721,7 +731,7 @@ app.put('/api/customers/:id', checkAuth, async (req, res) => {
     }
 });
 
-app.delete('/api/customers/:id', checkAuth, async (req, res) => {
+app.delete('/api/customers/:id', checkAuth, hasPermission('customers'), async (req, res) => {
     try {
         const { id } = req.params;
         await query('DELETE FROM customers WHERE id = $1', [id]);
@@ -736,7 +746,7 @@ app.delete('/api/customers/:id', checkAuth, async (req, res) => {
 // QUOTATIONS API
 // ==========================================
 
-app.get('/api/quotations', checkAuth, async (req, res) => {
+app.get('/api/quotations', checkAuth, hasPermission('quotations'), async (req, res) => {
     try {
         const result = await query('SELECT * FROM quotations ORDER BY date DESC');
         res.json(result);
@@ -745,7 +755,7 @@ app.get('/api/quotations', checkAuth, async (req, res) => {
     }
 });
 
-app.post('/api/quotations', checkAuth, async (req, res) => {
+app.post('/api/quotations', checkAuth, hasPermission('quotations'), async (req, res) => {
     try {
         const quotation = req.body;
         
@@ -769,7 +779,7 @@ app.post('/api/quotations', checkAuth, async (req, res) => {
     }
 });
 
-app.put('/api/quotations/:id', checkAuth, async (req, res) => {
+app.put('/api/quotations/:id', checkAuth, hasPermission('quotations'), async (req, res) => {
     try {
         const { id } = req.params;
         const quotation = req.body;
@@ -795,7 +805,7 @@ app.put('/api/quotations/:id', checkAuth, async (req, res) => {
     }
 });
 
-app.delete('/api/quotations/:id', checkAuth, async (req, res) => {
+app.delete('/api/quotations/:id', checkAuth, hasPermission('quotations'), async (req, res) => {
     try {
         const { id } = req.params;
         await query('DELETE FROM quotations WHERE id = $1', [id]);
@@ -808,9 +818,10 @@ app.delete('/api/quotations/:id', checkAuth, async (req, res) => {
 
 // ==========================================
 // BILLS API
+// Protected by: hasPermission('billing')
 // ==========================================
 
-app.get('/api/bills', checkAuth, async (req, res) => {
+app.get('/api/bills', checkAuth, hasPermission('billing'), async (req, res) => {
     try {
         const { billNo, date } = req.query;
         
@@ -836,7 +847,7 @@ app.get('/api/bills', checkAuth, async (req, res) => {
     }
 });
 
-app.get('/api/bills/by-number/:billNo', checkAuth, async (req, res) => {
+app.get('/api/bills/by-number/:billNo', checkAuth, hasPermission('billing'), async (req, res) => {
     try {
         const { billNo } = req.params;
         const result = await query('SELECT * FROM bills WHERE bill_no = $1', [billNo]);
@@ -849,7 +860,7 @@ app.get('/api/bills/by-number/:billNo', checkAuth, async (req, res) => {
     }
 });
 
-app.post('/api/bills', checkAuth, async (req, res) => {
+app.post('/api/bills', checkAuth, hasPermission('billing'), async (req, res) => {
     try {
         const bill = req.body;
         
@@ -892,7 +903,7 @@ app.post('/api/bills', checkAuth, async (req, res) => {
     }
 });
 
-app.put('/api/bills/:id', checkAuth, async (req, res) => {
+app.put('/api/bills/:id', checkAuth, hasPermission('billing'), async (req, res) => {
     try {
         const { id } = req.params;
         const bill = req.body;
@@ -916,7 +927,7 @@ app.put('/api/bills/:id', checkAuth, async (req, res) => {
     }
 });
 
-app.delete('/api/bills/:id', checkAuth, async (req, res) => {
+app.delete('/api/bills/:id', checkAuth, hasPermission('billing'), async (req, res) => {
     try {
         const { id } = req.params;
         await query('DELETE FROM bills WHERE id = $1', [id]);
@@ -934,7 +945,15 @@ app.delete('/api/bills/:id', checkAuth, async (req, res) => {
 // Get all users (for admin panel)
 app.get('/api/admin/users', checkRole('admin'), async (req, res) => {
     try {
-        const result = await query('SELECT id, google_id, email, name, role, allowed_tabs, account_status, phone_number, created_at FROM users ORDER BY created_at DESC');
+        const result = await query(`
+            SELECT id, google_id, email, name, role, allowed_tabs, permissions, 
+                   account_status, phone_number, created_at, updated_at 
+            FROM users 
+            ORDER BY 
+                CASE WHEN email = 'jaigaurav56789@gmail.com' THEN 0 ELSE 1 END,
+                role ASC,
+                created_at DESC
+        `);
         res.json(result);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -1041,12 +1060,45 @@ app.post('/api/admin/change-password', checkRole('admin'), async (req, res) => {
 
 // ==========================================
 // USER WHITELIST MANAGEMENT (Admin Only)
+// Granular Permissions System v2.0
 // ==========================================
 
-// Add user to whitelist (pre-approve email)
+// Available permission modules
+const PERMISSION_MODULES = [
+    'billing',      // Billing tab
+    'products',     // Products & Stock tab
+    'customers',    // CRM / Customers tab
+    'rol',          // ROL Management tab
+    'quotations',   // Quotations tab
+    'salesbill',    // Sales Bill tab
+    'salesreturn',  // Sales Return tab
+    'billhistory',  // Bill History tab
+    'ledger',       // Ledger tab
+    'styles',       // Style Master tab
+    'pv',           // Purchase Voucher / Stock-In tab
+    'tagsplit',     // Tag Split/Merge tab
+    'tagsearch',    // Tag Search tab
+    'floor',        // Floor Management tab
+    'reports'       // Reports tab
+];
+
+// Get available permission modules (for frontend)
+app.get('/api/admin/permission-modules', checkRole('admin'), (req, res) => {
+    res.json({
+        modules: PERMISSION_MODULES,
+        moduleGroups: {
+            'Sales & Billing': ['billing', 'salesbill', 'salesreturn', 'quotations', 'billhistory'],
+            'Inventory': ['products', 'pv', 'tagsplit', 'tagsearch', 'floor'],
+            'CRM & Finance': ['customers', 'ledger'],
+            'Management': ['rol', 'styles', 'reports']
+        }
+    });
+});
+
+// Add user to whitelist (pre-approve email) with permissions
 app.post('/api/admin/add-user', checkRole('admin'), async (req, res) => {
     try {
-        const { email, name, role } = req.body;
+        const { email, name, role, allowed_tabs } = req.body;
         
         if (!email) {
             return res.status(400).json({ error: 'Email is required' });
@@ -1068,14 +1120,34 @@ app.post('/api/admin/add-user', checkRole('admin'), async (req, res) => {
         const validRoles = ['employee', 'admin'];
         const userRole = validRoles.includes(role) ? role : 'employee';
         
-        // Insert new user (whitelisted, pending first login)
+        // Set default permissions based on role
+        let userAllowedTabs = allowed_tabs;
+        if (!userAllowedTabs || !Array.isArray(userAllowedTabs) || userAllowedTabs.length === 0) {
+            // Default: Admin gets all, Employee gets billing only
+            userAllowedTabs = userRole === 'admin' ? ['all'] : ['billing'];
+        }
+        
+        // Validate allowed_tabs values
+        const validTabs = ['all', ...PERMISSION_MODULES];
+        userAllowedTabs = userAllowedTabs.filter(tab => validTabs.includes(tab));
+        if (userAllowedTabs.length === 0) {
+            userAllowedTabs = ['billing']; // Fallback to billing
+        }
+        
+        // Build permissions JSON
+        const permissions = {
+            all: userAllowedTabs.includes('all'),
+            modules: userAllowedTabs.includes('all') ? ['*'] : userAllowedTabs
+        };
+        
+        // Insert new user with permissions
         const result = await query(
-            `INSERT INTO users (email, name, role, account_status, created_at) 
-             VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP) RETURNING *`,
-            [email.toLowerCase(), name || 'New User', userRole, 'active']
+            `INSERT INTO users (email, name, role, account_status, allowed_tabs, permissions, created_at) 
+             VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP) RETURNING *`,
+            [email.toLowerCase(), name || 'New User', userRole, 'active', userAllowedTabs, JSON.stringify(permissions)]
         );
         
-        console.log(`✅ User whitelisted by admin: ${email} (Role: ${userRole})`);
+        console.log(`✅ User whitelisted by admin: ${email} (Role: ${userRole}, Tabs: ${userAllowedTabs.join(', ')})`);
         
         res.json({ 
             success: true, 
@@ -1088,40 +1160,171 @@ app.post('/api/admin/add-user', checkRole('admin'), async (req, res) => {
     }
 });
 
+// Update existing user (full edit)
+app.put('/api/admin/users/:id', checkRole('admin'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, role, account_status, allowed_tabs } = req.body;
+        
+        // Check if user exists
+        const existingUser = await query('SELECT * FROM users WHERE id = $1', [id]);
+        if (existingUser.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
+        const user = existingUser[0];
+        
+        // Prevent modifying super admin's role or permissions
+        if (user.email === 'jaigaurav56789@gmail.com') {
+            // Only allow name update for super admin
+            if (role && role !== 'admin') {
+                return res.status(403).json({ error: 'Cannot change Super Admin role' });
+            }
+            if (allowed_tabs && !allowed_tabs.includes('all')) {
+                return res.status(403).json({ error: 'Cannot restrict Super Admin permissions' });
+            }
+        }
+        
+        // Build update query dynamically
+        const updates = [];
+        const params = [];
+        let paramIndex = 1;
+        
+        if (name !== undefined) {
+            updates.push(`name = $${paramIndex++}`);
+            params.push(name);
+        }
+        
+        if (role !== undefined) {
+            const validRoles = ['employee', 'admin'];
+            if (validRoles.includes(role)) {
+                updates.push(`role = $${paramIndex++}`);
+                params.push(role);
+            }
+        }
+        
+        if (account_status !== undefined) {
+            const validStatuses = ['active', 'pending', 'suspended', 'rejected'];
+            if (validStatuses.includes(account_status)) {
+                updates.push(`account_status = $${paramIndex++}`);
+                params.push(account_status);
+            }
+        }
+        
+        if (allowed_tabs !== undefined && Array.isArray(allowed_tabs)) {
+            // Validate allowed_tabs values
+            const validTabs = ['all', ...PERMISSION_MODULES];
+            const cleanTabs = allowed_tabs.filter(tab => validTabs.includes(tab));
+            
+            if (cleanTabs.length > 0) {
+                updates.push(`allowed_tabs = $${paramIndex++}`);
+                params.push(cleanTabs);
+                
+                // Also update permissions JSON
+                const permissions = {
+                    all: cleanTabs.includes('all'),
+                    modules: cleanTabs.includes('all') ? ['*'] : cleanTabs
+                };
+                updates.push(`permissions = $${paramIndex++}`);
+                params.push(JSON.stringify(permissions));
+            }
+        }
+        
+        if (updates.length === 0) {
+            return res.status(400).json({ error: 'No valid fields to update' });
+        }
+        
+        updates.push(`updated_at = CURRENT_TIMESTAMP`);
+        params.push(id);
+        
+        const queryText = `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
+        const result = await query(queryText, params);
+        
+        console.log(`📝 User updated: ${user.email} (ID: ${id})`);
+        
+        res.json({ success: true, user: result[0] });
+    } catch (error) {
+        console.error('Error updating user:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Remove user from whitelist (revoke access)
 app.delete('/api/admin/users/:id', checkRole('admin'), async (req, res) => {
     try {
         const { id } = req.params;
         
-        // Prevent deleting super admin
-        const user = await query('SELECT * FROM users WHERE id = $1', [id]);
-        if (user.length > 0 && user[0].email === 'jaigaurav56789@gmail.com') {
-            return res.status(403).json({ error: 'Cannot delete super admin' });
+        // Validate ID is a number
+        const userId = parseInt(id);
+        if (isNaN(userId)) {
+            return res.status(400).json({ error: 'Invalid user ID' });
         }
         
-        await query('DELETE FROM users WHERE id = $1', [id]);
+        // Check if user exists and get details
+        const userResult = await query('SELECT * FROM users WHERE id = $1', [userId]);
         
-        console.log(`🗑️ User removed from whitelist: ID ${id}`);
-        res.json({ success: true, message: 'User removed successfully' });
+        if (userResult.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
+        const user = userResult[0];
+        
+        // Prevent deleting super admin
+        if (user.email === 'jaigaurav56789@gmail.com') {
+            return res.status(403).json({ error: 'Cannot delete Super Admin account' });
+        }
+        
+        // Prevent admin from deleting themselves
+        if (req.user && req.user.id === userId) {
+            return res.status(403).json({ error: 'Cannot delete your own account' });
+        }
+        
+        // Delete the user
+        await query('DELETE FROM users WHERE id = $1', [userId]);
+        
+        console.log(`🗑️ User removed from whitelist: ${user.email} (ID: ${userId})`);
+        res.json({ success: true, message: `User ${user.email} removed successfully` });
     } catch (error) {
+        console.error('Error deleting user:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// Update user allowed tabs
+// Update user allowed tabs (legacy endpoint, kept for compatibility)
 app.put('/api/admin/users/:id/tabs', checkRole('admin'), async (req, res) => {
     try {
         const { id } = req.params;
         const { allowedTabs } = req.body;
         
-        const result = await query(
-            'UPDATE users SET allowed_tabs = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
-            [allowedTabs, id]
-        );
+        if (!Array.isArray(allowedTabs)) {
+            return res.status(400).json({ error: 'allowedTabs must be an array' });
+        }
         
-        if (result.length === 0) {
+        // Check if user exists
+        const existingUser = await query('SELECT * FROM users WHERE id = $1', [id]);
+        if (existingUser.length === 0) {
             return res.status(404).json({ error: 'User not found' });
         }
+        
+        // Prevent restricting super admin
+        if (existingUser[0].email === 'jaigaurav56789@gmail.com' && !allowedTabs.includes('all')) {
+            return res.status(403).json({ error: 'Cannot restrict Super Admin permissions' });
+        }
+        
+        // Validate and clean tabs
+        const validTabs = ['all', ...PERMISSION_MODULES];
+        const cleanTabs = allowedTabs.filter(tab => validTabs.includes(tab));
+        
+        // Build permissions JSON
+        const permissions = {
+            all: cleanTabs.includes('all'),
+            modules: cleanTabs.includes('all') ? ['*'] : cleanTabs
+        };
+        
+        const result = await query(
+            'UPDATE users SET allowed_tabs = $1, permissions = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *',
+            [cleanTabs, JSON.stringify(permissions), id]
+        );
         
         res.json({ success: true, user: result[0] });
     } catch (error) {
@@ -1162,7 +1365,7 @@ app.post('/api/rates', checkAuth, async (req, res) => {
 // LEDGER TRANSACTIONS API
 // ==========================================
 
-app.get('/api/ledger/transactions', checkAuth, async (req, res) => {
+app.get('/api/ledger/transactions', checkAuth, hasPermission('ledger'), async (req, res) => {
     try {
         const { customerId, type, startDate, endDate } = req.query;
         
@@ -1196,7 +1399,7 @@ app.get('/api/ledger/transactions', checkAuth, async (req, res) => {
     }
 });
 
-app.post('/api/ledger/transactions', checkAuth, async (req, res) => {
+app.post('/api/ledger/transactions', checkAuth, hasPermission('ledger'), async (req, res) => {
     try {
         const transaction = req.body;
         
@@ -1976,7 +2179,7 @@ app.post('/api/purchase-vouchers', checkAuth, async (req, res) => {
 // ==========================================
 
 // Split a tag into multiple
-app.post('/api/tags/split', checkAuth, async (req, res) => {
+app.post('/api/tags/split', checkAuth, hasPermission('tagsplit'), async (req, res) => {
     try {
         const { source_tag, split_into, weights, notes } = req.body;
         
@@ -2055,7 +2258,7 @@ app.post('/api/tags/split', checkAuth, async (req, res) => {
 });
 
 // Merge multiple tags into one
-app.post('/api/tags/merge', checkAuth, async (req, res) => {
+app.post('/api/tags/merge', checkAuth, hasPermission('tagsplit'), async (req, res) => {
     try {
         const { source_tags, new_tag_prefix, notes } = req.body;
         
@@ -2123,7 +2326,7 @@ app.post('/api/tags/merge', checkAuth, async (req, res) => {
 });
 
 // Get tag operations history
-app.get('/api/tags/operations', checkAuth, async (req, res) => {
+app.get('/api/tags/operations', checkAuth, hasPermission('tagsplit'), async (req, res) => {
     try {
         const { limit = 50, type } = req.query;
         let queryText = 'SELECT * FROM tag_operations WHERE 1=1';
@@ -2148,7 +2351,7 @@ app.get('/api/tags/operations', checkAuth, async (req, res) => {
 // ==========================================
 
 // ROL Analysis Report
-app.get('/api/reports/rol-analysis', checkAuth, async (req, res) => {
+app.get('/api/reports/rol-analysis', checkAuth, hasPermission('reports'), async (req, res) => {
     try {
         const { category, show_all } = req.query;
         
@@ -2213,7 +2416,7 @@ app.get('/api/reports/rol-analysis', checkAuth, async (req, res) => {
 });
 
 // GST Tax Report
-app.get('/api/reports/gst', checkAuth, async (req, res) => {
+app.get('/api/reports/gst', checkAuth, hasPermission('reports'), async (req, res) => {
     try {
         const { from_date, to_date, gst_rate } = req.query;
         
@@ -2284,7 +2487,7 @@ app.get('/api/reports/gst', checkAuth, async (req, res) => {
 });
 
 // Stock Summary Report
-app.get('/api/reports/stock-summary', checkAuth, async (req, res) => {
+app.get('/api/reports/stock-summary', checkAuth, hasPermission('reports'), async (req, res) => {
     try {
         const { category, metal_type } = req.query;
         

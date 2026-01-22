@@ -213,6 +213,87 @@
 </style>
 </head>
 <body class="bg-gradient-to-br from-amber-50 to-orange-50 min-h-screen">
+    <!-- ============================================ -->
+    <!-- GLOBAL LOADER OVERLAY (Hidden by default) -->
+    <!-- ============================================ -->
+    <div id="globalLoader">
+        <div class="loader-content">
+            <div class="loader-spinner"></div>
+            <p class="loader-text" id="loaderText">Processing...</p>
+        </div>
+    </div>
+    
+    <!-- ============================================ -->
+    <!-- TOAST NOTIFICATION CONTAINER -->
+    <!-- ============================================ -->
+    <div id="toastContainer"></div>
+    
+    <script>
+    // ============================================
+    // GLOBAL LOADER FUNCTIONS
+    // ============================================
+    
+    function showLoader(message = 'Processing...') {
+        const loader = document.getElementById('globalLoader');
+        const loaderText = document.getElementById('loaderText');
+        if (loader) {
+            if (loaderText) loaderText.textContent = message;
+            loader.classList.add('active');
+        }
+    }
+    
+    function hideLoader() {
+        const loader = document.getElementById('globalLoader');
+        if (loader) {
+            loader.classList.remove('active');
+        }
+    }
+    
+    // ============================================
+    // TOAST NOTIFICATION FUNCTIONS
+    // ============================================
+    
+    const toastIcons = {
+        success: '✅',
+        error: '❌',
+        warning: '⚠️',
+        info: 'ℹ️'
+    };
+    
+    function showToast(message, type = 'info', duration = 4000) {
+        const container = document.getElementById('toastContainer');
+        if (!container) return;
+        
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.innerHTML = `
+            <span class="toast-icon">${toastIcons[type] || toastIcons.info}</span>
+            <span>${message}</span>
+        `;
+        
+        container.appendChild(toast);
+        
+        // Auto-remove after duration
+        setTimeout(() => {
+            toast.classList.add('removing');
+            setTimeout(() => toast.remove(), 300);
+        }, duration);
+        
+        // Click to dismiss
+        toast.addEventListener('click', () => {
+            toast.classList.add('removing');
+            setTimeout(() => toast.remove(), 300);
+        });
+        
+        return toast;
+    }
+    
+    // Make functions globally accessible
+    window.showLoader = showLoader;
+    window.hideLoader = hideLoader;
+    window.showToast = showToast;
+    </script>
+    
     <!-- Authentication Modal -->
     <div id="authModal" class="fixed inset-0 flex items-center justify-center z-50 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
         <div class="bg-white p-10 rounded-lg shadow-2xl max-w-md w-full mx-4 border-2 border-gray-200">
@@ -226,9 +307,7 @@
                     <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-6 h-6" alt="Google">
                     <span>Sign in with Google</span>
                 </a>
-                <p class="text-xs text-center text-gray-500 mt-4">
-                    Sign in to access your jewelry estimation dashboard.
-                </p>
+                <!-- Login helper text removed for cleaner UI -->
             </div>
             <div id="loginError" class="hidden mt-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm text-center"></div>
             <script>
@@ -253,8 +332,10 @@
         </div>
     </div>
 
-    <div id="app" class="max-w-7xl mx-auto p-4 hidden">
-        <!-- Header -->
+    <div id="app" class="max-w-7xl mx-auto p-4 pb-24 hidden">
+        <!-- ============================================ -->
+        <!-- HEADER - Grouped Navigation with Dropdowns -->
+        <!-- ============================================ -->
         <div class="bg-white rounded-2xl shadow-2xl overflow-hidden mb-6">
             <div class="bg-gradient-to-r from-amber-600 to-orange-600 text-white p-4 md:p-6">
                 <div class="flex justify-between items-center gap-2 md:gap-4">
@@ -269,14 +350,9 @@
                         <!-- Desktop Admin Buttons (hidden on mobile) -->
                         <div class="admin-buttons-desktop hidden md:flex items-center gap-2 text-sm" id="userInfoSection">
                             <span class="text-amber-100" id="currentUserName">User: Guest</span>
-                            <span id="userManagementBtn" class="hidden">
-                                <button onclick="showUserManagement()" id="btnManageUsers" class="px-3 py-1 bg-white text-amber-600 rounded text-xs hover:bg-amber-50 hidden">👥 Manage Users</button>
-                            </span>
-                            <span id="tallyConfigBtn" class="hidden">
-                                <button onclick="showTallyConfig()" id="btnTallyConfig" class="px-3 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700">⚙️ Tally Config</button>
-                            </span>
-                            <button onclick="checkForUpdates()" id="btnUpdateSW" class="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">🔄 Update S/w</button>
-                            <button onclick="logout()" class="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700">Logout</button>
+                            <button onclick="logout()" class="px-3 py-1.5 bg-red-500/80 hover:bg-red-600 text-white rounded-lg text-xs font-medium transition">
+                                Logout
+                            </button>
                         </div>
                         
                         <!-- Mobile Settings Button (shown on mobile) -->
@@ -2795,77 +2871,94 @@
     </div>
 </div>
 
-<!-- User Management Modal -->
+<!-- User Management Modal (Enhanced with Granular Permissions) -->
 <div id="userManagementModal" class="fixed inset-0 flex items-center justify-center z-50 hidden bg-black bg-opacity-50 p-4">
-    <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="text-2xl font-bold text-gray-800">👥 User Whitelist Management</h3>
-            <button onclick="closeUserManagementModal()" 
-                class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+    <div class="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        <!-- Header -->
+        <div class="bg-gradient-to-r from-amber-600 to-orange-600 text-white px-6 py-4 flex-shrink-0">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h3 class="text-2xl font-bold">👥 User Management</h3>
+                    <p class="text-amber-100 text-sm">Granular Permissions Control</p>
+                </div>
+                <button onclick="closeUserManagementModal()" 
+                    class="text-white hover:bg-white/20 rounded p-2 transition">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
         </div>
         
-        <!-- Info Banner -->
-        <div class="bg-blue-50 border-l-4 border-blue-500 p-3 mb-4">
-            <p class="text-sm text-blue-700">
-                <strong>🔐 Google OAuth Whitelist:</strong> Only pre-approved emails can login. 
-                No passwords are stored - users authenticate via Google.
-            </p>
-        </div>
-        
-        <!-- Add New User Form -->
-        <div class="bg-green-50 border-l-4 border-green-500 p-4 mb-4">
-            <h4 class="font-bold text-green-800 mb-3">➕ Add User to Whitelist</h4>
-            <form onsubmit="event.preventDefault(); addUserToWhitelist();" class="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <div>
-                    <label class="block text-xs font-medium text-green-700 mb-1">Email *</label>
-                    <input type="email" id="newUserEmail" placeholder="user@example.com" required
-                        class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500">
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-green-700 mb-1">Name</label>
-                    <input type="text" id="newUserName" placeholder="Full Name" 
-                        class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500">
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-green-700 mb-1">Role</label>
-                    <select id="newUserRole" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500">
-                        <option value="employee">👤 Employee</option>
-                        <option value="admin">👑 Admin</option>
-                    </select>
-                </div>
-                <div class="flex items-end">
-                    <button type="submit" 
-                        class="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">
+        <!-- Body - Scrollable -->
+        <div class="p-6 overflow-y-auto flex-1">
+            <!-- Info Banner - Clean version for end users -->
+            <div class="bg-blue-50 border-l-4 border-blue-500 p-3 mb-4 rounded-r-lg">
+                <p class="text-sm text-blue-700">
+                    <strong>🔐 Add authorized users below.</strong> Users will receive login access via their Google account.
+                </p>
+            </div>
+            
+            <!-- Add New User Section -->
+            <div class="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-xl border-2 border-green-200 mb-6">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h4 class="font-bold text-gray-800 text-lg">➕ Add New User</h4>
+                        <p class="text-sm text-gray-600">Add users with granular module permissions</p>
+                    </div>
+                    <button onclick="UserManagement.openAddModal()" 
+                        class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold transition shadow-lg hover:shadow-xl">
                         ➕ Add User
                     </button>
                 </div>
-            </form>
-        </div>
-        
-        <!-- Existing Users List -->
-        <div class="mb-4 flex justify-between items-center">
-            <h4 class="font-bold text-gray-700">📋 Whitelisted Users (<span id="userCount">0</span>)</h4>
-            <button onclick="loadWhitelistedUsers()" 
-                class="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
-                🔄 Refresh
-            </button>
-        </div>
-        
-        <div class="overflow-x-auto border rounded-lg">
-            <table class="w-full text-left border-collapse">
-                <thead>
-                    <tr class="bg-gray-100 border-b">
-                        <th class="p-3 font-bold text-sm">Email</th>
-                        <th class="p-3 font-bold text-sm">Name</th>
-                        <th class="p-3 font-bold text-sm">Role</th>
-                        <th class="p-3 font-bold text-sm">Status</th>
-                        <th class="p-3 font-bold text-sm text-center">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="userManagementList">
-                    <!-- Users will be rendered here -->
-                </tbody>
-            </table>
+            </div>
+            
+            <!-- Stats Bar -->
+            <div class="grid grid-cols-4 gap-3 mb-4">
+                <div class="bg-white p-3 rounded-lg border-2 border-gray-200 text-center">
+                    <p class="text-2xl font-bold text-gray-800" id="userCount">0</p>
+                    <p class="text-xs text-gray-500">Total Users</p>
+                </div>
+                <div class="bg-white p-3 rounded-lg border-2 border-green-200 text-center">
+                    <p class="text-2xl font-bold text-green-600" id="activeUserCount">0</p>
+                    <p class="text-xs text-gray-500">Active</p>
+                </div>
+                <div class="bg-white p-3 rounded-lg border-2 border-purple-200 text-center">
+                    <p class="text-2xl font-bold text-purple-600" id="adminUserCount">0</p>
+                    <p class="text-xs text-gray-500">Admins</p>
+                </div>
+                <div class="bg-white p-3 rounded-lg border-2 border-yellow-200 text-center">
+                    <p class="text-2xl font-bold text-yellow-600" id="pendingUserCount">0</p>
+                    <p class="text-xs text-gray-500">Pending</p>
+                </div>
+            </div>
+            
+            <!-- Users Table -->
+            <div class="flex justify-between items-center mb-3">
+                <h4 class="font-bold text-gray-700">📋 Authorized Users</h4>
+                <button onclick="loadWhitelistedUsers()" 
+                    class="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 font-medium transition">
+                    🔄 Refresh
+                </button>
+            </div>
+            
+            <div class="overflow-x-auto border-2 border-gray-200 rounded-xl">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gradient-to-r from-gray-100 to-gray-50 border-b-2 border-gray-200">
+                            <th class="p-3 font-bold text-sm text-gray-700">Email</th>
+                            <th class="p-3 font-bold text-sm text-gray-700">Name</th>
+                            <th class="p-3 font-bold text-sm text-gray-700">Role</th>
+                            <th class="p-3 font-bold text-sm text-gray-700">Status</th>
+                            <th class="p-3 font-bold text-sm text-gray-700">Permissions</th>
+                            <th class="p-3 font-bold text-sm text-gray-700 text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="userManagementList">
+                        <!-- Users will be rendered here by dashboard.js -->
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>
@@ -2887,7 +2980,7 @@
                     <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
                     <input type="email" id="editUserEmail" readonly
                         class="w-full px-3 py-2 border rounded-lg bg-gray-100 text-gray-600">
-                    <p class="text-xs text-gray-500 mt-1">Email cannot be changed (Google OAuth identifier)</p>
+                    <p class="text-xs text-gray-500 mt-1">Email cannot be changed after creation</p>
                 </div>
                 
                 <div>
@@ -4447,6 +4540,11 @@ function logout() {
         delete localStorageCache['currentUser'];
         try { localStorage.removeItem('currentUser'); } catch(e) {}
         
+        // SECURITY: Clear permission context
+        if (typeof PermissionContext !== 'undefined') {
+            PermissionContext.clear();
+        }
+        
         // SECURITY: Clear all cached data on logout
         try {
             sessionStorage.clear();
@@ -4466,59 +4564,19 @@ function updateTabVisibility() {
     
     // Update user info display
     const userNameEl = document.getElementById('currentUserName');
-    const userMgmtBtn = document.getElementById('btnManageUsers');
-    const userMgmtBtnContainer = document.getElementById('userManagementBtn');
-    const updateSwBtn = document.getElementById('btnUpdateSW');
-    
     if (userNameEl) {
         userNameEl.textContent = `User: ${currentUser.username}`;
     }
     
-    // SECURITY: Use permissions from server (fallback to role check)
-    const permissions = currentUser.permissions || {};
-    const isAdmin = permissions.isAdmin || currentUser.role === 'admin' || currentUser.role === 'super_admin';
-    
-    // SECURITY: Only admin can access user management
-    const canManageUsers = permissions.canManageUsers || isAdmin;
-    
-    // SECURITY: Only admin can access Tally configuration and settings
-    const canAccessTally = permissions.canAccessSettings || isAdmin;
-    
-    // SECURITY: Only admin can update software
-    const canUpdateSoftware = permissions.canUpdateSoftware || isAdmin;
-    
-    // Show/hide Manage Users button
-    if (userMgmtBtn && userMgmtBtnContainer) {
-        if (canManageUsers) {
-            userMgmtBtnContainer.classList.remove('hidden');
-            userMgmtBtn.classList.remove('hidden');
-        } else {
-            userMgmtBtnContainer.classList.add('hidden');
-            userMgmtBtn.classList.add('hidden');
-        }
+    // Update mobile user name
+    const mobileUserNameEl = document.getElementById('mobileUserName');
+    if (mobileUserNameEl) {
+        const isAdmin = currentUser.role === 'admin' || currentUser.role === 'super_admin';
+        const roleText = isAdmin ? ' (Admin)' : '';
+        mobileUserNameEl.textContent = `${currentUser.username}${roleText}`;
     }
     
-    // Show/hide Update S/W button (ADMIN ONLY)
-    if (updateSwBtn) {
-        if (canUpdateSoftware) {
-            updateSwBtn.classList.remove('hidden');
-        } else {
-            updateSwBtn.classList.add('hidden');
-        }
-    }
-    
-    // Show/hide Tally Config button based on permissions
-    const tallyConfigBtn = document.getElementById('btnTallyConfig');
-    const tallyConfigBtnContainer = document.getElementById('tallyConfigBtn');
-    if (tallyConfigBtn && tallyConfigBtnContainer) {
-        if (canAccessTally) {
-            tallyConfigBtnContainer.classList.remove('hidden');
-            tallyConfigBtn.classList.remove('hidden');
-        } else {
-            tallyConfigBtnContainer.classList.add('hidden');
-            tallyConfigBtn.classList.add('hidden');
-        }
-    }
+    console.log('✅ Tab visibility updated. User:', currentUser.username);
     
     const allTabs = ['billing', 'products', 'customers', 'rol', 'quotations', 'salesbill', 'salesreturn', 'billhistory', 'ledger', 'pv', 'tagsplit', 'tagsearch', 'floor'];
     let allowedTabs = currentUser.allowedTabs || [];
@@ -4742,8 +4800,7 @@ function updateTallyStatus(message, type) {
 }
 
 // ==========================================
-// USER WHITELIST MANAGEMENT (Google OAuth)
-// No passwords - email whitelist only
+// USER MANAGEMENT
 // ==========================================
 
 async function showUserManagement() {
@@ -4769,7 +4826,7 @@ function closeUserManagementModal() {
     document.getElementById('userManagementModal')?.classList.add('hidden');
 }
 
-// Add user to whitelist (Admin only) - No password needed
+// Add user (Admin only)
 async function addUserToWhitelist() {
     const emailInput = document.getElementById('newUserEmail');
     const nameInput = document.getElementById('newUserName');
@@ -4804,7 +4861,7 @@ async function addUserToWhitelist() {
         const result = await response.json();
         
         if (response.ok && result.success) {
-            showDialog('Success', `✅ User ${email} added to whitelist!\n\nThey can now login via Google OAuth.`, 'success');
+            showDialog('Success', `✅ User ${email} added successfully!\n\nThey can now login with their Google account.`, 'success');
             // Clear inputs
             if (emailInput) emailInput.value = '';
             if (nameInput) nameInput.value = '';
@@ -4820,7 +4877,7 @@ async function addUserToWhitelist() {
     }
 }
 
-// Load whitelisted users from server
+// Load users from server
 async function loadWhitelistedUsers() {
     const userListDiv = document.getElementById('userManagementList');
     const userCountEl = document.getElementById('userCount');
@@ -4981,9 +5038,9 @@ async function updateUserRole(userId, role) {
     }
 }
 
-// Remove user from whitelist
+// Remove user
 async function removeUserFromWhitelist(userId, email) {
-    if (!confirm(`⚠️ Remove ${email} from whitelist?\n\nThey will no longer be able to login via Google OAuth.`)) {
+    if (!confirm(`⚠️ Remove ${email}?\n\nThey will no longer be able to login.`)) {
         return;
     }
     
@@ -4993,7 +5050,7 @@ async function removeUserFromWhitelist(userId, email) {
         });
         
         if (response.ok) {
-            showDialog('Success', `User ${email} removed from whitelist`, 'success');
+            showDialog('Success', `User ${email} removed successfully`, 'success');
             await loadWhitelistedUsers();
         } else {
             const result = await response.json();
@@ -5005,7 +5062,6 @@ async function removeUserFromWhitelist(userId, email) {
 }
 
 // Make user management functions globally accessible
-// Uses new whitelist-based API (no passwords)
 window.renderUserManagement = async function() {
     await loadWhitelistedUsers();
 }
@@ -5028,7 +5084,7 @@ window.editUser = async function(usernameOrEmail) {
     }
 }
 
-// Legacy delete function - redirects to new whitelist remove
+// Legacy delete function
 window.deleteUser = async function(usernameOrEmail) {
     // Find user by email or username
     try {
@@ -5274,8 +5330,21 @@ document.addEventListener('DOMContentLoaded', async function() {
         
         if (data.isAuthenticated) {
             currentUser = data.user;
-            // Store permissions from server
+            // Store permissions from server (legacy format)
             currentUser.permissions = data.permissions || {};
+            
+            // SECURITY: Initialize global permission context (new granular format)
+            if (typeof PermissionContext !== 'undefined') {
+                // Build permission context from server data
+                const permCtx = data.permissionContext || {
+                    isAdmin: currentUser.role === 'admin' || currentUser.role === 'super_admin',
+                    isSuperAdmin: currentUser.email === 'jaigaurav56789@gmail.com',
+                    hasFullAccess: currentUser.role === 'admin',
+                    modules: data.permissions?.modules || currentUser.allowed_tabs || ['billing'],
+                    allowedTabs: currentUser.allowed_tabs || ['billing']
+                };
+                PermissionContext.init(permCtx);
+            }
             
             // Normalize properties
             currentUser.username = currentUser.name || currentUser.email;
@@ -5299,6 +5368,12 @@ document.addEventListener('DOMContentLoaded', async function() {
             document.getElementById('authModal').classList.add('hidden');
             document.getElementById('app').classList.remove('hidden');
             updateTabVisibility();
+            
+            // Initialize navigation visibility based on permissions
+            if (typeof NavigationController !== 'undefined') {
+                NavigationController.init();
+            }
+            
             showTab('billing');
             
             // Load data from API
@@ -5314,6 +5389,8 @@ document.addEventListener('DOMContentLoaded', async function() {
             if (userNameEl) {
                 userNameEl.textContent = `User: ${currentUser.username}`;
             }
+            
+            console.log('🔐 User authenticated with permissions:', currentUser.allowedTabs);
             
             return;
         }
@@ -5703,11 +5780,11 @@ billItems = selectedQuotationForBill.items.map(item => {
 
             function generateSalesBill() {
                     if (billItems.length === 0) {
-                        alert('⚠️ Please load a quotation first');
+                        showToast('Please load a quotation first', 'warning');
                         return;
                     }
                     if (!selectedQuotationForBill) {
-                        alert('⚠️ No quotation selected');
+                        showToast('No quotation selected', 'warning');
                         return;
                     }
                     // Show format selection modal
@@ -6181,7 +6258,7 @@ async function generateSalesBillPDF() {
     // ========== DIRECT PRINTING FUNCTIONS ==========
     async function printBillDirect(billRecord) {
         if (!billRecord || !billRecord.pdfUrl) {
-            alert('⚠️ Bill PDF not available for printing');
+            showToast('Bill PDF not available for printing', 'warning');
             return;
         }
         
@@ -6236,7 +6313,7 @@ async function generateSalesBillPDF() {
 
     async function printQuotationDirect(quotationRecord) {
         if (!quotationRecord) {
-            alert('⚠️ Quotation not available for printing');
+            showToast('Quotation not available for printing', 'warning');
             return;
         }
         
@@ -6358,7 +6435,7 @@ async function generateSalesBillPDF() {
     // ========== WHATSAPP INTEGRATION ==========
     async function sendBillToWhatsApp(billRecord) {
         if (!billRecord || !billRecord.customer) {
-            alert('⚠️ Bill or customer information not available');
+            showToast('Bill or customer information not available', 'warning');
             return;
         }
         
@@ -6381,7 +6458,7 @@ async function generateSalesBillPDF() {
         // Generate PDF if not already generated
         if (!billRecord.pdfBlob && !billRecord.pdfUrl) {
             // PDF should already be generated, but if not, we need to generate it
-            alert('⚠️ PDF not available. Please generate the bill first.');
+            showToast('PDF not available. Please generate the bill first.', 'warning');
             return;
         }
         
@@ -6411,7 +6488,7 @@ async function generateSalesBillPDF() {
 
     async function sendQuotationToWhatsApp(quotationRecord) {
         if (!quotationRecord || !quotationRecord.customer) {
-            alert('⚠️ Quotation or customer information not available');
+            showToast('Quotation or customer information not available', 'warning');
             return;
         }
         
@@ -6526,7 +6603,7 @@ async function generateSalesBillPDF() {
     // ========== CASH-1 FUNCTION (Regular Bill + Ledger Entry) ==========
     async function generateBillWithCash1() {
         if (billItems.length === 0 || !selectedQuotationForBill) {
-            alert('⚠️ No items to bill');
+            showToast('No items to bill', 'warning');
             return;
         }
         
@@ -6818,14 +6895,14 @@ async function generateSalesBillPDF() {
     // ========== CASH-2 FUNCTION (Ledger Entry Only, No Bill) ==========
     async function generateBillWithCash2() {
         if (billItems.length === 0 || !selectedQuotationForBill) {
-            alert('⚠️ No items to process');
+            showToast('No items to process', 'warning');
             return;
         }
         
         // Check if user is admin or super-admin
         const isAdmin = currentUser.role === 'admin' || currentUser.role === 'super_admin' || currentUser.isMasterAdmin;
         if (!isAdmin) {
-            alert('⚠️ Access Denied!\n\nOnly Admin and Super Admin (Gaurav) can use Cash-2 option.');
+            showToast('Access Denied: Only Admin can use this option.', 'error');
             return;
         }
         
@@ -6926,7 +7003,7 @@ async function generateSalesBillPDF() {
     const modal = document.getElementById('viewBillModal');
     const billId = modal ? parseInt(modal.getAttribute('data-bill-id')) : null;
     if (!billId) {
-        alert('Bill ID not found!');
+        showToast('Bill ID not found', 'error');
         return;
     }
     reprintBillById(billId);
@@ -7365,7 +7442,7 @@ async function generateSalesBillPDF() {
                 }
 
                 closeModals();
-                alert(`Rates Updated!\n\nGold: ₹${parseFloat(rates.gold).toFixed(2)}\nSilver: ₹${parseFloat(rates.silver).toFixed(2)} (3% wholesale discount applied)\nPlatinum: ₹${parseFloat(rates.platinum).toFixed(2)}`);
+                showToast(`Rates updated: Gold ₹${parseFloat(rates.gold).toFixed(0)} | Silver ₹${parseFloat(rates.silver).toFixed(0)} | Platinum ₹${parseFloat(rates.platinum).toFixed(0)}`, 'success', 5000);
             }
 
         function updateCustomerDropdown() {
@@ -8748,9 +8825,8 @@ async function deleteProduct(idx) {
                 }));
                 
                 // Use bulk insert endpoint for fast upload
-                const tenant = api.getTenant();
                 const API_BASE = window.API_BASE_URL || 'http://localhost:3000/api';
-                const response = await fetch(`${API_BASE}/${tenant}/products/bulk`, {
+                const response = await fetch(`${API_BASE}/products/bulk`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ products: productsToInsert })
@@ -10394,55 +10470,6 @@ function updateMCTypeLabel() {
                             }, 200);
                         }
                         
-                        function showTenantSuggestions() {
-                            const input = document.getElementById('authTenant');
-                            const dropdown = document.getElementById('tenantSuggestionsDropdown');
-                            if (!input || !dropdown) return;
-                            
-                            const searchTerm = input.value.toLowerCase().trim();
-                            const tenants = window.tenantList || [];
-                            
-                            // Filter tenants based on search term
-                            const filtered = tenants.filter(tenant => {
-                                const code = (tenant.tenant_code || '').toLowerCase();
-                                const name = (tenant.tenant_name || '').toLowerCase();
-                                return code.includes(searchTerm) || name.includes(searchTerm);
-                            }).slice(0, 10);
-                            
-                            dropdown.innerHTML = '';
-                            
-                            if (filtered.length === 0 && searchTerm) {
-                                dropdown.innerHTML = '<div class="px-4 py-2 text-sm text-gray-500">No tenants found</div>';
-                            } else if (filtered.length === 0) {
-                                dropdown.innerHTML = '<div class="px-4 py-2 text-sm text-gray-500">Start typing to search tenants...</div>';
-                            } else {
-                                filtered.forEach(tenant => {
-                                    const item = document.createElement('div');
-                                    item.className = 'px-4 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0';
-                                    item.innerHTML = `
-                                        <div class="font-medium text-gray-900">${tenant.tenant_name || tenant.tenant_code}</div>
-                                        <div class="text-xs text-gray-500">${tenant.tenant_code}</div>
-                                    `;
-                                    item.onclick = () => {
-                                        input.value = tenant.tenant_code;
-                                        hideTenantSuggestions();
-                                    };
-                                    dropdown.appendChild(item);
-                                });
-                            }
-                            
-                            dropdown.classList.remove('hidden');
-                        }
-                        
-                        function hideTenantSuggestions() {
-                            setTimeout(() => {
-                                const dropdown = document.getElementById('tenantSuggestionsDropdown');
-                                if (dropdown) {
-                                    dropdown.classList.add('hidden');
-                                }
-                            }, 200);
-                        }
-
                     function loadROLForStyleCode() {
                         const styleCodeInput = getCachedElement('rolSelectedStyleCode');
                         if (!styleCodeInput) return;
@@ -15187,7 +15214,8 @@ function closePaymentModal() {
         purchaseVouchers.unshift(pvRecord);
         setCachedItem('purchaseVouchers', purchaseVouchers);
         
-        // Save PV to API
+        // Save PV to API with loader
+        showLoader('Saving purchase voucher...');
         try {
             const savedPV = await api.createPurchaseVoucher({
                 pvNo: pvNo,
@@ -15200,9 +15228,12 @@ function closePaymentModal() {
             }
             // Reload products from API after PV upload to show new products
             await loadProducts();
+            showToast('Purchase voucher saved successfully', 'success');
         } catch (error) {
             console.error('Failed to save PV to API:', error);
-            showDialog('Warning', 'PV saved locally but failed to sync to database. Please check your connection.', 'warning');
+            showToast('Failed to sync to database. Please check your connection.', 'warning');
+        } finally {
+            hideLoader();
         }
 
         // ✅ Update metal stocks
@@ -18088,6 +18119,7 @@ window.addEventListener('error', function(e) {
     <script src="js/stock-in.js"></script>
     <script src="js/tag-ops.js"></script>
     <script src="js/reports.js"></script>
+    <script src="js/dashboard.js"></script>
     </body>
     
     </html>  

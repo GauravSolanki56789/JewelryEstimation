@@ -620,8 +620,12 @@ const TagOps = {
             if (typeof printLabelForTags === 'function') {
                 printLabelForTags(tags);
             } else {
-                // Tags ready for printing
-                alert(`Tags created:\n${tags.join('\n')}\n\nUse label printer to print these tags.`);
+                console.log('Tags to print:', tags);
+                if (typeof showToast === 'function') {
+                    showToast(`${tags.length} tag(s) created. Use label printer to print.`, 'success');
+                } else {
+                    console.log('Tags created:', tags);
+                }
             }
         } catch (error) {
             console.error('Print error:', error);
