@@ -1,6 +1,6 @@
 {
   "name": "jewelry-estimation",
-  "version": "2.1.0",
+  "version": "2.5.0",
   "description": "Single-Tenant Jewelry Estimation Software with Self-Update",
   "author": "Gaurav Softwares",
   "main": "server.js",
