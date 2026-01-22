@@ -3416,8 +3416,9 @@
         // Real-time sync for cloud setup (Socket.IO)
         let socket = null;
         
-        function initSocketConnection(tenantCode) {
-            if (!tenantCode || typeof io === 'undefined') return;
+        function initSocketConnection() {
+            // Single-tenant mode - no tenant code required
+            if (typeof io === 'undefined') return;
             
             try {
                 if (socket) socket.disconnect();
@@ -3431,11 +3432,11 @@
                 });
                 
                 socket.on('connect', () => {
-                    if (tenantCode) socket.emit('join-tenant', tenantCode);
+                    socket.emit('join-tenant', 'main'); // Single-tenant: always join 'main' room
                 });
                 
                 socket.on('reconnect', () => {
-                    if (tenantCode) socket.emit('join-tenant', tenantCode);
+                    socket.emit('join-tenant', 'main');
                 });
                 
                 // Real-time data refresh handlers
@@ -3952,44 +3953,8 @@
                 return this.request(`/bills/by-number/${encodeURIComponent(billNo)}`);
             },
             
-            // Tenants API (for login)
-            // SECURITY: Changed to POST to avoid passwords in URL
-            async getTenants(username = null, password = null) {
-                try {
-                    const url = `${API_BASE.replace('/api', '')}/api/tenants`;
-                    let response;
-                    
-                    if (username && password) {
-                        // Use POST instead of GET to avoid passwords in URL
-                        response = await fetch(url, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ username, password })
-                        });
-                    } else {
-                        // POST without credentials returns empty array
-                        response = await fetch(url, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({})
-                        });
-                    }
-                    
-                    // Check if response is JSON
-                    const contentType = response.headers.get('content-type');
-                    if (contentType && contentType.includes('application/json')) {
-                        const data = await response.json();
-                        return data;
-                    } else {
-                        // If not JSON, return empty array
-                        console.warn('Tenants API returned non-JSON response');
-                        return [];
-                    }
-                } catch (error) {
-                    console.error('Error fetching tenants:', error);
-                    return [];
-                }
-            },
+            // NOTE: Multi-tenant code has been REMOVED - this is a single-tenant application
+            // The /api/tenants endpoint no longer exists
             
             async login(username, password) {
                 try {
@@ -4016,53 +3981,12 @@
             },
         };
         
-        // Load tenants on page load (only for master admin preview)
-        async function loadTenants() {
-            // Store tenants for suggestions dropdown
-            window.tenantList = [];
-            try {
-                // Try to get tenants (will return empty for non-admin)
-                const tenants = await api.getTenants();
-                window.tenantList = tenants;
-            } catch (error) {
-                console.error('Error loading tenant suggestions:', error);
-            }
-        }
-        
-        // Load tenants after login (for master admin)
-        async function loadTenantsForUser(username, tenantCode) {
-            const select = document.getElementById('authTenant');
-            if (!select) return;
-            
-            try {
-                // Use API_BASE_URL for cloud compatibility
-                const baseUrl = window.API_BASE_URL ? window.API_BASE_URL.replace('/api', '') : 'http://localhost:3000';
-                const tenants = await fetch(`${baseUrl}/api/tenants/for-user?username=${encodeURIComponent(username)}&tenantCode=${encodeURIComponent(tenantCode || '')}`)
-                    .then(r => r.json());
-                
-                select.innerHTML = '<option value="">Select Client...</option>';
-                
-                tenants.forEach(tenant => {
-                    const option = document.createElement('option');
-                    option.value = tenant.tenant_code;
-                    option.textContent = tenant.tenant_name || tenant.tenant_code;
-                    select.appendChild(option);
-                });
-                
-                // If only one tenant, auto-select it
-                if (tenants.length === 1 && !currentUser?.isMasterAdmin) {
-                    select.value = tenants[0].tenant_code;
-                    select.disabled = true; // Lock it for regular users
-                }
-            } catch (error) {
-                console.error('Error loading tenants for user:', error);
-            }
-        }
+        // NOTE: Multi-tenant functions loadTenants() and loadTenantsForUser() have been REMOVED
+        // This is a single-tenant application - no tenant switching needed
         
         // ✅ COMPLETE DATA INTEGRITY CHECKS
             document.addEventListener('DOMContentLoaded', function () {
-                // Load tenants on page load
-                loadTenants();
+                // Single-tenant mode - no tenant loading needed
                 // Verify all critical data structures exist
                 if (!localStorage.getItem('products')) {
                     localStorage.setItem('products', JSON.stringify([]));
@@ -4676,15 +4600,9 @@ async function showTallyConfig() {
     document.getElementById('modalOverlay').classList.remove('hidden');
     document.getElementById('modalOverlay').classList.add('flex');
     
-    // Load current configuration
+    // Load current configuration (single-tenant mode)
     try {
-        const tenantCode = currentUser?.tenantCode || getCachedItem('currentTenant', '');
-        if (!tenantCode) {
-            updateTallyStatus('No tenant selected', 'error');
-            return;
-        }
-        
-        const response = await fetch(`/api/${tenantCode}/tally/config`);
+        const response = await fetch(`/api/tally/config`);
         
         // Check if response is JSON
         const contentType = response.headers.get('content-type');
@@ -4746,7 +4664,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function saveTallyConfig() {
     try {
-        const tenantCode = currentUser?.tenantCode || getCachedItem('currentTenant', '');
         const connectionType = document.getElementById('tallyConnectionType').value;
         
         const config = {
@@ -4767,7 +4684,8 @@ async function saveTallyConfig() {
             if (apiSecret) config.api_secret = apiSecret;
         }
         
-        const response = await fetch(`/api/${tenantCode}/tally/config`, {
+        // Single-tenant mode: use direct API path
+        const response = await fetch(`/api/tally/config`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(config)
@@ -4791,10 +4709,10 @@ async function saveTallyConfig() {
 
 async function testTallyConnection() {
     try {
-        const tenantCode = currentUser?.tenantCode || getCachedItem('currentTenant', '');
         updateTallyStatus('Testing connection...', 'info');
         
-        const response = await fetch(`/api/${tenantCode}/tally/test`, {
+        // Single-tenant mode: use direct API path
+        const response = await fetch(`/api/tally/test`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
         });
@@ -7173,35 +7091,49 @@ async function generateSalesBillPDF() {
         function showTab(tab) {
                 // Check if user has access to this tab FIRST (before any initialization)
                 if (currentUser) {
-                    const allowedTabs = currentUser.allowedTabs || [];
-                    // Ensure allowedTabs is an array
-                    const tabsArray = Array.isArray(allowedTabs) ? allowedTabs : [];
+                    // ADMIN SUPER CHECK: Admins always have access to all tabs
+                    const permissions = currentUser.permissions || {};
+                    const isAdmin = permissions.isAdmin || 
+                                   currentUser.role === 'admin' || 
+                                   currentUser.role === 'super_admin' || 
+                                   currentUser.isMasterAdmin === true;
                     
-                    // Check if user has access (either 'all' or specific tab)
-                    const hasAccess = tabsArray.includes('all') || tabsArray.includes(tab);
-                    
-                    if (!hasAccess) {
-                        const tabNames = {
-                            'billing': 'Billing',
-                            'products': 'Products',
-                            'customers': 'Customers',
-                            'rol': 'ROL',
-                            'quotations': 'Quotations',
-                            'salesbill': 'Sales Bill',
-                            'salesreturn': 'Sales Return',
-                            'billhistory': 'Bill History',
-                            'ledger': 'Ledger',
-                            'styles': 'Style Master',
-                            'pv': 'PV StockIn',
-                            'tagsplit': 'Tag Split/Merge',
-                            'tagsearch': 'Tag Search',
-                            'floor': 'Floor',
-                            'reports': 'Reports'
-                        };
-                        const tabDisplayName = tabNames[tab] || tab;
-                        showDialog('Access Denied', `You do not have permission to access the "${tabDisplayName}" tab. Please contact your administrator.`, 'error');
-                        console.warn(`Access denied for tab "${tab}". User: ${currentUser.username}, Allowed tabs:`, tabsArray);
-                        return;
+                    // If user is admin, skip permission check entirely
+                    if (isAdmin) {
+                        // Admin bypass - proceed to show tab
+                        console.log(`Admin bypass: ${currentUser.username} accessing ${tab} tab`);
+                    } else {
+                        // Regular user permission check
+                        const allowedTabs = currentUser.allowedTabs || [];
+                        // Ensure allowedTabs is an array
+                        const tabsArray = Array.isArray(allowedTabs) ? allowedTabs : [];
+                        
+                        // Check if user has access (either 'all' or specific tab)
+                        const hasAccess = tabsArray.includes('all') || tabsArray.includes(tab);
+                        
+                        if (!hasAccess) {
+                            const tabNames = {
+                                'billing': 'Billing',
+                                'products': 'Products',
+                                'customers': 'Customers',
+                                'rol': 'ROL',
+                                'quotations': 'Quotations',
+                                'salesbill': 'Sales Bill',
+                                'salesreturn': 'Sales Return',
+                                'billhistory': 'Bill History',
+                                'ledger': 'Ledger',
+                                'styles': 'Style Master',
+                                'pv': 'PV StockIn',
+                                'tagsplit': 'Tag Split/Merge',
+                                'tagsearch': 'Tag Search',
+                                'floor': 'Floor',
+                                'reports': 'Reports'
+                            };
+                            const tabDisplayName = tabNames[tab] || tab;
+                            showDialog('Access Denied', `You do not have permission to access the "${tabDisplayName}" tab. Please contact your administrator.`, 'error');
+                            console.warn(`Access denied for tab "${tab}". User: ${currentUser.username}, Allowed tabs:`, tabsArray);
+                            return;
+                        }
                     }
                 }
                 
@@ -7284,7 +7216,7 @@ async function generateSalesBillPDF() {
                     selectedTabElement = document.getElementById('salesreturnTab');
                     selectedButton = document.getElementById('btnSalesReturn');
                     // Load sales return history when tab is shown (only if user is logged in)
-                    if (currentUser && currentUser.tenantCode && typeof loadSalesReturnHistory === 'function') {
+                    if (currentUser && typeof loadSalesReturnHistory === 'function') {
                         // Delay slightly to ensure tab is visible
                         setTimeout(() => {
                             loadSalesReturnHistory();
@@ -8021,8 +7953,8 @@ async function generateSalesBillPDF() {
         const searchEl = getCachedElement('productSearch');
         const searchTerm = searchEl ? searchEl.value.trim() : '';
         
-        // Try API search first, fallback to local
-        if (currentTenant && searchTerm.length >= 2) {
+        // Try API search for longer search terms, fallback to local filtering
+        if (searchTerm.length >= 2) {
             debouncedSearchAPI(searchTerm);
         } else {
             debouncedUpdateProductsTable();
@@ -11619,9 +11551,9 @@ function updateMCTypeLabel() {
 
                             async function loadSalesReturnHistory() {
                                 try {
-                                    // Only load if user is logged in and tenant is set
-                                    if (!currentUser || !currentUser.tenantCode) {
-                                        console.warn('Cannot load sales return history: User not logged in or tenant not set');
+                                    // Only load if user is logged in (single-tenant mode)
+                                    if (!currentUser) {
+                                        console.warn('Cannot load sales return history: User not logged in');
                                         return;
                                     }
                                     salesReturnHistory = await api.getSalesReturns();
@@ -16827,11 +16759,10 @@ function downloadAllCustomerLedgers() {
             alert(`❌ Failed to print labels. Please check printer configuration and connection.`);
         }
         
-        // Broadcast barcode print event for real-time sync
+        // Broadcast barcode print event for real-time sync (single-tenant mode)
         if (socket && isSocketConnected) {
             productsToPrint.forEach(product => {
                 socket.emit('barcode-print-request', {
-                    tenantCode: currentUser.tenantCode,
                     barcode: product.barcode,
                     product: product
                 });
@@ -16934,11 +16865,10 @@ function downloadAllCustomerLedgers() {
                     }
                 }, 1000);
                 
-                // Broadcast barcode print event for real-time sync
+                // Broadcast barcode print event for real-time sync (single-tenant mode)
                 if (socket && isSocketConnected) {
                     productsToPrint.forEach(product => {
                         socket.emit('barcode-print-request', {
-                            tenantCode: currentUser.tenantCode,
                             barcode: product.barcode,
                             product: product
                         });
