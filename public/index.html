@@ -426,7 +426,7 @@
                         <h3 class="font-bold text-sm">Scanner</h3>
                     </div>
                     <!-- Camera Scan Button -->
-                    <button onclick="openCameraScanner()" class="camera-btn px-2 py-1 bg-white/20 hover:bg-white/30 rounded text-xs flex items-center gap-1 transition" title="Scan with Camera">
+                    <button type="button" onclick="openCameraScanner()" class="camera-btn px-2 py-1 bg-white/20 hover:bg-white/30 rounded text-xs flex items-center gap-1 transition" title="Scan with Camera">
                         <span>📸</span>
                         <span class="hidden sm:inline">Camera</span>
                     </button>
@@ -434,7 +434,7 @@
                 <div class="flex gap-1">
                     <input id="barcodeInput" type="text" placeholder="Scan barcode..."
                         class="flex-1 px-2 py-2 border-2 border-white/30 rounded focus:ring-1 focus:ring-white text-sm text-gray-900 font-semibold" autofocus>
-                    <button onclick="openCameraScanner()" class="md:hidden px-3 py-2 bg-white/20 hover:bg-white/30 rounded text-lg" title="Open Camera">
+                    <button type="button" onclick="openCameraScanner()" class="md:hidden px-3 py-2 bg-white/20 hover:bg-white/30 rounded text-lg" title="Open Camera">
                         📷
                     </button>
                 </div>
@@ -7100,8 +7100,7 @@ async function generateSalesBillPDF() {
                     
                     // If user is admin, skip permission check entirely
                     if (isAdmin) {
-                        // Admin bypass - proceed to show tab
-                        console.log(`Admin bypass: ${currentUser.username} accessing ${tab} tab`);
+                        // Admin bypass - proceed to show tab without permission check
                     } else {
                         // Regular user permission check
                         const allowedTabs = currentUser.allowedTabs || [];
@@ -17714,7 +17713,7 @@ function updateBulkUploadFloorDropdown() {
     }
 }
 
-let currentAppVersion = '2.0.0'; // Update this when releasing new version
+let currentAppVersion = '2.5.0'; // Gold Master Release - January 2025
 
 // ==========================================
 // MOBILE SETTINGS DROPDOWN FUNCTIONS

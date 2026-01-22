@@ -620,7 +620,7 @@ const TagOps = {
             if (typeof printLabelForTags === 'function') {
                 printLabelForTags(tags);
             } else {
-                console.log('Tags to print:', tags);
+                // Tags ready for printing
                 alert(`Tags created:\n${tags.join('\n')}\n\nUse label printer to print these tags.`);
             }
         } catch (error) {
