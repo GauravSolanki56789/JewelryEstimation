@@ -97,6 +97,9 @@ async function initSchema() {
             split_from VARCHAR(100),
             split_date TIMESTAMP,
             is_sold BOOLEAN DEFAULT false,
+            status VARCHAR(50) DEFAULT 'available',
+            sold_bill_no VARCHAR(50),
+            sold_customer_name VARCHAR(255),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
@@ -291,6 +294,38 @@ async function initSchema() {
     
     for (const query of queries) {
         await pool.query(query);
+    }
+    
+    // Add status column migration (if not exists)
+    try {
+        await pool.query(`
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                               WHERE table_name='products' AND column_name='status') THEN
+                    ALTER TABLE products ADD COLUMN status VARCHAR(50) DEFAULT 'available';
+                    UPDATE products SET status = 'available' WHERE status IS NULL;
+                    UPDATE products SET status = 'sold' WHERE is_sold = true;
+                END IF;
+            END $$;
+        `);
+        
+        // Add sold_bill_no and sold_customer_name columns if not exists
+        await pool.query(`
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                               WHERE table_name='products' AND column_name='sold_bill_no') THEN
+                    ALTER TABLE products ADD COLUMN sold_bill_no VARCHAR(50);
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                               WHERE table_name='products' AND column_name='sold_customer_name') THEN
+                    ALTER TABLE products ADD COLUMN sold_customer_name VARCHAR(255);
+                END IF;
+            END $$;
+        `);
+    } catch (error) {
+        console.warn('Migration warning (may be expected):', error.message);
     }
     
     // Insert default rates if not exists

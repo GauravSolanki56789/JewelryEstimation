@@ -92,13 +92,26 @@ const ReportsModule = {
     },
 
     renderRolReport(container, data) {
-        // Filter items with shortage (shortage_qty > 0)
-        const shortages = (data.items || data || []).filter(item => 
-            (item.shortage_qty > 0) || (item.current_stock < item.rol_quantity)
-        );
+        // Process items: Calculate Shortage = Reorder_Level - Current_Stock
+        const allItems = (data.items || data || []);
+        const processedItems = allItems.map(item => {
+            const rolQty = parseFloat(item.rol_quantity || item.rol_qty || item.rol_limit || 0);
+            const currentStock = parseFloat(item.current_stock || item.stock_qty || 0);
+            const shortage = Math.max(0, rolQty - currentStock);
+            
+            return {
+                ...item,
+                rol_quantity: rolQty,
+                current_stock: currentStock,
+                shortage_qty: shortage
+            };
+        });
+        
+        // Filter: Only show items where Current_Stock < Reorder_Level (shortage > 0)
+        const shortages = processedItems.filter(item => item.current_stock < item.rol_quantity);
         
         // Summary stats
-        const totalItems = data.items?.length || data.length || 0;
+        const totalItems = processedItems.length;
         const alertCount = shortages.length;
         const criticalCount = shortages.filter(s => s.shortage_qty > (s.rol_quantity || 0) * 0.5).length;
         
@@ -218,16 +231,22 @@ const ReportsModule = {
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200" id="rolAllItemsBody">
-                            ${(data.items || data || []).map(item => `
+                            ${processedItems.map(item => {
+                                const rolQty = parseFloat(item.rol_quantity || item.rol_qty || item.rol_limit || 0);
+                                const currentStock = parseFloat(item.current_stock || item.stock_qty || 0);
+                                const shortage = Math.max(0, rolQty - currentStock);
+                                
+                                return `
                                 <tr class="hover:bg-gray-50">
                                     <td class="px-3 py-2 font-mono">${item.style_code || 'N/A'}</td>
                                     <td class="px-3 py-2">${item.item_name || item.style_name || 'Unknown'}</td>
                                     <td class="px-3 py-2">${item.category || 'N/A'}</td>
-                                    <td class="px-3 py-2 text-right">${item.rol_quantity || item.rol_qty || 0}</td>
-                                    <td class="px-3 py-2 text-right">${item.current_stock || item.stock_qty || 0}</td>
-                                    <td class="px-3 py-2 text-center">${this.getRolStatusBadge(item)}</td>
+                                    <td class="px-3 py-2 text-right">${rolQty}</td>
+                                    <td class="px-3 py-2 text-right">${currentStock}</td>
+                                    <td class="px-3 py-2 text-center">${this.getRolStatusBadge({...item, rol_quantity: rolQty, current_stock: currentStock, shortage_qty: shortage})}</td>
                                 </tr>
-                            `).join('')}
+                            `;
+                            }).join('')}
                         </tbody>
                     </table>
                 </div>
@@ -236,11 +255,12 @@ const ReportsModule = {
     },
 
     getRolStatusBadge(item) {
-        const current = item.current_stock || item.stock_qty || 0;
-        const rol = item.rol_quantity || item.rol_qty || 0;
-        const shortage = item.shortage_qty || Math.max(0, rol - current);
+        const current = parseFloat(item.current_stock || item.stock_qty || 0);
+        const rol = parseFloat(item.rol_quantity || item.rol_qty || item.rol_limit || 0);
+        const shortage = parseFloat(item.shortage_qty || Math.max(0, rol - current));
         
-        if (shortage <= 0 || current >= rol) {
+        // If Current_Stock >= Reorder_Level, show OK
+        if (current >= rol || shortage <= 0) {
             return '<span class="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">✓ OK</span>';
         } else if (shortage > rol * 0.5) {
             return '<span class="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-medium animate-pulse">🔴 Critical</span>';

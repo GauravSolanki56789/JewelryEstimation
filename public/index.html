@@ -340,9 +340,18 @@
             <div class="bg-gradient-to-r from-amber-600 to-orange-600 text-white p-4 md:p-6">
                 <div class="flex justify-between items-center gap-2 md:gap-4">
                     <!-- Logo/Title Section -->
-                    <div class="flex-shrink-0">
-                        <h1 class="header-title text-xl md:text-3xl font-bold mb-1">Jewellery Estimations</h1>
-                        <p class="header-subtitle text-amber-100 text-xs md:text-base" id="quotationNo">Quotation No: Q0001</p>
+                    <div class="flex-shrink-0 flex items-center gap-2">
+                        <!-- Hamburger Menu Button (Mobile Only) -->
+                        <button id="mobileMenuBtn" onclick="toggleMobileMenu()" 
+                            class="block md:hidden text-white p-2 hover:bg-white/20 rounded-lg transition">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                            </svg>
+                        </button>
+                        <div>
+                            <h1 class="header-title text-xl md:text-3xl font-bold mb-1">Jewellery Estimations</h1>
+                            <p class="header-subtitle text-amber-100 text-xs md:text-base" id="quotationNo">Quotation No: Q0001</p>
+                        </div>
                     </div>
                     
                     <!-- User Info & Admin Buttons Section -->
@@ -388,8 +397,8 @@
                     </div>
                 </div>
                 
-                <!-- Navigation Pills - Horizontally Scrollable on Mobile -->
-                <div class="nav-pills-container mt-4 flex gap-2 flex-wrap md:flex-wrap items-center">
+                <!-- Navigation Pills - Hidden on Mobile, Visible on Desktop -->
+                <div id="desktopNav" class="nav-pills-container mt-4 hidden md:flex gap-2 flex-wrap items-center">
                     <button onclick="showTab('billing')" id="btnBilling"
                         class="px-4 py-2 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition">📋
                         Billing</button>
@@ -429,6 +438,98 @@
             </div>
         </div>
         
+        <!-- Mobile Menu Drawer -->
+        <div id="mobileMenuDrawer" class="fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-2xl transform -translate-x-full transition-transform duration-300 ease-in-out md:hidden">
+            <div class="flex flex-col h-full">
+                <!-- Drawer Header -->
+                <div class="bg-gradient-to-r from-amber-600 to-orange-600 text-white p-4 flex justify-between items-center">
+                    <h2 class="text-lg font-bold">Menu</h2>
+                    <button onclick="toggleMobileMenu()" class="text-white hover:bg-white/20 rounded p-1">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- Drawer Navigation Links -->
+                <nav class="flex-1 overflow-y-auto p-4 space-y-2">
+                    <button onclick="showTab('billing'); toggleMobileMenu();" 
+                        class="w-full px-4 py-3 bg-white text-amber-600 rounded-lg hover:bg-amber-50 font-medium transition text-left flex items-center gap-2">
+                        <span>📋</span> Billing
+                    </button>
+                    <button onclick="showTab('products'); toggleMobileMenu();" 
+                        class="w-full px-4 py-3 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition text-left flex items-center gap-2">
+                        <span>📦</span> Products
+                    </button>
+                    <button onclick="showTab('customers'); toggleMobileMenu();" 
+                        class="w-full px-4 py-3 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition text-left flex items-center gap-2">
+                        <span>👥</span> Customers
+                    </button>
+                    <button onclick="showTab('rol'); toggleMobileMenu();" 
+                        class="w-full px-4 py-3 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition text-left flex items-center gap-2">
+                        <span>📊</span> ROL
+                    </button>
+                    <button onclick="showTab('salesbill'); toggleMobileMenu();" 
+                        class="w-full px-4 py-3 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition text-left flex items-center gap-2">
+                        <span>💰</span> Sales Bill
+                    </button>
+                    <button onclick="showTab('salesreturn'); toggleMobileMenu();" 
+                        class="w-full px-4 py-3 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition text-left flex items-center gap-2">
+                        <span>↩️</span> Sales Return
+                    </button>
+                    <button onclick="showTab('quotations'); toggleMobileMenu();" 
+                        class="w-full px-4 py-3 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition text-left flex items-center gap-2">
+                        <span>📜</span> Quotations
+                    </button>
+                    <button onclick="showTab('billhistory'); toggleMobileMenu();" 
+                        class="w-full px-4 py-3 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition text-left flex items-center gap-2">
+                        <span>📋</span> Bill History
+                    </button>
+                    <button onclick="showTab('ledger'); toggleMobileMenu();" 
+                        class="w-full px-4 py-3 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition text-left flex items-center gap-2">
+                        <span>📒</span> Ledger
+                    </button>
+                    <button onclick="showTab('styles'); toggleMobileMenu();" 
+                        class="w-full px-4 py-3 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition text-left flex items-center gap-2">
+                        <span>🎨</span> Style Master
+                    </button>
+                    <button onclick="showTab('pv'); toggleMobileMenu();" 
+                        class="w-full px-4 py-3 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition text-left flex items-center gap-2">
+                        <span>📋</span> PV StockIn
+                    </button>
+                    <button onclick="showTab('tagsplit'); toggleMobileMenu();" 
+                        class="w-full px-4 py-3 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition text-left flex items-center gap-2">
+                        <span>✂️</span> Tag Split/Merge
+                    </button>
+                    <button onclick="showTab('reports'); toggleMobileMenu();" 
+                        class="w-full px-4 py-3 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition text-left flex items-center gap-2">
+                        <span>📊</span> Reports
+                    </button>
+                    <button onclick="showTab('tagsearch'); toggleMobileMenu();" 
+                        class="w-full px-4 py-3 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition text-left flex items-center gap-2">
+                        <span>🔍</span> Tag Search
+                    </button>
+                    <button onclick="showTab('floor'); toggleMobileMenu();" 
+                        class="w-full px-4 py-3 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition text-left flex items-center gap-2">
+                        <span>🏢</span> Floor
+                    </button>
+                </nav>
+                
+                <!-- Drawer Footer -->
+                <div class="p-4 border-t border-gray-200">
+                    <div class="text-sm text-gray-600 mb-2">Logged in as</div>
+                    <div class="font-bold text-gray-800" id="mobileDrawerUserName">Guest</div>
+                    <button onclick="logout(); toggleMobileMenu();" 
+                        class="w-full mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium transition">
+                        🚪 Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Mobile Menu Overlay -->
+        <div id="mobileMenuOverlay" onclick="toggleMobileMenu()" 
+            class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden md:hidden"></div>
 
 <!-- Billing Tab - COMPACT ONE-SCREEN DESIGN -->
 <div id="billingTab" class="hidden" style="height: calc(100vh - 200px); display: flex; flex-direction: column; overflow: hidden;">
@@ -602,10 +703,10 @@
                             <th class="px-1 py-1 text-center font-bold text-gray-700 border-r">Size</th>
                             <th class="px-1 py-1 text-center font-bold text-gray-700 border-r bg-blue-50">Wt(g)</th>
                             <th class="px-1 py-1 text-center font-bold text-gray-700 border-r">P%</th>
-                            <th class="px-1 py-1 text-right font-bold text-gray-700 border-r bg-yellow-50">Rate</th>
-                            <th class="px-1 py-1 text-right font-bold text-gray-700 border-r bg-orange-50">MC</th>
-                            <th class="px-1 py-1 text-right font-bold text-gray-700 border-r bg-purple-50">Box</th>
-                            <th class="px-1 py-1 text-right font-bold text-gray-700 border-r bg-pink-50">Stone</th>
+                            <th class="px-1 py-1 text-right font-bold text-gray-700 border-r bg-yellow-50 hidden md:table-cell">Rate</th>
+                            <th class="px-1 py-1 text-right font-bold text-gray-700 border-r bg-orange-50 hidden md:table-cell">MC</th>
+                            <th class="px-1 py-1 text-right font-bold text-gray-700 border-r bg-purple-50 hidden md:table-cell">Box</th>
+                            <th class="px-1 py-1 text-right font-bold text-gray-700 border-r bg-pink-50 hidden md:table-cell">Stone</th>
                             <th class="px-1 py-1 text-right font-bold text-gray-700 border-r bg-green-50">Amount</th>
                             <th class="px-1 py-1 text-center font-bold text-gray-700">Action</th>
                         </tr>
@@ -2504,11 +2605,11 @@
     
   <!-- Add/Edit Product Modal -->
 <div id="addProductModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
-    <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-2xl w-full pointer-events-auto max-h-[90vh] overflow-y-auto"
+    <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-2xl w-full pointer-events-auto max-h-[85vh] overflow-y-auto"
         onclick="event.stopPropagation()">
         <h3 class="text-xl font-bold mb-4" id="productModalTitle">Add New Product</h3>
         <input type="hidden" id="editProductIndex" value="">
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
                 <label class="block text-sm font-medium mb-1">Barcode *</label>
                 <input type="text" id="newBarcode" class="w-full px-3 py-2 border rounded-lg" required>
@@ -5180,30 +5281,33 @@ window.handleLogin = async function() {
 
 async function loadDataFromAPI() {
     try {
-        // Load products
+        // Load products (API automatically filters out deleted items)
         const productsData = await api.getProducts();
         if (Array.isArray(productsData)) {
-            products = productsData.map(p => ({
-                id: p.id,
-                barcode: p.barcode,
-                sku: p.sku,
-                styleCode: p.style_code,
-                shortName: p.short_name,
-                itemName: p.item_name,
-                metalType: p.metal_type,
-                size: p.size,
-                weight: parseFloat(p.weight) || 0,
-                avgWt: parseFloat(p.avg_wt) || parseFloat(p.weight) || 0,
-                purity: parseFloat(p.purity) || 100,
-                rate: parseFloat(p.rate) || 0,
-                mcRate: parseFloat(p.mc_rate) || 0,
-                mcType: p.mc_type || 'MC/GM',
-                pcs: parseInt(p.pcs) || 1,
-                boxCharges: parseFloat(p.box_charges) || 0,
-                stoneCharges: parseFloat(p.stone_charges) || 0,
-                floor: p.floor,
-                isSold: p.is_sold || false
-            }));
+            products = productsData
+                .filter(p => p.status !== 'deleted' && p.status !== 'sold') // Additional client-side filter
+                .map(p => ({
+                    id: p.id,
+                    barcode: p.barcode,
+                    sku: p.sku,
+                    styleCode: p.style_code,
+                    shortName: p.short_name,
+                    itemName: p.item_name,
+                    metalType: p.metal_type,
+                    size: p.size,
+                    weight: parseFloat(p.weight) || 0,
+                    avgWt: parseFloat(p.avg_wt) || parseFloat(p.weight) || 0,
+                    purity: parseFloat(p.purity) || 100,
+                    rate: parseFloat(p.rate) || 0,
+                    mcRate: parseFloat(p.mc_rate) || 0,
+                    mcType: p.mc_type || 'MC/GM',
+                    pcs: parseInt(p.pcs) || 1,
+                    boxCharges: parseFloat(p.box_charges) || 0,
+                    stoneCharges: parseFloat(p.stone_charges) || 0,
+                    floor: p.floor,
+                    isSold: p.is_sold || p.status === 'sold' || false,
+                    status: p.status || 'available'
+                }));
             setCachedItem('products', products);
         }
         
@@ -5797,10 +5901,31 @@ billItems = selectedQuotationForBill.items.map(item => {
                     let soldProducts = JSON.parse(localStorage.getItem('soldProducts') || '[]');
 
                     // Function to mark product as sold
-                    function markProductAsSold(barcode, billNo) {
+                    // Helper function to mark products as sold via API
+                    async function markProductsAsSoldAPI(barcodes, billNo, customerName) {
+                        if (!barcodes || barcodes.length === 0) return;
+                        
+                        try {
+                            const API_BASE = window.API_BASE_URL || 'http://localhost:3000/api';
+                            await fetch(`${API_BASE}/products/mark-sold`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    barcodes: barcodes,
+                                    billNo: billNo,
+                                    customerName: customerName
+                                })
+                            });
+                        } catch (error) {
+                            console.error('Failed to mark products as sold via API:', error);
+                        }
+                    }
+
+                    function markProductAsSold(barcode, billNo, customerName) {
                         soldProducts.push({
                             barcode: barcode,
                             billNo: billNo,
+                            customerName: customerName || 'Unknown',
                             soldDate: new Date().toISOString()
                         });
                         localStorage.setItem('soldProducts', JSON.stringify(soldProducts));
@@ -5938,15 +6063,26 @@ async function generateSalesBillPDF() {
         showLedgerCustomerAccounts(); // Refresh customer accounts
     }
 
-    //Mark products as sold and update barcodes + Deduct from ROL counters
+    //Mark products as sold via API and update barcodes + Deduct from ROL counters
+    const barcodesToMarkSold = billItems.filter(item => item.barcode).map(item => item.barcode);
+    if (barcodesToMarkSold.length > 0) {
+        await markProductsAsSoldAPI(barcodesToMarkSold, billNo, selectedQuotationForBill.customer.name);
+        
+        // Also update local soldProducts array for backward compatibility
+        barcodesToMarkSold.forEach(barcode => {
+            if (!soldProducts.find(sp => sp.barcode === barcode)) {
+                markProductAsSold(barcode, billNo, selectedQuotationForBill.customer.name);
+            }
+        });
+        
+        // Remove from local products array (they're now marked as sold in DB)
+        barcodesToMarkSold.forEach(barcode => {
+            removeProductFromInventory(barcode);
+        });
+    }
+    
     billItems.forEach(item => {
         if (item.barcode) {
-            // Mark as sold
-            if (!soldProducts.find(sp => sp.barcode === item.barcode)) {
-                markProductAsSold(item.barcode, billNo);
-            }
-            // Remove from inventory
-            removeProductFromInventory(item.barcode);
             
             // ✅ DEDUCT FROM ROL COUNTERS
             if (item.styleCode && rolData[item.styleCode]) {
@@ -6117,6 +6253,8 @@ async function generateSalesBillPDF() {
     }
 
     // ========== ITEMS TABLE - EXACT FORMAT ==========
+    // PDF TABLE DATA - Uses billItems array directly (NOT DOM reading)
+    // This ensures PDF generation is independent of mobile UI column visibility
     const tableStartY = Math.max(yAddr + 5, yShipAddr + 5, 90);
 
     const tableData = billItems.map((item, idx) => {
@@ -6140,6 +6278,8 @@ async function generateSalesBillPDF() {
         ];
     });
 
+    // PDF TABLE GENERATION - Column widths are hardcoded to ensure consistent PDF layout
+    // regardless of device/UI state (mobile column hiding does NOT affect PDF)
     doc.autoTable({
         startY: tableStartY,
         head: [['Sl', 'ITEM', 'HSN', 'PCS', 'Weight In Gms', 'Purity', 'Rate', 'TOT']],
@@ -6714,15 +6854,18 @@ async function generateSalesBillPDF() {
             showLedgerCustomerAccounts();
         }
 
-        // Mark products as sold
-        billItems.forEach(item => {
-            if (item.barcode) {
-                if (!soldProducts.find(sp => sp.barcode === item.barcode)) {
-                    markProductAsSold(item.barcode, billNo);
+        // Mark products as sold via API
+        const barcodesToMarkSold = billItems.filter(item => item.barcode).map(item => item.barcode);
+        if (barcodesToMarkSold.length > 0) {
+            await markProductsAsSoldAPI(barcodesToMarkSold, billNo, selectedQuotationForBill.customer.name);
+            
+            barcodesToMarkSold.forEach(barcode => {
+                if (!soldProducts.find(sp => sp.barcode === barcode)) {
+                    markProductAsSold(barcode, billNo, selectedQuotationForBill.customer.name);
                 }
-                removeProductFromInventory(item.barcode);
-            }
-        });
+                removeProductFromInventory(barcode);
+            });
+        }
 
         // Mark quotation as billed
         const quotIndex = savedQuotations.findIndex(q => q.id === selectedQuotationForBill.id);
@@ -6786,6 +6929,8 @@ async function generateSalesBillPDF() {
         doc.text(`MOB: ${customer.mobile}`, 15, yCustomer);
 
         // Items table
+        // PDF TABLE DATA - Uses billItems array directly (NOT DOM reading)
+        // This ensures PDF generation is independent of mobile UI column visibility
         const tableStartY = Math.max(yCustomer + 8, 85);
         const tableData = billItems.map((item, idx) => {
             return [
@@ -6800,6 +6945,8 @@ async function generateSalesBillPDF() {
             ];
         });
 
+        // PDF TABLE GENERATION - Column widths are hardcoded to ensure consistent PDF layout
+        // regardless of device/UI state (mobile column hiding does NOT affect PDF)
         doc.autoTable({
             startY: tableStartY,
             head: [['Sl', 'ITEM', 'HSN', 'PCS', 'Weight In Gms', 'Purity', 'Rate', 'TOTAL']],
@@ -6817,15 +6964,17 @@ async function generateSalesBillPDF() {
                 fontSize: 7,
                 cellPadding: 1.5
             },
+            // HARDCODED COLUMN WIDTHS - Ensures PDF layout is consistent
+            // Item: 60mm (30%), Weight: 25mm (15%), Rate: 20mm (15%), etc.
             columnStyles: {
-                0: { cellWidth: 10, halign: 'center' },
-                1: { cellWidth: 60, halign: 'left' },
-                2: { cellWidth: 20, halign: 'center' },
-                3: { cellWidth: 15, halign: 'center' },
-                4: { cellWidth: 25, halign: 'right' },
-                5: { cellWidth: 20, halign: 'center' },
-                6: { cellWidth: 20, halign: 'right' },
-                7: { cellWidth: 25, halign: 'right' }
+                0: { cellWidth: 10, halign: 'center' },   // Sl
+                1: { cellWidth: 60, halign: 'left' },      // ITEM (30% of table width)
+                2: { cellWidth: 20, halign: 'center' },    // HSN
+                3: { cellWidth: 15, halign: 'center' },    // PCS
+                4: { cellWidth: 25, halign: 'right' },     // Weight (15% of table width)
+                5: { cellWidth: 20, halign: 'center' },    // Purity
+                6: { cellWidth: 20, halign: 'right' },     // Rate (15% of table width)
+                7: { cellWidth: 25, halign: 'right' }       // TOTAL
             },
             margin: { left: 15, right: 15 }
         });
@@ -6948,7 +7097,7 @@ async function generateSalesBillPDF() {
         billItems.forEach(item => {
             if (item.barcode) {
                 if (!soldProducts.find(sp => sp.barcode === item.barcode)) {
-                    markProductAsSold(item.barcode, `CASH2-${selectedQuotationForBill.quotationNo}`);
+                    markProductAsSold(item.barcode, `CASH2-${selectedQuotationForBill.quotationNo}`, selectedQuotationForBill.customer.name);
                 }
                 removeProductFromInventory(item.barcode);
             }
@@ -9026,10 +9175,40 @@ async function deleteProduct(idx) {
             }
             barcode = String(barcode).trim();
 
-            // Check if product is already sold
+            // Check if product is already sold (from API)
+            try {
+                const apiProducts = await api.getProductByBarcode(barcode);
+                const apiProduct = Array.isArray(apiProducts) ? apiProducts[0] : apiProducts;
+                
+                if (apiProduct && (apiProduct.status === 'sold' || apiProduct.is_sold)) {
+                    const billNo = apiProduct.sold_bill_no || 'N/A';
+                    const customerName = apiProduct.sold_customer_name || 'Unknown';
+                    const errorMsg = `⚠️ Item Sold! Billed to ${customerName} (Bill #${billNo})`;
+                    
+                    showToast(errorMsg, 'error', 5000);
+                    
+                    const barcodeInput = document.getElementById('barcodeInput');
+                    if (barcodeInput) {
+                        barcodeInput.style.backgroundColor = '#f8d7da';
+                        barcodeInput.style.borderColor = '#dc3545';
+                        setTimeout(() => {
+                            barcodeInput.style.backgroundColor = '';
+                            barcodeInput.style.borderColor = '';
+                            barcodeInput.focus();
+                        }, 2000);
+                    }
+                    return;
+                }
+            } catch (apiError) {
+                // If API check fails, continue with local check
+                console.warn('API check failed, using local check:', apiError);
+            }
+
+            // Check if product is already sold (local check)
             const soldInfo = isProductSold(barcode);
             if (soldInfo) {
-                alert(`⚠️ PRODUCT ALREADY SOLD!\n\nBarcode: ${barcode}\nBill No: ${soldInfo.billNo}\nSold Date: ${new Date(soldInfo.soldDate).toLocaleDateString('en-GB')}\n\nThis product cannot be added to quotation.`);
+                const errorMsg = `⚠️ Item Sold! Billed to ${soldInfo.customerName || 'Unknown'} (Bill #${soldInfo.billNo || 'N/A'})`;
+                showToast(errorMsg, 'error', 5000);
 
                 const barcodeInput = document.getElementById('barcodeInput');
                 if (barcodeInput) {
@@ -9038,7 +9217,8 @@ async function deleteProduct(idx) {
                     setTimeout(() => {
                         barcodeInput.style.backgroundColor = '';
                         barcodeInput.style.borderColor = '';
-                    }, 1000);
+                        barcodeInput.focus();
+                    }, 2000);
                 }
                 return;
             }
@@ -9572,18 +9752,18 @@ function updateMCTypeLabel() {
                     class="w-20 px-2 py-1 text-center font-bold text-gray-800 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 bg-white">
             </td>
             <td class="px-2 py-3 text-center font-semibold border-r">${item.purity}%</td>
-            <td class="px-2 py-3 text-right font-semibold border-r bg-yellow-50">
+            <td class="px-2 py-3 text-right font-semibold border-r bg-yellow-50 hidden md:table-cell">
                 <input type="number" step="0.01" value="${rateFixed}" 
                     onchange="editItemRate(${item.id}, this.value)"
                     class="w-20 px-2 py-1 text-center font-bold text-gray-800 border border-yellow-300 rounded focus:ring-2 focus:ring-yellow-500 bg-white">
             </td>
-            <td class="px-2 py-3 border-r bg-orange-50">
+            <td class="px-2 py-3 border-r bg-orange-50 hidden md:table-cell">
                 <input type="number" step="0.01" value="${mcRateFixed}" 
                     onchange="editItemMCRate(${item.id}, this.value)"
                     class="w-20 px-2 py-1 text-center font-bold text-gray-800 border border-orange-300 rounded focus:ring-2 focus:ring-orange-500 bg-white">
             </td>
-            <td class="px-2 py-3 text-right border-r bg-purple-50">₹${boxCharges.toFixed(2)}</td>
-            <td class="px-2 py-3 text-right border-r bg-pink-50">₹${stoneCharges.toFixed(2)}</td>
+            <td class="px-2 py-3 text-right border-r bg-purple-50 hidden md:table-cell">₹${boxCharges.toFixed(2)}</td>
+            <td class="px-2 py-3 text-right border-r bg-pink-50 hidden md:table-cell">₹${stoneCharges.toFixed(2)}</td>
             <td class="px-2 py-3 text-right font-bold text-green-700 border-r bg-green-50">₹${amountFixed}</td>
             <td class="px-2 py-3 text-center">
                 <button onclick="removeItem(${item.id})" 
@@ -9984,6 +10164,8 @@ function updateMCTypeLabel() {
     const totalPCS = items.reduce((sum, item) => sum + (item.pcs || 1), 0);
     const grandTotalWeight = totalWeight.toFixed(2);
 
+    // PDF TABLE DATA - Uses items array directly (NOT DOM reading)
+    // This ensures PDF generation is independent of mobile UI column visibility
     const tableData = items.map((item, idx) => {
         // Calculate amount: (Rate + MC/gm) * Weight + Box Charges + Stone Charges
         const mcAmount = item.mcType === 'PieceCost' ? item.mcRate : (item.mcRate * item.weight);
@@ -10012,6 +10194,8 @@ function updateMCTypeLabel() {
         ];
     });
 
+    // PDF TABLE GENERATION - Column widths are hardcoded to ensure consistent PDF layout
+    // regardless of device/UI state (mobile column hiding does NOT affect PDF)
     doc.autoTable({
         startY: tableStartY,
         head: [[
@@ -10031,7 +10215,7 @@ function updateMCTypeLabel() {
             'RATE',
             'Amount'
         ]],
-        body: tableData,
+        body: tableData, // Data from items array, not DOM
         theme: 'grid',
         headStyles: {
             fillColor: [211, 211, 211],
@@ -10047,14 +10231,15 @@ function updateMCTypeLabel() {
             cellPadding: 1,
             valign: 'middle'
         },
+        // HARDCODED COLUMN WIDTHS - Ensures PDF layout is consistent
         columnStyles: {
             0: { cellWidth: 8, halign: 'center' },      // SKU #
             1: { cellWidth: 18, halign: 'left', fontSize: 6.5 },  // ITEM
             2: { cellWidth: 16, halign: 'center', fontSize: 6.5 },  // STYLE CODE
-            3: { cellWidth: 30, halign: 'left', fontSize: 6.5 },    // Short Name
+            3: { cellWidth: 30, halign: 'left', fontSize: 6.5 },    // Short Name (30% of table width)
             4: { cellWidth: 10, halign: 'center', fontSize: 6.5 },  // SIZE
             5: { cellWidth: 8, halign: 'center' },      // PCS
-            6: { cellWidth: 10, halign: 'right' },      // G.WT
+            6: { cellWidth: 10, halign: 'right' },      // G.WT (15% of table width)
             7: { cellWidth: 10, halign: 'right' },      // NET.WT
             8: { cellWidth: 8, halign: 'center' },     // %
             9: { cellWidth: 8, halign: 'right' },       // Purs

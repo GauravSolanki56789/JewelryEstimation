@@ -481,11 +481,16 @@ app.get('/api/update/check', async (req, res) => {
 
 app.get('/api/products', checkAuth, hasPermission('products'), async (req, res) => {
     try {
-        const { barcode, styleCode, search } = req.query;
+        const { barcode, styleCode, search, includeDeleted } = req.query;
         
         let queryText = 'SELECT * FROM products WHERE 1=1';
         const params = [];
         let paramCount = 1;
+        
+        // Filter out deleted items by default (unless includeDeleted=true)
+        if (includeDeleted !== 'true') {
+            queryText += ` AND (status IS NULL OR status != 'deleted')`;
+        }
         
         if (barcode) {
             queryText += ` AND barcode = $${paramCount++}`;
@@ -522,15 +527,16 @@ app.post('/api/products', checkAuth, hasPermission('products'), async (req, res)
         
         const queryText = `INSERT INTO products (
             barcode, sku, style_code, short_name, item_name, metal_type, size, weight,
-            purity, rate, mc_rate, mc_type, pcs, box_charges, stone_charges, floor, avg_wt
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+            purity, rate, mc_rate, mc_type, pcs, box_charges, stone_charges, floor, avg_wt, status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         RETURNING *`;
         
         const params = [
             product.barcode, product.sku, product.styleCode, product.shortName, product.itemName,
             product.metalType, product.size, product.weight, product.purity, product.rate,
             product.mcRate, product.mcType, product.pcs || 1, product.boxCharges || 0,
-            product.stoneCharges || 0, product.floor, product.avgWt || product.weight
+            product.stoneCharges || 0, product.floor, product.avgWt || product.weight,
+            product.status || 'available'
         ];
         
         const result = await query(queryText, params);
@@ -553,14 +559,15 @@ app.put('/api/products/:id', checkAuth, hasPermission('products'), async (req, r
             barcode = $1, sku = $2, style_code = $3, short_name = $4, item_name = $5,
             metal_type = $6, size = $7, weight = $8, purity = $9, rate = $10,
             mc_rate = $11, mc_type = $12, pcs = $13, box_charges = $14, stone_charges = $15,
-            floor = $16, avg_wt = $17, updated_at = CURRENT_TIMESTAMP
-        WHERE id = $18 RETURNING *`;
+            floor = $16, avg_wt = $17, status = COALESCE($18, status), updated_at = CURRENT_TIMESTAMP
+        WHERE id = $19 RETURNING *`;
         
         const params = [
             product.barcode, product.sku, product.styleCode, product.shortName, product.itemName,
             product.metalType, product.size, product.weight, product.purity, product.rate,
             product.mcRate, product.mcType, product.pcs || 1, product.boxCharges || 0,
-            product.stoneCharges || 0, product.floor, product.avgWt || product.weight, id
+            product.stoneCharges || 0, product.floor, product.avgWt || product.weight,
+            product.status || 'available', id
         ];
         
         const result = await query(queryText, params);
@@ -589,8 +596,8 @@ app.post('/api/products/bulk', checkAuth, hasPermission('products'), async (req,
             
             const insertQuery = `INSERT INTO products (
                 barcode, sku, style_code, short_name, item_name, metal_type, size, weight,
-                purity, rate, mc_rate, mc_type, pcs, box_charges, stone_charges, floor, avg_wt
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+                purity, rate, mc_rate, mc_type, pcs, box_charges, stone_charges, floor, avg_wt, status
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
             RETURNING *`;
             
             for (const product of productsArray) {
@@ -610,7 +617,8 @@ app.post('/api/products/bulk', checkAuth, hasPermission('products'), async (req,
                         product.rate || 0, product.mcRate || 0,
                         product.mcType || 'MC/GM', product.pcs || 1, 
                         product.boxCharges || 0, product.stoneCharges || 0,
-                        product.floor || 'Main Floor', product.avgWt || product.weight || 0
+                        product.floor || 'Main Floor', product.avgWt || product.weight || 0,
+                        product.status || 'available'
                     ];
                     
                     const result = await client.query(insertQuery, params);
@@ -650,9 +658,38 @@ app.post('/api/products/bulk', checkAuth, hasPermission('products'), async (req,
 app.delete('/api/products/:id', checkAuth, hasPermission('products'), async (req, res) => {
     try {
         const { id } = req.params;
-        await query('DELETE FROM products WHERE id = $1', [id]);
+        // Set status to 'deleted' instead of hard delete
+        await query('UPDATE products SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', ['deleted', id]);
         broadcast('product-deleted', { id: parseInt(id) });
         res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Mark products as sold (used when bill is saved)
+app.post('/api/products/mark-sold', checkAuth, hasPermission('products'), async (req, res) => {
+    try {
+        const { barcodes, billNo, customerName } = req.body;
+        
+        if (!Array.isArray(barcodes) || barcodes.length === 0) {
+            return res.status(400).json({ error: 'Barcodes array is required' });
+        }
+        
+        const placeholders = barcodes.map((_, i) => `$${i + 1}`).join(',');
+        const queryText = `UPDATE products 
+            SET status = 'sold', 
+                sold_bill_no = $${barcodes.length + 1},
+                sold_customer_name = $${barcodes.length + 2},
+                is_sold = true,
+                updated_at = CURRENT_TIMESTAMP 
+            WHERE barcode IN (${placeholders}) AND (status IS NULL OR status = 'available')`;
+        
+        const params = [...barcodes, billNo || null, customerName || null];
+        await query(queryText, params);
+        
+        broadcast('products-sold', { barcodes, billNo });
+        res.json({ success: true, updated: barcodes.length });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

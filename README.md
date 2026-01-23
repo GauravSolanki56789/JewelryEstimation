@@ -1,7 +1,8 @@
 # ?? Jewelry Estimation Software
 
 Complete jewelry estimation and billing software for single-tenant VPS deployment.
-
+taskkill /F /IM node.exe 
+command to kill ghost
 ---
 
 ## ?? Quick Start

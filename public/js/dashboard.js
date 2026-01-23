@@ -346,11 +346,28 @@ function toggleMobileMenu() {
     const drawer = document.getElementById('mobileMenuDrawer');
     
     if (overlay && drawer) {
-        overlay.classList.toggle('hidden');
-        drawer.classList.toggle('-translate-x-full');
+        const isOpen = !drawer.classList.contains('-translate-x-full');
         
-        // Prevent body scroll when menu is open
-        document.body.classList.toggle('overflow-hidden');
+        if (isOpen) {
+            // Close menu
+            overlay.classList.add('hidden');
+            drawer.classList.add('-translate-x-full');
+            document.body.classList.remove('overflow-hidden');
+        } else {
+            // Open menu
+            overlay.classList.remove('hidden');
+            drawer.classList.remove('-translate-x-full');
+            document.body.classList.add('overflow-hidden');
+            
+            // Update user name in drawer if available
+            const drawerUserName = document.getElementById('mobileDrawerUserName');
+            const currentUserName = document.getElementById('currentUserName')?.textContent || 
+                                   document.getElementById('mobileUserName')?.textContent || 
+                                   'Guest';
+            if (drawerUserName) {
+                drawerUserName.textContent = currentUserName.replace('User: ', '');
+            }
+        }
     }
 }
 
@@ -363,6 +380,18 @@ function closeMobileMenu() {
     if (drawer) drawer.classList.add('-translate-x-full');
     document.body.classList.remove('overflow-hidden');
 }
+
+// Close mobile menu when clicking outside
+document.addEventListener('click', (e) => {
+    const drawer = document.getElementById('mobileMenuDrawer');
+    const menuBtn = document.getElementById('mobileMenuBtn');
+    
+    if (drawer && !drawer.contains(e.target) && !menuBtn?.contains(e.target)) {
+        if (!drawer.classList.contains('-translate-x-full')) {
+            closeMobileMenu();
+        }
+    }
+});
 
 // Focus barcode scanner (mobile quick access)
 function focusBarcodeScanner() {
