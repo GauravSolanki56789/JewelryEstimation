@@ -279,10 +279,89 @@ app.post('/api/auth/logout', (req, res) => {
 // Static files
 app.use(express.static('public'));
 
+// ==========================================
+// SCHEMA CHECK FUNCTION - Ensures products table has required columns
+// ==========================================
+async function checkAndUpdateProductsSchema() {
+    try {
+        console.log('🔍 Checking products table schema...');
+        
+        const dbPool = getPool();
+        
+        // Check and add 'status' column
+        await dbPool.query(`
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'products' AND column_name = 'status'
+                ) THEN
+                    ALTER TABLE products ADD COLUMN status VARCHAR(50) DEFAULT 'available';
+                    UPDATE products SET status = 'available' WHERE status IS NULL;
+                    UPDATE products SET status = 'sold' WHERE is_sold = true;
+                    RAISE NOTICE 'Added status column';
+                END IF;
+            END $$;
+        `);
+        
+        // Check and add 'sold_bill_no' column
+        await dbPool.query(`
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'products' AND column_name = 'sold_bill_no'
+                ) THEN
+                    ALTER TABLE products ADD COLUMN sold_bill_no VARCHAR(50);
+                    RAISE NOTICE 'Added sold_bill_no column';
+                END IF;
+            END $$;
+        `);
+        
+        // Check and add 'sold_customer_name' column
+        await dbPool.query(`
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'products' AND column_name = 'sold_customer_name'
+                ) THEN
+                    ALTER TABLE products ADD COLUMN sold_customer_name VARCHAR(255);
+                    RAISE NOTICE 'Added sold_customer_name column';
+                END IF;
+            END $$;
+        `);
+        
+        // Check and add 'is_deleted' column
+        await dbPool.query(`
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'products' AND column_name = 'is_deleted'
+                ) THEN
+                    ALTER TABLE products ADD COLUMN is_deleted BOOLEAN DEFAULT false;
+                    UPDATE products SET is_deleted = false WHERE is_deleted IS NULL;
+                    RAISE NOTICE 'Added is_deleted column';
+                END IF;
+            END $$;
+        `);
+        
+        console.log('✅ Products table schema verified and updated');
+        return true;
+    } catch (error) {
+        console.error('❌ Schema check failed:', error.message);
+        console.error('   Full error:', error);
+        return false;
+    }
+}
+
 // Initialize database on startup
-initDatabase().then(success => {
+initDatabase().then(async success => {
     if (success) {
         console.log('✅ Database ready');
+        // Run schema check after database initialization
+        await checkAndUpdateProductsSchema();
     } else {
         console.log('⚠️ Server started but database initialization failed.');
         console.log('💡 Please check your PostgreSQL connection and restart the server.');
@@ -481,7 +560,7 @@ app.get('/api/update/check', async (req, res) => {
 
 app.get('/api/products', checkAuth, hasPermission('products'), async (req, res) => {
     try {
-        const { barcode, styleCode, search, includeDeleted } = req.query;
+        const { barcode, styleCode, search, includeDeleted, limit, offset, recent } = req.query;
         
         let queryText = 'SELECT * FROM products WHERE 1=1';
         const params = [];
@@ -489,6 +568,7 @@ app.get('/api/products', checkAuth, hasPermission('products'), async (req, res) 
         
         // Filter out deleted items by default (unless includeDeleted=true)
         if (includeDeleted !== 'true') {
+            queryText += ` AND (is_deleted IS NULL OR is_deleted = false)`;
             queryText += ` AND (status IS NULL OR status != 'deleted')`;
         }
         
@@ -501,14 +581,65 @@ app.get('/api/products', checkAuth, hasPermission('products'), async (req, res) 
             params.push(styleCode);
         }
         if (search) {
-            queryText += ` AND (short_name ILIKE $${paramCount} OR item_name ILIKE $${paramCount} OR barcode ILIKE $${paramCount++})`;
+            queryText += ` AND (short_name ILIKE $${paramCount} OR item_name ILIKE $${paramCount} OR barcode ILIKE $${paramCount} OR sku ILIKE $${paramCount} OR style_code ILIKE $${paramCount++})`;
             params.push(`%${search}%`);
         }
         
+        // Order by created_at DESC (most recent first)
         queryText += ' ORDER BY created_at DESC';
         
+        // Apply limit (default 50 for search, 5 for recent, no limit if not specified and no search)
+        const limitValue = recent === 'true' ? 5 : (limit ? Math.min(parseInt(limit), 50) : (search ? 50 : null));
+        if (limitValue) {
+            queryText += ` LIMIT $${paramCount++}`;
+            params.push(limitValue);
+        }
+        
+        // Apply offset for pagination
+        if (offset) {
+            queryText += ` OFFSET $${paramCount++}`;
+            params.push(parseInt(offset));
+        }
+        
         const result = await query(queryText, params);
-        res.json(result);
+        
+        // Get total count for pagination (only if limit is applied)
+        let totalCount = null;
+        if (limitValue || search) {
+            let countQuery = 'SELECT COUNT(*) as total FROM products WHERE 1=1';
+            const countParams = [];
+            let countParamCount = 1;
+            
+            if (includeDeleted !== 'true') {
+                countQuery += ` AND (is_deleted IS NULL OR is_deleted = false)`;
+                countQuery += ` AND (status IS NULL OR status != 'deleted')`;
+            }
+            
+            if (barcode) {
+                countQuery += ` AND barcode = $${countParamCount++}`;
+                countParams.push(barcode);
+            }
+            if (styleCode) {
+                countQuery += ` AND style_code = $${countParamCount++}`;
+                countParams.push(styleCode);
+            }
+            if (search) {
+                countQuery += ` AND (short_name ILIKE $${countParamCount} OR item_name ILIKE $${countParamCount} OR barcode ILIKE $${countParamCount} OR sku ILIKE $${countParamCount} OR style_code ILIKE $${countParamCount++})`;
+                countParams.push(`%${search}%`);
+            }
+            
+            const countResult = await query(countQuery, countParams);
+            totalCount = parseInt(countResult[0].total);
+        }
+        
+        // Return results with metadata
+        res.json({
+            products: result,
+            total: totalCount,
+            limit: limitValue,
+            offset: offset ? parseInt(offset) : 0,
+            hasMore: totalCount !== null && (limitValue + (offset ? parseInt(offset) : 0)) < totalCount
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

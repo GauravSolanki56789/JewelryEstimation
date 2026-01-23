@@ -296,7 +296,7 @@ async function initSchema() {
         await pool.query(query);
     }
     
-    // Add status column migration (if not exists)
+    // Add status, sold_bill_no, sold_customer_name, and is_deleted columns migration (if not exists)
     try {
         await pool.query(`
             DO $$ 
@@ -321,6 +321,18 @@ async function initSchema() {
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
                                WHERE table_name='products' AND column_name='sold_customer_name') THEN
                     ALTER TABLE products ADD COLUMN sold_customer_name VARCHAR(255);
+                END IF;
+            END $$;
+        `);
+        
+        // Add is_deleted column if not exists
+        await pool.query(`
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                               WHERE table_name='products' AND column_name='is_deleted') THEN
+                    ALTER TABLE products ADD COLUMN is_deleted BOOLEAN DEFAULT false;
+                    UPDATE products SET is_deleted = false WHERE is_deleted IS NULL;
                 END IF;
             END $$;
         `);

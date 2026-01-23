@@ -789,34 +789,61 @@
         </div>
 
         <!-- Search Bar -->
-        <div class="mb-4">
+        <div class="mb-4 flex gap-2">
             <input type="text" id="productSearch"
-                placeholder="🔍 Search by Barcode, SKU, Style Code, or Product Name..."
-                class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 text-base"
+                placeholder="🔍 Search or Scan to manage products..."
+                class="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 text-base"
                 oninput="filterProducts()">
+            <button onclick="clearProductSearch()" id="clearSearchBtn" 
+                class="px-4 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-medium hidden">
+                Clear
+            </button>
+        </div>
+        
+        <!-- Search Placeholder (shown when no search) -->
+        <div id="productsSearchPlaceholder" class="hidden text-center py-16 bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl border-2 border-blue-200 mb-4">
+            <div class="text-6xl mb-4">🔍</div>
+            <h3 class="text-2xl font-bold text-gray-800 mb-2">Search or Scan to Manage Products</h3>
+            <p class="text-gray-600 mb-6">Type in the search bar above or scan a barcode to find products</p>
+            <div class="text-sm text-gray-500">
+                <p>💡 Tip: Search by barcode, SKU, style code, or product name</p>
+            </div>
+        </div>
+        
+        <!-- Recent Items Section (shown when no search) -->
+        <div id="recentProductsSection" class="hidden mb-4">
+            <h3 class="text-lg font-semibold text-gray-700 mb-3">📋 Recently Added Items</h3>
         </div>
 
         <div class="overflow-x-auto">
             <table class="w-full">
                 <thead class="bg-gray-100">
                     <tr>
-                        <th class="px-4 py-3 text-left text-sm font-semibold">Barcode</th>
-                        <th class="px-4 py-3 text-left text-sm font-semibold">SKU</th>
-                        <th class="px-4 py-3 text-left text-sm font-semibold">Style Code</th>
+                        <th class="px-4 py-3 text-left text-sm font-semibold hidden md:table-cell">Barcode</th>
+                        <th class="px-4 py-3 text-left text-sm font-semibold hidden md:table-cell">SKU</th>
+                        <th class="px-4 py-3 text-left text-sm font-semibold hidden md:table-cell">Style Code</th>
                         <th class="px-4 py-3 text-left text-sm font-semibold">Name</th>
-                        <th class="px-4 py-3 text-left text-sm font-semibold">Size</th>
+                        <th class="px-4 py-3 text-left text-sm font-semibold hidden md:table-cell">Size</th>
                         <th class="px-4 py-3 text-left text-sm font-semibold">Avg Wt</th>
-                        <th class="px-4 py-3 text-left text-sm font-semibold">Metal</th>
-                        <th class="px-4 py-3 text-left text-sm font-semibold">Purity%</th>
-                        <th class="px-4 py-3 text-left text-sm font-semibold">MC Rate</th>
+                        <th class="px-4 py-3 text-left text-sm font-semibold hidden md:table-cell">Metal</th>
+                        <th class="px-4 py-3 text-left text-sm font-semibold hidden md:table-cell">Purity%</th>
+                        <th class="px-4 py-3 text-left text-sm font-semibold hidden md:table-cell">MC Rate</th>
                         <th class="px-4 py-3 text-center text-sm font-semibold">PCS</th>
-                        <th class="px-4 py-3 text-left text-sm font-semibold">Box</th>
-                        <th class="px-4 py-3 text-left text-sm font-semibold">Stone</th>
+                        <th class="px-4 py-3 text-left text-sm font-semibold hidden md:table-cell">Box</th>
+                        <th class="px-4 py-3 text-left text-sm font-semibold hidden md:table-cell">Stone</th>
                         <th class="px-4 py-3 text-center text-sm font-semibold">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="productsTableBody"></tbody>
             </table>
+        </div>
+        
+        <!-- Load More Button -->
+        <div class="mt-4 text-center">
+            <button id="loadMoreProductsBtn" onclick="loadMoreProducts()" 
+                class="hidden px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
+                📄 Load More Products
+            </button>
         </div>
     </div>
 </div>
@@ -3658,38 +3685,98 @@
         
         // Helper functions to refresh data
         function refreshProducts() {
-            loadProducts();
+            // Check if there's an active search, otherwise load recent items
+            const searchEl = getCachedElement('productSearch');
+            const searchTerm = searchEl ? searchEl.value.trim() : '';
+            
+            if (searchTerm.length >= 2) {
+                // Refresh search results
+                loadProducts(searchTerm, 50, 0, false);
+            } else {
+                // Refresh recent items
+                loadProducts('', null, null, true);
+            }
         }
         
-        // Load products from API
-        async function loadProducts() {
+        // Load products from API - now supports search-first approach
+        // By default, only loads 5 recent items. Use search to load more.
+        async function loadProducts(searchTerm = '', limit = null, offset = null, recent = false) {
             try {
-                const productsData = await api.getProducts();
-                if (Array.isArray(productsData)) {
-                    products = productsData.map(p => ({
-                        id: p.id,
-                        barcode: p.barcode,
-                        sku: p.sku,
-                        styleCode: p.style_code,
-                        shortName: p.short_name,
-                        itemName: p.item_name,
-                        metalType: p.metal_type,
-                        size: p.size,
-                        weight: parseFloat(p.weight) || 0,
-                        avgWt: parseFloat(p.avg_wt) || parseFloat(p.weight) || 0,
-                        purity: parseFloat(p.purity) || 100,
-                        rate: parseFloat(p.rate) || 0,
-                        mcRate: parseFloat(p.mc_rate) || 0,
-                        mcType: p.mc_type || 'MC/GM',
-                        pcs: parseInt(p.pcs) || 1,
-                        boxCharges: parseFloat(p.box_charges) || 0,
-                        stoneCharges: parseFloat(p.stone_charges) || 0,
-                        floor: p.floor,
-                        isSold: p.is_sold || false
-                    }));
-                    setCachedItem('products', products);
-                    updateProductsTable();
+                const response = await api.getProducts(searchTerm, limit, offset, recent);
+                
+                // Handle both old format (array) and new format (object with products array)
+                let productsData;
+                let responseMeta = null;
+                
+                if (Array.isArray(response)) {
+                    // Old format: direct array
+                    productsData = response;
+                } else if (response && response.products) {
+                    // New format: object with products array and metadata
+                    productsData = response.products;
+                    responseMeta = {
+                        total: response.total,
+                        limit: response.limit,
+                        offset: response.offset,
+                        hasMore: response.hasMore
+                    };
+                } else {
+                    // Fallback: empty array
+                    productsData = [];
                 }
+                
+                // Map API results to frontend format
+                const mappedProducts = productsData.map(p => ({
+                    id: p.id,
+                    barcode: p.barcode,
+                    sku: p.sku,
+                    styleCode: p.style_code,
+                    shortName: p.short_name,
+                    itemName: p.item_name,
+                    metalType: p.metal_type,
+                    size: p.size,
+                    weight: parseFloat(p.weight) || 0,
+                    avgWt: parseFloat(p.avg_wt) || parseFloat(p.weight) || 0,
+                    purity: parseFloat(p.purity) || 100,
+                    rate: parseFloat(p.rate) || 0,
+                    mcRate: parseFloat(p.mc_rate) || 0,
+                    mcType: p.mc_type || 'MC/GM',
+                    pcs: parseInt(p.pcs) || 1,
+                    boxCharges: parseFloat(p.box_charges) || 0,
+                    stoneCharges: parseFloat(p.stone_charges) || 0,
+                    floor: p.floor,
+                    isSold: p.is_sold || false,
+                    status: p.status || 'available',
+                    isDeleted: p.is_deleted || false
+                }));
+                
+                // If this is a search or recent load, replace products array
+                // Otherwise, merge with existing products (for pagination)
+                if (searchTerm || recent || offset) {
+                    if (offset && offset > 0) {
+                        // Pagination: append to existing products
+                        products = [...products, ...mappedProducts];
+                    } else {
+                        // New search or initial load: replace products
+                        products = mappedProducts;
+                    }
+                } else {
+                    // Fallback: replace all products (for backward compatibility)
+                    products = mappedProducts;
+                }
+                
+                // Store metadata for pagination
+                if (responseMeta) {
+                    window.productsMeta = {
+                        total: responseMeta.total,
+                        limit: responseMeta.limit,
+                        offset: responseMeta.offset,
+                        hasMore: responseMeta.hasMore
+                    };
+                }
+                
+                setCachedItem('products', products);
+                updateProductsTable();
             } catch (error) {
                 console.error('Error loading products:', error);
                 // Don't show error to user - just log it
@@ -3925,10 +4012,15 @@
                 }
             },
             
-            // Products API
-            async getProducts(search = '') {
-                const params = search ? `?search=${encodeURIComponent(search)}` : '';
-                return this.request(`/products${params}`);
+            // Products API - supports search, limit, offset, and recent flag
+            async getProducts(search = '', limit = null, offset = null, recent = false) {
+                const params = new URLSearchParams();
+                if (search) params.append('search', search);
+                if (limit) params.append('limit', limit);
+                if (offset) params.append('offset', offset);
+                if (recent) params.append('recent', 'true');
+                const queryString = params.toString();
+                return this.request(`/products${queryString ? '?' + queryString : ''}`);
             },
             
             async getProductByBarcode(barcode) {
@@ -7251,7 +7343,17 @@ async function generateSalesBillPDF() {
             productBarcodeInput.addEventListener('keypress', function (e) {
                 if (e.key === 'Enter') {
                     e.preventDefault();
-                    handleProductBarcodeScan(this.value.trim());
+                    const barcode = this.value.trim();
+                    if (barcode) {
+                        // Trigger search with barcode
+                        const searchInput = document.getElementById('productSearch');
+                        if (searchInput) {
+                            searchInput.value = barcode;
+                            filterProducts();
+                        }
+                        // Also try to handle as new product scan
+                        handleProductBarcodeScan(barcode);
+                    }
                     this.value = '';
                 }
             });
@@ -7413,8 +7515,13 @@ async function generateSalesBillPDF() {
                 } else if (tab === 'products') {
                     selectedTabElement = document.getElementById('productsTab');
                     selectedButton = document.getElementById('btnProducts');
-                    // Load products from API when tab is shown
-                    loadProducts();
+                    // Load only 5 recent items when tab is shown (search-first approach)
+                    loadProducts('', null, null, true);
+                    // Clear search input
+                    const searchInput = document.getElementById('productSearch');
+                    if (searchInput) {
+                        searchInput.value = '';
+                    }
                 } else if (tab === 'customers') {
                     selectedTabElement = document.getElementById('customersTab');
                     selectedButton = document.getElementById('btnCustomers');
@@ -7979,43 +8086,30 @@ async function generateSalesBillPDF() {
         
         requestAnimationFrame(() => {
             const searchEl = getCachedElement('productSearch');
-            const searchTerm = searchEl ? searchEl.value.toLowerCase().trim() : '';
+            const searchTerm = searchEl ? searchEl.value.trim() : '';
             const tbody = getCachedElement('productsTableBody');
+            const loadMoreBtn = getCachedElement('loadMoreProductsBtn');
             if (!tbody) {
                 tableUpdatePending = false;
                 return;
             }
 
-            let displayProducts = products.filter(p => p.isSold !== true);
-
-            // Apply search filter if search term is provided (at least 2 characters)
-            if (searchTerm && searchTerm.length >= 2) {
-                displayProducts = displayProducts.filter(product => {
-                    return (
-                        (product.barcode && product.barcode.toLowerCase().includes(searchTerm)) ||
-                        (product.sku && product.sku.toLowerCase().includes(searchTerm)) ||
-                        (product.styleCode && product.styleCode.toLowerCase().includes(searchTerm)) ||
-                        (product.shortName && product.shortName.toLowerCase().includes(searchTerm))
-                    );
-                });
-            }
-            // If no search term or less than 2 characters, show all products (or show search prompt if no products)
-            if (!searchTerm || searchTerm.length < 2) {
-                if (displayProducts.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="13" class="text-center py-16 text-gray-500"><div class="text-6xl mb-4">📦</div><p class="text-lg font-semibold">No Products Found</p><p class="text-sm mt-2">Add products using the "Add Product" button or bulk upload</p></td></tr>';
-                    tableUpdatePending = false;
-                    return;
-                }
-                // Show all products if no search term
-            }
+            // Filter out sold and deleted products
+            let displayProducts = products.filter(p => p.isSold !== true && !p.isDeleted);
 
             // Use DocumentFragment for faster DOM updates
             const fragment = document.createDocumentFragment();
             
             if (displayProducts.length === 0) {
                 const row = document.createElement('tr');
-                row.innerHTML = '<td colspan="13" class="text-center py-8 text-gray-500">No products found matching your search.</td>';
+                if (searchTerm.length >= 2) {
+                    row.innerHTML = '<td colspan="13" class="text-center py-8 text-gray-500">No products found matching your search.</td>';
+                } else {
+                    row.innerHTML = '<td colspan="13" class="text-center py-8 text-gray-500">No recent products found.</td>';
+                }
                 fragment.appendChild(row);
+                // Hide load more button
+                if (loadMoreBtn) loadMoreBtn.classList.add('hidden');
             } else {
                 displayProducts.forEach((product) => {
                     const originalIdx = products.findIndex(p => p.id === product.id);
@@ -8035,15 +8129,15 @@ async function generateSalesBillPDF() {
                     const boxCharges = product.boxCharges || 0;
                     const stoneCharges = product.stoneCharges || 0;
                     row.innerHTML = `
-                <td class="px-4 py-3 font-mono text-sm">${barcode}</td>
-                <td class="px-4 py-3 text-sm">${sku}</td>
-                <td class="px-4 py-3 text-sm font-semibold text-blue-600">${styleCode}</td>
+                <td class="px-4 py-3 font-mono text-sm hidden md:table-cell">${barcode}</td>
+                <td class="px-4 py-3 text-sm hidden md:table-cell">${sku}</td>
+                <td class="px-4 py-3 text-sm font-semibold text-blue-600 hidden md:table-cell">${styleCode}</td>
                 <td class="px-4 py-3 font-medium">${shortName}</td>
-                <td class="px-4 py-3 text-sm">${size}</td>
+                <td class="px-4 py-3 text-sm hidden md:table-cell">${size}</td>
                 <td class="px-4 py-3 text-sm">${avgWt.toFixed(2)}g</td>
-                <td class="px-4 py-3 capitalize text-sm">${metalType}</td>
-                <td class="px-4 py-3 text-sm">${purity}%</td>
-                <td class="px-4 py-3 text-sm">
+                <td class="px-4 py-3 capitalize text-sm hidden md:table-cell">${metalType}</td>
+                <td class="px-4 py-3 text-sm hidden md:table-cell">${purity}%</td>
+                <td class="px-4 py-3 text-sm hidden md:table-cell">
                     ${mcType === 'PieceCost'
                             ? `₹${mcRate.toFixed(2)} (Piece)`
                             : `₹${mcRate} /gm`}
@@ -8053,8 +8147,8 @@ async function generateSalesBillPDF() {
                         ${pcs} pcs
                     </span>
                 </td>
-                <td class="px-4 py-3 text-right text-sm">₹${boxCharges.toFixed(2)}</td>
-                <td class="px-4 py-3 text-right text-sm">₹${stoneCharges.toFixed(2)}</td>
+                <td class="px-4 py-3 text-right text-sm hidden md:table-cell">₹${boxCharges.toFixed(2)}</td>
+                <td class="px-4 py-3 text-right text-sm hidden md:table-cell">₹${stoneCharges.toFixed(2)}</td>
                 <td class="px-4 py-3 text-center">
                 <button onclick="editProduct(${originalIdx})" class="text-blue-600 hover:text-blue-800 font-medium mr-2" title="Edit">✏️</button>
                 <button onclick="deleteProduct(${originalIdx})" class="text-red-600 hover:text-red-800 font-medium" title="Delete">🗑️</button>
@@ -8062,6 +8156,13 @@ async function generateSalesBillPDF() {
             `;
                     fragment.appendChild(row);
                 });
+                
+                // Show/hide Load More button based on metadata
+                if (loadMoreBtn && window.productsMeta && window.productsMeta.hasMore) {
+                    loadMoreBtn.classList.remove('hidden');
+                } else if (loadMoreBtn) {
+                    loadMoreBtn.classList.add('hidden');
+                }
             }
             
             tbody.innerHTML = '';
@@ -8069,120 +8170,68 @@ async function generateSalesBillPDF() {
             tableUpdatePending = false;
         });
     }
-
-    // Debounced search function
-    const debouncedUpdateProductsTable = debounce(updateProductsTable, 300);
-    const debouncedSearchAPI = debounce(async function(searchTerm) {
-        // If search term is less than 2 characters, show all products (or empty state)
-        if (searchTerm.length < 2) {
-            updateProductsTable(); // This will show all products or empty state
-            return;
-        }
+    
+    async function loadMoreProducts() {
+        const searchEl = getCachedElement('productSearch');
+        const searchTerm = searchEl ? searchEl.value.trim() : '';
+        const meta = window.productsMeta;
         
-        try {
-            const results = await api.getProducts(searchTerm);
-            const tbody = getCachedElement('productsTableBody');
-            if (!tbody) return;
-            
-            // Map API results to frontend format
-            const displayProducts = results.map(p => ({
-                id: p.id,
-                barcode: p.barcode,
-                sku: p.sku,
-                styleCode: p.style_code,
-                shortName: p.short_name,
-                size: p.size,
-                avgWt: parseFloat(p.avg_wt) || 0,
-                metalType: p.metal_type,
-                purity: parseFloat(p.purity) || 100,
-                mcRate: parseFloat(p.mc_rate) || 0,
-                mcType: p.mc_type || 'MC/GM',
-                pcs: parseInt(p.pcs) || 1,
-                boxCharges: parseFloat(p.box_charges) || 0,
-                stoneCharges: parseFloat(p.stone_charges) || 0,
-                isSold: p.is_sold || false
-            }));
-            
-            // Render results
-            const fragment = document.createDocumentFragment();
-            if (displayProducts.length === 0) {
-                const row = document.createElement('tr');
-                row.innerHTML = '<td colspan="13" class="text-center py-8 text-gray-500">No products found matching your search.</td>';
-                fragment.appendChild(row);
-            } else {
-                displayProducts.forEach((product) => {
-                    const row = document.createElement('tr');
-                    row.className = 'border-b hover:bg-gray-50';
-                    const barcode = product.barcode || '-';
-                    const sku = product.sku || '-';
-                    const styleCode = product.styleCode || '-';
-                    const shortName = product.shortName || 'Unnamed Product';
-                    const size = product.size || '-';
-                    const avgWt = product.avgWt || 0;
-                    const metalType = product.metalType || 'gold';
-                    const purity = product.purity || 100;
-                    const mcRate = product.mcRate || 0;
-                    const mcType = product.mcType || 'MC/GM';
-                    const pcs = product.pcs || 1;
-                    const boxCharges = product.boxCharges || 0;
-                    const stoneCharges = product.stoneCharges || 0;
-                    
-                    // Find index in local products array for edit/delete
-                    const localIdx = products.findIndex(p => p.id === product.id);
-                    
-                    row.innerHTML = `
-                        <td class="px-4 py-3 font-mono text-sm">${barcode}</td>
-                        <td class="px-4 py-3 text-sm">${sku}</td>
-                        <td class="px-4 py-3 text-sm font-semibold text-blue-600">${styleCode}</td>
-                        <td class="px-4 py-3 font-medium">${shortName}</td>
-                        <td class="px-4 py-3 text-sm">${size}</td>
-                        <td class="px-4 py-3 text-sm">${avgWt.toFixed(2)}g</td>
-                        <td class="px-4 py-3 capitalize text-sm">${metalType}</td>
-                        <td class="px-4 py-3 text-sm">${purity}%</td>
-                        <td class="px-4 py-3 text-sm">
-                            ${mcType === 'PieceCost'
-                                    ? `₹${mcRate.toFixed(2)} (Piece)`
-                                    : `₹${mcRate} /gm`}
-                        </td>
-                        <td class="px-4 py-3 text-center">
-                            <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-bold">
-                                ${pcs} pcs
-                            </span>
-                        </td>
-                        <td class="px-4 py-3 text-right text-sm">₹${boxCharges.toFixed(2)}</td>
-                        <td class="px-4 py-3 text-right text-sm">₹${stoneCharges.toFixed(2)}</td>
-                        <td class="px-4 py-3 text-center">
-                            ${localIdx >= 0 ? `
-                                <button onclick="editProduct(${localIdx})" class="text-blue-600 hover:text-blue-800 font-medium mr-2" title="Edit">✏️</button>
-                                <button onclick="deleteProduct(${localIdx})" class="text-red-600 hover:text-red-800 font-medium" title="Delete">🗑️</button>
-                            ` : `
-                                <button onclick="editProductFromAPI(${product.id})" class="text-blue-600 hover:text-blue-800 font-medium mr-2" title="Edit">✏️</button>
-                                <button onclick="deleteProductFromAPI(${product.id})" class="text-red-600 hover:text-red-800 font-medium" title="Delete">🗑️</button>
-                            `}
-                        </td>
-                    `;
-                    fragment.appendChild(row);
-                });
-            }
-            
-            tbody.innerHTML = '';
-            tbody.appendChild(fragment);
-        } catch (error) {
-            console.error('Search error:', error);
-            // Fallback to local search
-            debouncedUpdateProductsTable();
-        }
-    }, 300);
+        if (!meta || !meta.hasMore) return;
+        
+        const nextOffset = meta.offset + (meta.limit || 50);
+        await loadProducts(searchTerm, 50, nextOffset, false);
+    }
+
+    // Debounced search function (kept for backward compatibility, but filterProducts now handles search)
+    const debouncedUpdateProductsTable = debounce(updateProductsTable, 300);
     
     function filterProducts() {
         const searchEl = getCachedElement('productSearch');
+        const clearBtn = getCachedElement('clearSearchBtn');
+        const placeholder = getCachedElement('productsSearchPlaceholder');
+        const recentSection = getCachedElement('recentProductsSection');
         const searchTerm = searchEl ? searchEl.value.trim() : '';
         
-        // Try API search for longer search terms, fallback to local filtering
+        // Show/hide clear button
+        if (clearBtn) {
+            if (searchTerm.length > 0) {
+                clearBtn.classList.remove('hidden');
+            } else {
+                clearBtn.classList.add('hidden');
+            }
+        }
+        
+        // Show/hide placeholder and recent section
+        if (placeholder) {
+            if (searchTerm.length === 0) {
+                placeholder.classList.remove('hidden');
+                if (recentSection) recentSection.classList.remove('hidden');
+            } else {
+                placeholder.classList.add('hidden');
+                if (recentSection) recentSection.classList.add('hidden');
+            }
+        }
+        
+        // Perform search if term is at least 2 characters
         if (searchTerm.length >= 2) {
-            debouncedSearchAPI(searchTerm);
+            // Reset pagination
+            window.productsMeta = null;
+            // Load products with search
+            loadProducts(searchTerm, 50, 0, false);
+        } else if (searchTerm.length === 0) {
+            // Clear search - show only recent items
+            loadProducts('', null, null, true);
         } else {
-            debouncedUpdateProductsTable();
+            // Less than 2 characters - show recent items
+            loadProducts('', null, null, true);
+        }
+    }
+    
+    function clearProductSearch() {
+        const searchEl = getCachedElement('productSearch');
+        if (searchEl) {
+            searchEl.value = '';
+            filterProducts();
         }
     }
 
