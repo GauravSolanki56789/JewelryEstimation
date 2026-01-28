@@ -347,10 +347,70 @@ async function checkAndUpdateProductsSchema() {
             END $$;
         `);
         
+        // Check and add 'is_deleted' column to quotations table
+        await dbPool.query(`
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'quotations' AND column_name = 'is_deleted'
+                ) THEN
+                    ALTER TABLE quotations ADD COLUMN is_deleted BOOLEAN DEFAULT false;
+                    UPDATE quotations SET is_deleted = false WHERE is_deleted IS NULL;
+                    RAISE NOTICE 'Added is_deleted column to quotations';
+                END IF;
+            END $$;
+        `);
+        
         console.log('✅ Products table schema verified and updated');
         return true;
     } catch (error) {
         console.error('❌ Schema check failed:', error.message);
+        console.error('   Full error:', error);
+        return false;
+    }
+}
+
+// Check and create styles table if it doesn't exist
+async function checkAndCreateStylesTable() {
+    try {
+        console.log('🔍 Checking styles table...');
+        
+        const dbPool = getPool();
+        
+        // Create styles table if it doesn't exist
+        await dbPool.query(`
+            CREATE TABLE IF NOT EXISTS styles (
+                id SERIAL PRIMARY KEY,
+                style_code VARCHAR(100) NOT NULL,
+                sku_code VARCHAR(100) NOT NULL,
+                item_name VARCHAR(255),
+                category VARCHAR(100),
+                metal_type VARCHAR(50),
+                purity VARCHAR(50),
+                mc_type VARCHAR(50),
+                mc_value NUMERIC(10,2),
+                hsn_code VARCHAR(50),
+                description TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(style_code, sku_code)
+            )
+        `);
+        
+        // Create indexes if they don't exist
+        await dbPool.query(`
+            CREATE INDEX IF NOT EXISTS idx_styles_style_code ON styles(style_code)
+        `);
+        
+        await dbPool.query(`
+            CREATE INDEX IF NOT EXISTS idx_styles_sku_code ON styles(sku_code)
+        `);
+        
+        console.log('✅ Styles table verified and ready');
+        return true;
+    } catch (error) {
+        console.error('❌ Styles table check failed:', error.message);
         console.error('   Full error:', error);
         return false;
     }
@@ -362,6 +422,7 @@ initDatabase().then(async success => {
         console.log('✅ Database ready');
         // Run schema check after database initialization
         await checkAndUpdateProductsSchema();
+        await checkAndCreateStylesTable();
     } else {
         console.log('⚠️ Server started but database initialization failed.');
         console.log('💡 Please check your PostgreSQL connection and restart the server.');
@@ -827,6 +888,198 @@ app.post('/api/products/mark-sold', checkAuth, hasPermission('products'), async 
 });
 
 // ==========================================
+// STYLES API (Product Hierarchy)
+// ==========================================
+
+// Get all styles (with optional category filter)
+app.get('/api/styles', checkAuth, hasPermission('products'), async (req, res) => {
+    try {
+        const { category, styleCode } = req.query;
+        let queryText = 'SELECT DISTINCT style_code, category FROM styles WHERE 1=1';
+        const params = [];
+        let paramIndex = 1;
+        
+        if (category) {
+            queryText += ` AND category = $${paramIndex++}`;
+            params.push(category);
+        }
+        
+        if (styleCode) {
+            queryText += ` AND style_code = $${paramIndex++}`;
+            params.push(styleCode);
+        }
+        
+        queryText += ' ORDER BY category, style_code';
+        const result = await query(queryText, params);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get all unique categories
+app.get('/api/styles/categories', checkAuth, hasPermission('products'), async (req, res) => {
+    try {
+        const result = await query('SELECT DISTINCT category FROM styles WHERE category IS NOT NULL ORDER BY category');
+        res.json(result.map(r => r.category));
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get all styles (full list with all fields)
+app.get('/api/styles/all', checkAuth, hasPermission('products'), async (req, res) => {
+    try {
+        const result = await query('SELECT * FROM styles ORDER BY style_code, sku_code');
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get SKUs for a specific style code
+app.get('/api/styles/:styleCode/skus', checkAuth, hasPermission('products'), async (req, res) => {
+    try {
+        const { styleCode } = req.params;
+        const result = await query(
+            'SELECT sku_code, item_name, metal_type, purity, mc_type, mc_value, hsn_code FROM styles WHERE style_code = $1 ORDER BY sku_code',
+            [styleCode]
+        );
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get style details by style_code and sku_code
+app.get('/api/styles/:styleCode/:skuCode', checkAuth, hasPermission('products'), async (req, res) => {
+    try {
+        const { styleCode, skuCode } = req.params;
+        const result = await query(
+            'SELECT * FROM styles WHERE style_code = $1 AND sku_code = $2',
+            [styleCode, skuCode]
+        );
+        if (result.length === 0) {
+            return res.status(404).json({ error: 'Style not found' });
+        }
+        res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Update style by style_code and sku_code
+app.put('/api/styles/:styleCode/:skuCode', checkAuth, hasPermission('products'), async (req, res) => {
+    try {
+        const { styleCode, skuCode } = req.params;
+        const { item_name, category, metal_type, purity, mc_type, mc_value, hsn_code, description } = req.body;
+        
+        const updates = [];
+        const params = [];
+        let paramIndex = 1;
+        
+        if (item_name !== undefined) {
+            updates.push(`item_name = $${paramIndex++}`);
+            params.push(item_name);
+        }
+        if (category !== undefined) {
+            updates.push(`category = $${paramIndex++}`);
+            params.push(category);
+        }
+        if (metal_type !== undefined) {
+            updates.push(`metal_type = $${paramIndex++}`);
+            params.push(metal_type);
+        }
+        if (purity !== undefined) {
+            updates.push(`purity = $${paramIndex++}`);
+            params.push(purity);
+        }
+        if (mc_type !== undefined) {
+            updates.push(`mc_type = $${paramIndex++}`);
+            params.push(mc_type);
+        }
+        if (mc_value !== undefined) {
+            updates.push(`mc_value = $${paramIndex++}`);
+            params.push(mc_value);
+        }
+        if (hsn_code !== undefined) {
+            updates.push(`hsn_code = $${paramIndex++}`);
+            params.push(hsn_code);
+        }
+        if (description !== undefined) {
+            updates.push(`description = $${paramIndex++}`);
+            params.push(description);
+        }
+        
+        if (updates.length === 0) {
+            return res.status(400).json({ error: 'No fields to update' });
+        }
+        
+        updates.push(`updated_at = CURRENT_TIMESTAMP`);
+        params.push(styleCode, skuCode);
+        
+        const queryText = `UPDATE styles SET ${updates.join(', ')} WHERE style_code = $${paramIndex} AND sku_code = $${paramIndex + 1} RETURNING *`;
+        const result = await query(queryText, params);
+        
+        if (result.length === 0) {
+            return res.status(404).json({ error: 'Style not found' });
+        }
+        
+        res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Delete style by style_code and sku_code
+app.delete('/api/styles/:styleCode/:skuCode', checkAuth, hasPermission('products'), async (req, res) => {
+    try {
+        const { styleCode, skuCode } = req.params;
+        const result = await query(
+            'DELETE FROM styles WHERE style_code = $1 AND sku_code = $2 RETURNING *',
+            [styleCode, skuCode]
+        );
+        
+        if (result.length === 0) {
+            return res.status(404).json({ error: 'Style not found' });
+        }
+        
+        res.json({ success: true, deleted: result[0] });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Create new style
+app.post('/api/styles', checkAuth, hasPermission('products'), async (req, res) => {
+    try {
+        const { style_code, sku_code, item_name, category, metal_type, purity, mc_type, mc_value, hsn_code, description } = req.body;
+        
+        if (!style_code || !sku_code) {
+            return res.status(400).json({ error: 'style_code and sku_code are required' });
+        }
+        
+        const queryText = `INSERT INTO styles (
+            style_code, sku_code, item_name, category, metal_type, purity, mc_type, mc_value, hsn_code, description
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        RETURNING *`;
+        
+        const params = [
+            style_code, sku_code, item_name || null, category || null, metal_type || null,
+            purity || null, mc_type || null, mc_value || null, hsn_code || null, description || null
+        ];
+        
+        const result = await query(queryText, params);
+        res.json(result[0]);
+    } catch (error) {
+        if (error.message.includes('unique') || error.message.includes('duplicate')) {
+            return res.status(409).json({ error: 'Style with this style_code and sku_code already exists' });
+        }
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ==========================================
 // CUSTOMERS API
 // ==========================================
 
@@ -916,7 +1169,7 @@ app.delete('/api/customers/:id', checkAuth, hasPermission('customers'), async (r
 
 app.get('/api/quotations', checkAuth, hasPermission('quotations'), async (req, res) => {
     try {
-        const result = await query('SELECT * FROM quotations ORDER BY date DESC');
+        const result = await query('SELECT * FROM quotations WHERE is_deleted = false OR is_deleted IS NULL ORDER BY date DESC');
         res.json(result);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -976,9 +1229,10 @@ app.put('/api/quotations/:id', checkAuth, hasPermission('quotations'), async (re
 app.delete('/api/quotations/:id', checkAuth, hasPermission('quotations'), async (req, res) => {
     try {
         const { id } = req.params;
-        await query('DELETE FROM quotations WHERE id = $1', [id]);
+        // Soft delete: Set is_deleted = true instead of hard delete
+        await query('UPDATE quotations SET is_deleted = true, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [id]);
         broadcast('quotation-deleted', { id: parseInt(id) });
-        res.json({ success: true });
+        res.json({ success: true, message: 'Quotation deleted successfully' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

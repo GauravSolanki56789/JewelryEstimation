@@ -219,7 +219,7 @@
     <div id="globalLoader">
         <div class="loader-content">
             <div class="loader-spinner"></div>
-            <p class="loader-text" id="loaderText">Processing...</p>
+            <p class="loader-text" id="loaderText"></p>
         </div>
     </div>
     
@@ -332,7 +332,7 @@
         </div>
     </div>
 
-    <div id="app" class="max-w-7xl mx-auto p-4 pb-24 hidden">
+    <div id="app" class="max-w-7xl mx-auto p-4 pb-32 hidden">
         <!-- ============================================ -->
         <!-- HEADER - Grouped Navigation with Dropdowns -->
         <!-- ============================================ -->
@@ -567,9 +567,7 @@
             </div>
             <div class="col-span-4 flex gap-2 justify-end">
                 <button onclick="generateQuote()"
-                    class="px-3 py-1.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 font-bold">📄 Quote</button>
-                <button onclick="showCashReceiveModal()"
-                    class="px-3 py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 font-bold">💵 Cash</button>
+                    class="flex-1 px-3 py-1.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 font-bold">📄 Generate Quote</button>
                 <button onclick="clearAll()"
                     class="px-3 py-1.5 bg-gray-600 text-white text-xs rounded hover:bg-gray-700 font-bold">🗑️ Clear</button>
             </div>
@@ -1607,7 +1605,7 @@
         <!-- Filter Bar -->
         <div class="bg-gray-50 p-4 rounded-lg mb-4">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <input type="text" id="styleSearch" placeholder="🔍 Search style code or name..."
+                <input type="text" id="styleSearch" placeholder="🔍 Search by Style Code, SKU Code, or Name..."
                     oninput="filterStyles()" class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
                 <select id="styleCategoryFilter" onchange="filterStyles()" class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
                     <option value="">All Categories</option>
@@ -1638,6 +1636,7 @@
                 <thead class="bg-gradient-to-r from-amber-100 to-orange-100">
                     <tr>
                         <th class="px-4 py-3 text-left font-semibold text-gray-700">Style Code</th>
+                        <th class="px-4 py-3 text-left font-semibold text-gray-700">SKU Code</th>
                         <th class="px-4 py-3 text-left font-semibold text-gray-700">Item Name</th>
                         <th class="px-4 py-3 text-center font-semibold text-gray-700">Category</th>
                         <th class="px-4 py-3 text-center font-semibold text-gray-700">Metal</th>
@@ -1684,6 +1683,13 @@
                         class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 uppercase">
                 </div>
                 <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">SKU Code *</label>
+                    <input type="text" id="styleSkuCode" required placeholder="RING-001-SKU1"
+                        class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 uppercase">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Category</label>
                     <select id="styleCategory" class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500">
                         <option value="">Select Category</option>
@@ -1697,11 +1703,11 @@
                         <option value="Others">Others</option>
                     </select>
                 </div>
-            </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Item Name *</label>
-                <input type="text" id="styleItemName" required placeholder="Gold Ring Plain"
-                    class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Item/Product Name *</label>
+                    <input type="text" id="styleItemName" required placeholder="Gold Ring Plain"
+                        class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500">
+                </div>
             </div>
             <div class="grid grid-cols-2 gap-4 mb-4">
                 <div>
@@ -2642,12 +2648,34 @@
                 <input type="text" id="newBarcode" class="w-full px-3 py-2 border rounded-lg" required>
             </div>
             <div>
-                <label class="block text-sm font-medium mb-1">SKU</label>
-                <input type="text" id="newSku" class="w-full px-3 py-2 border rounded-lg">
+                <label class="block text-sm font-medium mb-1">Category</label>
+                <div class="relative">
+                    <input type="text" id="newCategory" list="categoryList" 
+                        class="w-full px-3 py-2 border rounded-lg" 
+                        placeholder="Select or type new category..."
+                        onchange="handleCategoryChange()">
+                    <datalist id="categoryList"></datalist>
+                </div>
             </div>
             <div>
                 <label class="block text-sm font-medium mb-1">Style Code</label>
-                <input type="text" id="newStyleCode" class="w-full px-3 py-2 border rounded-lg">
+                <div class="relative">
+                    <select id="newStyleCode" class="w-full px-3 py-2 border rounded-lg" onchange="handleStyleCodeChange()">
+                        <option value="">-- Select Style Code --</option>
+                    </select>
+                    <input type="text" id="newStyleCodeManual" class="w-full px-3 py-2 border rounded-lg mt-2 hidden" 
+                        placeholder="Or type manually..." onblur="handleStyleCodeManual()">
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium mb-1">SKU</label>
+                <div class="relative">
+                    <select id="newSku" class="w-full px-3 py-2 border rounded-lg" onchange="handleSKUChange()" disabled>
+                        <option value="">-- Select Style Code first --</option>
+                    </select>
+                    <input type="text" id="newSkuManual" class="w-full px-3 py-2 border rounded-lg mt-2 hidden" 
+                        placeholder="Or type manually..." onblur="handleSKUManual()">
+                </div>
             </div>
             <div>
                 <label class="block text-sm font-medium mb-1">Metal Type *</label>
@@ -2695,6 +2723,10 @@
             <div>
                 <label class="block text-sm font-medium mb-1">Stone Charges</label>
                 <input type="number" step="0.01" id="newStoneCharges" value="0" class="w-full px-3 py-2 border rounded-lg">
+            </div>
+            <div>
+                <label class="block text-sm font-medium mb-1">HSN Code</label>
+                <input type="text" id="newHSNCode" class="w-full px-3 py-2 border rounded-lg" placeholder="7113">
             </div>
             <div class="col-span-2 flex gap-3">
                 <button onclick="saveProduct()"
@@ -2886,6 +2918,74 @@
             </button>
             <button onclick="closeModals()"
                 class="w-full px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Payment Mode Modal (After Quote Generation) -->
+<div id="paymentModeModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
+    <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full pointer-events-auto"
+        onclick="event.stopPropagation()">
+        <h3 class="text-xl font-bold mb-4">💳 Payment Mode</h3>
+        
+        <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
+            <p class="text-sm text-blue-800 font-medium mb-2">📄 Quotation PDF Generated!</p>
+            <p class="text-xs text-blue-700">Select payment status for this quotation</p>
+        </div>
+        
+        <div class="space-y-3 mb-4">
+            <button onclick="handlePaymentMode('cash')"
+                class="w-full px-6 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-lg flex items-center justify-center gap-2">
+                <span>💵</span> Cash Received
+            </button>
+            
+            <button onclick="handlePaymentMode('online')"
+                class="w-full px-6 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-lg flex items-center justify-center gap-2">
+                <span>🌐</span> Online/RTGS
+            </button>
+            
+            <button onclick="handlePaymentMode('pending')"
+                class="w-full px-6 py-4 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 font-bold text-lg flex items-center justify-center gap-2">
+                <span>📋</span> Pending/Credit
+            </button>
+            
+            <button onclick="handlePaymentMode('cancel')"
+                class="w-full px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Payment Input Modal (for Cash/Online) -->
+<div id="paymentInputModal" class="fixed inset-0 flex items-center justify-center z-50 hidden pointer-events-none p-4">
+    <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full pointer-events-auto"
+        onclick="event.stopPropagation()">
+        <h3 class="text-xl font-bold mb-4" id="paymentInputTitle">Payment Details</h3>
+        
+        <div class="mb-4">
+            <label class="block text-sm font-medium mb-1" id="paymentInputLabel">Amount</label>
+            <input type="number" step="0.01" id="paymentInputAmount" 
+                class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
+                placeholder="Enter amount">
+        </div>
+        
+        <div class="mb-4" id="paymentRefNoContainer" style="display: none;">
+            <label class="block text-sm font-medium mb-1">Reference Number</label>
+            <input type="text" id="paymentRefNo" 
+                class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
+                placeholder="Enter reference number">
+        </div>
+        
+        <div class="flex gap-3">
+            <button onclick="confirmPaymentInput()"
+                class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">
+                Confirm
+            </button>
+            <button onclick="cancelPaymentInput()"
+                class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
                 Cancel
             </button>
         </div>
@@ -4047,6 +4147,48 @@
                 });
             },
             
+            // Styles API (Product Hierarchy)
+            async getStyles(category = null) {
+                if (category) {
+                    const params = `?category=${encodeURIComponent(category)}`;
+                    return this.request(`/styles${params}`);
+                }
+                // Return all styles with full details
+                return this.request('/styles/all');
+            },
+            
+            async getStyleCategories() {
+                return this.request('/styles/categories');
+            },
+            
+            async getStyleSKUs(styleCode) {
+                return this.request(`/styles/${encodeURIComponent(styleCode)}/skus`);
+            },
+            
+            async getStyleDetails(styleCode, skuCode) {
+                return this.request(`/styles/${encodeURIComponent(styleCode)}/${encodeURIComponent(skuCode)}`);
+            },
+            
+            async createStyle(style) {
+                return this.request('/styles', {
+                    method: 'POST',
+                    body: JSON.stringify(style),
+                });
+            },
+            
+            async updateStyle(styleCode, skuCode, style) {
+                return this.request(`/styles/${encodeURIComponent(styleCode)}/${encodeURIComponent(skuCode)}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(style),
+                });
+            },
+            
+            async deleteStyle(styleCode, skuCode) {
+                return this.request(`/styles/${encodeURIComponent(styleCode)}/${encodeURIComponent(skuCode)}`, {
+                    method: 'DELETE',
+                });
+            },
+            
             // Customers API
             async getCustomers() {
                 return this.request('/customers');
@@ -4510,7 +4652,9 @@ const STATIC_MODAL_IDS = [
     'reprintFormatModal',
     'cashEntryModal',
     'tallyConfigModal',
-    'bulkUpdateModal'
+    'bulkUpdateModal',
+    'paymentModeModal',
+    'paymentInputModal'
 ];
 
 function showDialog(title, message, type = 'info', callback = null) {
@@ -8508,12 +8652,183 @@ async function generateSalesBillPDF() {
                     alert('Stock Report Excel downloaded successfully!');
                 }
 
+        // Load categories and styles for Add Product modal
+        let styleCategories = [];
+        let styleCodes = [];
+        let currentStyleSKUs = [];
+        
+        async function loadStyleCategories() {
+            try {
+                styleCategories = await api.getStyleCategories();
+                const categoryList = document.getElementById('categoryList');
+                if (categoryList) {
+                    categoryList.innerHTML = '';
+                    styleCategories.forEach(cat => {
+                        const option = document.createElement('option');
+                        option.value = cat;
+                        categoryList.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading categories:', error);
+            }
+        }
+        
+        async function loadStyleCodes(category = null) {
+            try {
+                const styles = await api.getStyles(category);
+                styleCodes = [...new Set(styles.map(s => s.style_code))];
+                const styleSelect = document.getElementById('newStyleCode');
+                if (styleSelect) {
+                    const currentValue = styleSelect.value;
+                    styleSelect.innerHTML = '<option value="">-- Select Style Code --</option>';
+                    styleCodes.forEach(code => {
+                        const option = document.createElement('option');
+                        option.value = code;
+                        option.textContent = code;
+                        styleSelect.appendChild(option);
+                    });
+                    if (currentValue) styleSelect.value = currentValue;
+                }
+            } catch (error) {
+                console.error('Error loading style codes:', error);
+            }
+        }
+        
+        async function loadSKUsForStyle(styleCode) {
+            try {
+                if (!styleCode) {
+                    const skuSelect = document.getElementById('newSku');
+                    if (skuSelect) {
+                        skuSelect.innerHTML = '<option value="">-- Select Style Code first --</option>';
+                        skuSelect.disabled = true;
+                    }
+                    return;
+                }
+                
+                currentStyleSKUs = await api.getStyleSKUs(styleCode);
+                const skuSelect = document.getElementById('newSku');
+                if (skuSelect) {
+                    skuSelect.innerHTML = '<option value="">-- Select SKU --</option>';
+                    currentStyleSKUs.forEach(sku => {
+                        const option = document.createElement('option');
+                        option.value = sku.sku_code;
+                        option.textContent = `${sku.sku_code} - ${sku.item_name || ''}`;
+                        option.dataset.skuData = JSON.stringify(sku);
+                        skuSelect.appendChild(option);
+                    });
+                    skuSelect.disabled = false;
+                }
+            } catch (error) {
+                console.error('Error loading SKUs:', error);
+                const skuSelect = document.getElementById('newSku');
+                if (skuSelect) {
+                    skuSelect.disabled = false;
+                }
+            }
+        }
+        
+        function handleCategoryChange() {
+            const category = document.getElementById('newCategory').value.trim();
+            if (category) {
+                loadStyleCodes(category);
+            } else {
+                loadStyleCodes();
+            }
+        }
+        
+        async function handleStyleCodeChange() {
+            const styleSelect = document.getElementById('newStyleCode');
+            const styleManual = document.getElementById('newStyleCodeManual');
+            const styleCode = styleSelect.value;
+            
+            if (styleCode) {
+                styleManual.classList.add('hidden');
+                styleManual.value = '';
+                await loadSKUsForStyle(styleCode);
+            } else {
+                styleManual.classList.remove('hidden');
+            }
+        }
+        
+        function handleStyleCodeManual() {
+            const styleManual = document.getElementById('newStyleCodeManual');
+            const styleCode = styleManual.value.trim();
+            if (styleCode) {
+                loadSKUsForStyle(styleCode);
+            }
+        }
+        
+        async function handleSKUChange() {
+            const skuSelect = document.getElementById('newSku');
+            const skuManual = document.getElementById('newSkuManual');
+            const skuCode = skuSelect.value;
+            
+            if (skuCode) {
+                skuManual.classList.add('hidden');
+                skuManual.value = '';
+                
+                // Auto-fill from selected SKU
+                const selectedOption = skuSelect.options[skuSelect.selectedIndex];
+                if (selectedOption.dataset.skuData) {
+                    const skuData = JSON.parse(selectedOption.dataset.skuData);
+                    const styleCode = document.getElementById('newStyleCode').value || document.getElementById('newStyleCodeManual').value;
+                    
+                    // Try to get full style details
+                    try {
+                        const styleDetails = await api.getStyleDetails(styleCode, skuCode);
+                        if (styleDetails) {
+                            document.getElementById('newShortName').value = styleDetails.item_name || '';
+                            document.getElementById('newMetalType').value = styleDetails.metal_type || 'gold';
+                            document.getElementById('newPurity').value = styleDetails.purity || '100';
+                            document.getElementById('newMcType').value = styleDetails.mc_type === 'PER_GRAM' ? 'MC/GM' : (styleDetails.mc_type === 'FIXED' ? 'PieceCost' : 'MC/GM');
+                            document.getElementById('newMcRate').value = styleDetails.mc_value || '0';
+                            document.getElementById('newHSNCode').value = styleDetails.hsn_code || '7113';
+                        }
+                    } catch (error) {
+                        // Fallback to SKU data
+                        if (skuData.item_name) document.getElementById('newShortName').value = skuData.item_name;
+                        if (skuData.metal_type) document.getElementById('newMetalType').value = skuData.metal_type;
+                        if (skuData.purity) document.getElementById('newPurity').value = skuData.purity;
+                        if (skuData.mc_type) document.getElementById('newMcType').value = skuData.mc_type === 'PER_GRAM' ? 'MC/GM' : (skuData.mc_type === 'FIXED' ? 'PieceCost' : 'MC/GM');
+                        if (skuData.mc_value) document.getElementById('newMcRate').value = skuData.mc_value;
+                        if (skuData.hsn_code) document.getElementById('newHSNCode').value = skuData.hsn_code;
+                    }
+                }
+            } else {
+                skuManual.classList.remove('hidden');
+            }
+        }
+        
+        function handleSKUManual() {
+            // Allow manual entry, no auto-fill
+        }
+        
         function showAddProductModal() {
             document.getElementById('productModalTitle').textContent = 'Add New Product';
             document.getElementById('editProductIndex').value = '';
             document.getElementById('newBarcode').value = '';
             document.getElementById('newSku').value = '';
             document.getElementById('newStyleCode').value = '';
+            document.getElementById('newStyleCodeManual').value = '';
+            document.getElementById('newSkuManual').value = '';
+            document.getElementById('newCategory').value = '';
+            document.getElementById('newHSNCode').value = '';
+            
+            // Load categories and styles
+            loadStyleCategories();
+            loadStyleCodes();
+            
+            // Reset dropdowns
+            const skuSelect = document.getElementById('newSku');
+            if (skuSelect) {
+                skuSelect.innerHTML = '<option value="">-- Select Style Code first --</option>';
+                skuSelect.disabled = true;
+            }
+            const styleManual = document.getElementById('newStyleCodeManual');
+            const skuManual = document.getElementById('newSkuManual');
+            if (styleManual) styleManual.classList.add('hidden');
+            if (skuManual) skuManual.classList.add('hidden');
             document.getElementById('newShortName').value = '';
             document.getElementById('newSize').value = '';
             document.getElementById('newAvgWt').value = '';
@@ -8571,53 +8886,64 @@ async function saveProduct() {
         return;
     }
     
-    const product = {
-        barcode: document.getElementById('newBarcode').value.trim(),
-        sku: document.getElementById('newSku').value.trim(),
-        styleCode: document.getElementById('newStyleCode').value.trim(),
-        shortName: document.getElementById('newShortName').value.trim(),
-        itemName: document.getElementById('newShortName').value.trim(), // Same as shortName for now
-        size: document.getElementById('newSize').value.trim(),
-        weight: parseFloat(document.getElementById('newAvgWt').value) || 0,
-        avgWt: parseFloat(document.getElementById('newAvgWt').value) || 0,
-        purity: parseFloat(document.getElementById('newPurity').value) || 100,
-        rate: parseFloat(rates[document.getElementById('newMetalType').value] || 0),
-        mcRate: parseFloat(document.getElementById('newMcRate').value) || 0,
-        mcType: document.getElementById('newMcType').value,
-        pcs: parseInt(document.getElementById('newPcs').value) || 1,
-        boxCharges: parseFloat(document.getElementById('newBoxCharges').value) || 0,
-        stoneCharges: parseFloat(document.getElementById('newStoneCharges').value) || 0,
-        metalType: document.getElementById('newMetalType').value,
-        floor: 'Main Floor', // Default floor
-        isSold: false
-    };
-    
-    if (!product.barcode || !product.shortName) {
-        showDialog('Error', 'Please fill Barcode and Product Name', 'error');
-        return;
-    }
-    
-    // Check for duplicate barcode in local products array (quick check)
-    const editIndex = document.getElementById('editProductIndex').value;
-    const isNewProduct = editIndex === '';
-    
-    if (isNewProduct) {
-        const existingProduct = products.find(p => p.barcode === product.barcode);
-        if (existingProduct) {
-            showDialog('Error', `Product with barcode ${product.barcode} already exists!`, 'error');
-            return;
-        }
-    }
-    
-    // Disable save button and set flag
+    // Disable save button IMMEDIATELY on click to prevent double submissions
     isSavingProduct = true;
     const saveButton = document.querySelector('#addProductModal button[onclick="saveProduct()"]');
+    const originalButtonText = saveButton ? saveButton.textContent : '';
     if (saveButton) {
         saveButton.disabled = true;
         saveButton.textContent = 'Saving...';
     }
     
     try {
+        // Get style code and SKU (from dropdown or manual input)
+        const styleCodeSelect = document.getElementById('newStyleCode').value.trim();
+        const styleCodeManual = document.getElementById('newStyleCodeManual').value.trim();
+        const styleCode = styleCodeSelect || styleCodeManual;
+        
+        const skuSelect = document.getElementById('newSku').value.trim();
+        const skuManual = document.getElementById('newSkuManual').value.trim();
+        const sku = skuSelect || skuManual;
+        
+        const product = {
+            barcode: document.getElementById('newBarcode').value.trim(),
+            sku: sku,
+            styleCode: styleCode,
+            shortName: document.getElementById('newShortName').value.trim(),
+            itemName: document.getElementById('newShortName').value.trim(), // Same as shortName for now
+            size: document.getElementById('newSize').value.trim(),
+            weight: parseFloat(document.getElementById('newAvgWt').value) || 0,
+            avgWt: parseFloat(document.getElementById('newAvgWt').value) || 0,
+            purity: parseFloat(document.getElementById('newPurity').value) || 100,
+            rate: parseFloat(rates[document.getElementById('newMetalType').value] || 0),
+            mcRate: parseFloat(document.getElementById('newMcRate').value) || 0,
+            mcType: document.getElementById('newMcType').value,
+            pcs: parseInt(document.getElementById('newPcs').value) || 1,
+            boxCharges: parseFloat(document.getElementById('newBoxCharges').value) || 0,
+            stoneCharges: parseFloat(document.getElementById('newStoneCharges').value) || 0,
+            metalType: document.getElementById('newMetalType').value,
+            hsnCode: document.getElementById('newHSNCode').value.trim() || '7113',
+            floor: 'Main Floor', // Default floor
+            isSold: false
+        };
+        
+        if (!product.barcode || !product.shortName) {
+            showDialog('Error', 'Please fill Barcode and Product Name', 'error');
+            return;
+        }
+        
+        // Check for duplicate barcode in local products array (quick check)
+        const editIndex = document.getElementById('editProductIndex').value;
+        const isNewProduct = editIndex === '';
+        
+        if (isNewProduct) {
+            const existingProduct = products.find(p => p.barcode === product.barcode);
+            if (existingProduct) {
+                showDialog('Error', `Product with barcode ${product.barcode} already exists!`, 'error');
+                return;
+            }
+        }
+        
         let savedProduct;
         
         if (editIndex !== '') {
@@ -8673,11 +8999,11 @@ async function saveProduct() {
         }
         // No localStorage fallback - errors are shown to user
     } finally {
-        // Re-enable save button
+        // Re-enable save button only if API call failed (validation errors return early)
         isSavingProduct = false;
         if (saveButton) {
             saveButton.disabled = false;
-            saveButton.textContent = '💾 Save Product';
+            saveButton.textContent = originalButtonText || '💾 Save Product';
         }
     }
 }
@@ -9944,122 +10270,474 @@ function updateMCTypeLabel() {
                     if (mobileTotalWeight) mobileTotalWeight.textContent = totalWeight.toFixed(2);
                 }
             
-                function generateQuote() {
-    if (items.length === 0) {
-        alert('Please add items first');
-        return;
-    }
-    if (!currentCustomer) {
-        alert('Please select a customer first');
-        return;
-    }
-    // Show format selection modal with payment option
-    document.getElementById('modalOverlay').classList.remove('hidden');
-    document.getElementById('modalOverlay').classList.add('flex');
-    document.getElementById('quotationFormatModal').classList.remove('hidden');
-}
+                // Store current quotation data for payment modal
+                let currentQuotationData = null;
+                
+                async function generateQuote() {
+                    if (items.length === 0) {
+                        alert('Please add items first');
+                        return;
+                    }
+                    if (!currentCustomer) {
+                        alert('Please select a customer first');
+                        return;
+                    }
+                    
+                    // Step A: Generate & Download PDF immediately
+                    await generateQuotePDF();
+                    
+                    // Step B: Open Payment Mode Modal
+                    showPaymentModeModal();
+                }
+                
+                async function generateQuotePDF() {
+                    // Calculate totals
+                    const total = items.reduce((sum, item) => sum + item.amount, 0);
+                    const gst = total * 0.03;
+                    const netTotal = total + gst;
+                    const discount = window.cashReceiveDiscount || 0;
+                    const advance = window.cashReceiveAdvance || 0;
+                    const finalAmount = netTotal - discount + advance;
+                    
+                    // Generate quotation number
+                    const quotationNo = `Q${String(quotationCounter).padStart(4, '0')}`;
+                    
+                    // Store quotation data for payment modal
+                    currentQuotationData = {
+                        quotationNo,
+                        total,
+                        gst,
+                        netTotal,
+                        discount,
+                        advance,
+                        finalAmount,
+                        items: items.map(item => ({
+                            ...item,
+                            barcode: item.barcode || null
+                        })),
+                        customer: {
+                            id: currentCustomer.id,
+                            name: currentCustomer.name,
+                            mobile: currentCustomer.mobile
+                        }
+                    };
+                    
+                    // Generate PDF using jsPDF
+                    const { jsPDF } = window.jspdf;
+                    const doc = new jsPDF('p', 'mm', 'a4');
+                    
+                    const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
+                    const totalMC = items.reduce((sum, item) => {
+                        const mcAmount = item.mcType === 'PieceCost' ? item.mcRate : (item.mcRate * item.weight);
+                        return sum + mcAmount;
+                    }, 0);
+                    const date = new Date().toLocaleDateString('en-GB');
+                    const formattedDate = date.replace(/\//g, '-');
+                    
+                    // Customer info
+                    doc.setFontSize(9);
+                    doc.setFont(undefined, 'normal');
+                    doc.text('To:', 15, 15);
+                    
+                    doc.setFont(undefined, 'bold');
+                    doc.setFontSize(10);
+                    doc.text(currentCustomer.name.toUpperCase(), 15, 20);
+                    
+                    doc.setFontSize(8);
+                    doc.setFont(undefined, 'normal');
+                    let yPos = 24;
+                    if (currentCustomer.address1) {
+                        doc.text(currentCustomer.address1, 15, yPos);
+                        yPos += 4;
+                    }
+                    if (currentCustomer.address2) {
+                        doc.text(currentCustomer.address2, 15, yPos);
+                        yPos += 4;
+                    }
+                    if (currentCustomer.city) {
+                        doc.text(currentCustomer.city, 15, yPos);
+                        yPos += 4;
+                    }
+                    doc.text(`Mob: ${currentCustomer.mobile}`, 15, yPos);
+                    
+                    // Quotation details header
+                    doc.setFontSize(10);
+                    doc.setFont(undefined, 'bold');
+                    doc.text(`Quotation No: ${quotationNo}`, 150, 15);
+                    doc.setFont(undefined, 'normal');
+                    doc.setFontSize(9);
+                    doc.text(`Date: ${date}`, 150, 20);
+                    
+                    // Table start position
+                    const tableStartY = yPos + 10;
+                    
+                    // Prepare table data
+                    const tableData = items.map((item, idx) => {
+                        const mcAmount = item.mcType === 'PieceCost' ? item.mcRate : (item.mcRate * item.weight);
+                        const baseAmount = (item.rate * item.weight) + mcAmount;
+                        const itemTotal = baseAmount + (item.boxCharges || 0) + (item.stoneCharges || 0);
+                        const avgWt = item.avgWt || item.weight;
+                        const pcs = item.pcs || 1;
+                        const purity = item.purity || 100;
+                        
+                        return [
+                            idx + 1,
+                            item.sku || '-',
+                            item.styleCode || '-',
+                            item.shortName || item.name || '-',
+                            item.size || '-',
+                            pcs,
+                            item.weight.toFixed(2),
+                            item.weight.toFixed(2),
+                            purity.toFixed(0),
+                            purity.toFixed(1),
+                            avgWt.toFixed(2),
+                            (item.boxCharges || 0).toFixed(0),
+                            item.mcRate.toFixed(2),
+                            item.rate.toFixed(2),
+                            itemTotal.toFixed(2)
+                        ];
+                    });
+                    
+                    // Generate table
+                    doc.autoTable({
+                        startY: tableStartY,
+                        head: [[
+                            'SKU #', 'ITEM', 'STYLE CODE', 'Short Name', 'SIZE', 'PCS',
+                            'G.WT', 'NET.WT', '%', 'Purs', 'AVG.WT', 'Box', 'MC/gm', 'RATE', 'Amount'
+                        ]],
+                        body: tableData,
+                        theme: 'grid',
+                        headStyles: {
+                            fillColor: [211, 211, 211],
+                            textColor: 0,
+                            fontSize: 7,
+                            fontStyle: 'bold',
+                            halign: 'center',
+                            valign: 'middle',
+                            cellPadding: 1.5
+                        },
+                        bodyStyles: {
+                            fontSize: 7,
+                            cellPadding: 1,
+                            valign: 'middle'
+                        },
+                        columnStyles: {
+                            0: { cellWidth: 8, halign: 'center' },
+                            1: { cellWidth: 18, halign: 'left', fontSize: 6.5 },
+                            2: { cellWidth: 16, halign: 'center', fontSize: 6.5 },
+                            3: { cellWidth: 20, halign: 'left', fontSize: 6.5 },
+                            4: { cellWidth: 10, halign: 'center' },
+                            5: { cellWidth: 8, halign: 'center' },
+                            6: { cellWidth: 12, halign: 'right' },
+                            7: { cellWidth: 12, halign: 'right' },
+                            8: { cellWidth: 8, halign: 'center' },
+                            9: { cellWidth: 10, halign: 'right' },
+                            10: { cellWidth: 12, halign: 'right' },
+                            11: { cellWidth: 10, halign: 'right' },
+                            12: { cellWidth: 12, halign: 'right' },
+                            13: { cellWidth: 12, halign: 'right' },
+                            14: { cellWidth: 15, halign: 'right' }
+                        }
+                    });
+                    
+                    const finalY = doc.lastAutoTable.finalY || tableStartY + 50;
+                    
+                    // Totals
+                    doc.setFont(undefined, 'bold');
+                    doc.text(`TOTAL ${total.toFixed(2)}`, 195, finalY + 5, { align: 'right' });
+                    doc.text(`GST (3%) ${gst.toFixed(2)}`, 195, finalY + 10, { align: 'right' });
+                    doc.text(`NET TOTAL ${netTotal.toFixed(2)}`, 195, finalY + 15, { align: 'right' });
+                    
+                    if (discount > 0) {
+                        doc.setTextColor(220, 53, 69);
+                        doc.text(`DISCOUNT: -${discount.toFixed(2)}`, 195, finalY + 20, { align: 'right' });
+                        doc.setTextColor(0, 0, 0);
+                    }
+                    
+                    if (advance > 0) {
+                        doc.setTextColor(0, 123, 255);
+                        doc.text(`ADVANCE: +${advance.toFixed(2)}`, 195, finalY + 25, { align: 'right' });
+                        doc.setTextColor(0, 0, 0);
+                    }
+                    
+                    doc.setFont(undefined, 'bold');
+                    doc.setTextColor(0, 128, 0);
+                    doc.text(`FINAL AMOUNT: ${finalAmount.toFixed(2)}`, 195, finalY + 30, { align: 'right' });
+                    doc.setTextColor(0, 0, 0);
+                    
+                    // Footer
+                    doc.setFontSize(7);
+                    doc.setFont(undefined, 'normal');
+                    doc.text('PREPAIRED BY', 15, finalY + 35);
+                    doc.text('COUNT BY', 80, finalY + 35);
+                    doc.text('CHECKED BY', 145, finalY + 35);
+                    
+                    // Save PDF directly (fixes mobile blocking issue)
+                    doc.save(`Quote_${quotationNo}_${formattedDate}.pdf`);
+                }
+                
+                function showPaymentModeModal() {
+                    document.getElementById('modalOverlay').classList.remove('hidden');
+                    document.getElementById('modalOverlay').classList.add('flex');
+                    document.getElementById('paymentModeModal').classList.remove('hidden');
+                }
+                
+                let currentPaymentMode = null;
+                
+                function handlePaymentMode(mode) {
+                    currentPaymentMode = mode;
+                    
+                    if (mode === 'cancel') {
+                        closeModals();
+                        return;
+                    }
+                    
+                    if (mode === 'cash' || mode === 'online') {
+                        // Show input modal
+                        const title = mode === 'cash' ? '💵 Cash Received' : '🌐 Online/RTGS Payment';
+                        const label = mode === 'cash' ? 'Amount Received' : 'Amount';
+                        document.getElementById('paymentInputTitle').textContent = title;
+                        document.getElementById('paymentInputLabel').textContent = label;
+                        document.getElementById('paymentInputAmount').value = currentQuotationData.finalAmount.toFixed(2);
+                        
+                        if (mode === 'online') {
+                            document.getElementById('paymentRefNoContainer').style.display = 'block';
+                            document.getElementById('paymentRefNo').value = '';
+                        } else {
+                            document.getElementById('paymentRefNoContainer').style.display = 'none';
+                        }
+                        
+                        document.getElementById('paymentModeModal').classList.add('hidden');
+                        document.getElementById('paymentInputModal').classList.remove('hidden');
+                    } else if (mode === 'pending') {
+                        // Save as pending/credit
+                        saveQuotationWithPayment('pending', null, null);
+                    }
+                }
+                
+                async function confirmPaymentInput() {
+                    const amount = parseFloat(document.getElementById('paymentInputAmount').value);
+                    const refNo = currentPaymentMode === 'online' ? document.getElementById('paymentRefNo').value.trim() : null;
+                    
+                    if (!amount || amount <= 0) {
+                        alert('Please enter a valid amount');
+                        return;
+                    }
+                    
+                    if (currentPaymentMode === 'online' && !refNo) {
+                        alert('Please enter reference number');
+                        return;
+                    }
+                    
+                    // Save as sold
+                    await saveQuotationWithPayment(currentPaymentMode, amount, refNo);
+                }
+                
+                function cancelPaymentInput() {
+                    document.getElementById('paymentInputModal').classList.add('hidden');
+                    showPaymentModeModal();
+                }
+                
+                async function saveQuotationWithPayment(paymentMode, amount, refNo) {
+                    if (!currentQuotationData) {
+                        alert('Error: Quotation data not found');
+                        return;
+                    }
+                    
+                    const isSold = paymentMode === 'cash' || paymentMode === 'online';
+                    const paymentStatus = isSold ? 'paid' : 'pending';
+                    
+                    try {
+                        // Save quotation to database
+                        const savedQuotation = await api.createQuotation({
+                            quotationNo: currentQuotationData.quotationNo,
+                            customerId: currentQuotationData.customer.id,
+                            customerName: currentQuotationData.customer.name,
+                            customerMobile: currentQuotationData.customer.mobile,
+                            items: currentQuotationData.items,
+                            total: currentQuotationData.total,
+                            gst: currentQuotationData.gst,
+                            netTotal: currentQuotationData.netTotal,
+                            discount: currentQuotationData.discount,
+                            advance: currentQuotationData.advance,
+                            finalAmount: currentQuotationData.finalAmount,
+                            paymentStatus: paymentStatus,
+                            remarks: paymentMode === 'online' ? `Ref: ${refNo}` : ''
+                        });
+                        
+                        // If cash/online received, record in ledger
+                        if (isSold && amount) {
+                            await recordLedgerTransaction(transactionTypes.CASH_IN, {
+                                quotationNo: currentQuotationData.quotationNo,
+                                customerName: currentQuotationData.customer.name,
+                                customerMobile: currentQuotationData.customer.mobile,
+                                amount: amount,
+                                description: `Payment received for Quotation ${currentQuotationData.quotationNo} - ${currentQuotationData.customer.name}${refNo ? ` (Ref: ${refNo})` : ''}`,
+                                category: 'Sales Revenue',
+                                paymentMethod: paymentMode === 'cash' ? 'Cash' : 'Online',
+                                reference: currentQuotationData.quotationNo
+                            });
+                            
+                            accountBalances.cash += amount;
+                            setCachedItem('accountBalances', accountBalances);
+                        }
+                        
+                        // Update quotation counter
+                        quotationCounter++;
+                        const nextQuotationNumber = getNextQuotationNumber();
+                        document.getElementById('quotationNo').textContent = `Quotation No: Q${String(nextQuotationNumber).padStart(4, '0')}`;
+                        
+                        // Clear items
+                        items = [];
+                        updateItemsTable();
+                        updateSummary();
+                        
+                        closeModals();
+                        
+                        // Show success message
+                        if (isSold) {
+                            alert(`✅ Quotation ${currentQuotationData.quotationNo} saved as SOLD!\n\nAmount: ₹${amount.toFixed(2)}${refNo ? `\nRef: ${refNo}` : ''}\n\n💵 Payment recorded in Accounts Ledger`);
+                        } else {
+                            alert(`✅ Quotation ${currentQuotationData.quotationNo} saved as PENDING!\n\nAmount: ₹${currentQuotationData.finalAmount.toFixed(2)}\n\n📋 Payment pending - Customer can pay later`);
+                        }
+                        
+                        // Reload quotations
+                        await loadQuotations();
+                        
+                        // Update dashboard if on ledger tab
+                        if (!document.getElementById('ledgerTab').classList.contains('hidden')) {
+                            updateLedgerDashboard();
+                        }
+                        
+                        currentQuotationData = null;
+                    } catch (error) {
+                        console.error('Error saving quotation:', error);
+                        alert('Failed to save quotation: ' + (error.message || 'Unknown error'));
+                    }
+                }
 
     async function generateQuotePDFWithPayment() {
+        // Disable save button IMMEDIATELY on click to prevent double submissions
+        const saveQuotationButton = document.querySelector('button[onclick="generateQuotePDFWithPayment()"]');
+        const originalButtonText = saveQuotationButton ? saveQuotationButton.textContent : '';
+        const originalButtonDisabled = saveQuotationButton ? saveQuotationButton.disabled : false;
+        
+        if (saveQuotationButton) {
+            saveQuotationButton.disabled = true;
+            saveQuotationButton.textContent = 'Saving...';
+        }
+        
         // Verify modal elements exist
         if (!document.getElementById('paymentCash') && !document.getElementById('paymentCredit')) {
             alert('⚠️ Payment option modal not properly loaded. Please try again.');
+            // Re-enable button on validation error
+            if (saveQuotationButton) {
+                saveQuotationButton.disabled = originalButtonDisabled;
+                saveQuotationButton.textContent = originalButtonText || '📕 Generate Quotation';
+            }
             return;
         }
-            const paymentOptionElement = document.querySelector('input[name="paymentOption"]:checked');
+        const paymentOptionElement = document.querySelector('input[name="paymentOption"]:checked');
 
-            // SAFETY CHECK
-            if (!paymentOptionElement) {
-                alert('⚠️ Please select a payment option (Cash or Credit)');
-                return;
+        // SAFETY CHECK
+        if (!paymentOptionElement) {
+            alert('⚠️ Please select a payment option (Cash or Credit)');
+            // Re-enable button on validation error
+            if (saveQuotationButton) {
+                saveQuotationButton.disabled = originalButtonDisabled;
+                saveQuotationButton.textContent = originalButtonText || '📕 Generate Quotation';
             }
+            return;
+        }
 
-            const paymentOption = paymentOptionElement.value;
+        const paymentOption = paymentOptionElement.value;
     
-    const isCashReceived = paymentOption === 'cash';
-    
-    // Calculate totals
-    const total = items.reduce((sum, item) => sum + item.amount, 0);
-    const gst = total * 0.03;
-    const netTotal = total + gst;
-    const discount = window.cashReceiveDiscount || 0;
-    const advance = window.cashReceiveAdvance || 0;
-    const finalAmount = netTotal - discount + advance;
-    // Check if we're editing an existing quotation
-    const isEditing = window.editingQuotationId !== undefined && window.editingQuotationId !== null;
-    let quotationNo;
-    let quotationRecord;
-    let existingQuotation = null;
-    
-    if (isEditing) {
-        // Find the existing quotation
-        existingQuotation = savedQuotations.find(q => q.id === window.editingQuotationId || q.dbId === window.editingQuotationId);
-        if (existingQuotation) {
-            quotationNo = existingQuotation.quotationNo; // Keep the same quotation number
-            quotationRecord = {
-                id: existingQuotation.id,
-                dbId: existingQuotation.dbId,
-                quotationNo: quotationNo,
-            };
+        const isCashReceived = paymentOption === 'cash';
+        
+        // Calculate totals
+        const total = items.reduce((sum, item) => sum + item.amount, 0);
+        const gst = total * 0.03;
+        const netTotal = total + gst;
+        const discount = window.cashReceiveDiscount || 0;
+        const advance = window.cashReceiveAdvance || 0;
+        const finalAmount = netTotal - discount + advance;
+        // Check if we're editing an existing quotation
+        const isEditing = window.editingQuotationId !== undefined && window.editingQuotationId !== null;
+        let quotationNo;
+        let quotationRecord;
+        let existingQuotation = null;
+        
+        if (isEditing) {
+            // Find the existing quotation
+            existingQuotation = savedQuotations.find(q => q.id === window.editingQuotationId || q.dbId === window.editingQuotationId);
+            if (existingQuotation) {
+                quotationNo = existingQuotation.quotationNo; // Keep the same quotation number
+                quotationRecord = {
+                    id: existingQuotation.id,
+                    dbId: existingQuotation.dbId,
+                    quotationNo: quotationNo,
+                };
+            } else {
+                // Fallback if quotation not found
+                quotationNo = `Q${String(quotationCounter).padStart(4, '0')}`;
+                quotationRecord = {
+                    id: Date.now(),
+                    quotationNo: quotationNo,
+                };
+            }
         } else {
-            // Fallback if quotation not found
             quotationNo = `Q${String(quotationCounter).padStart(4, '0')}`;
             quotationRecord = {
                 id: Date.now(),
                 quotationNo: quotationNo,
             };
         }
-    } else {
-        quotationNo = `Q${String(quotationCounter).padStart(4, '0')}`;
-        quotationRecord = {
-            id: Date.now(),
-            quotationNo: quotationNo,
-        };
-    }
 
-    // Complete the quotation record
-    Object.assign(quotationRecord, {
-        date: new Date().toISOString(),
-        customer: {
-            name: currentCustomer.name,
-            address1: currentCustomer.address1,
-            address2: currentCustomer.address2,
-            city: currentCustomer.city,
-            mobile: currentCustomer.mobile
-        },
-        items: items.map(item => ({
-            ...item,
-            barcode: item.barcode || null
-        })),
-        total: total,
-        gst: gst,
-        netTotal: netTotal,
-        discount: discount,
-        advance: advance,
-        finalAmount: finalAmount,
-        rateSlab: currentRateSlab,
-        isBilled: existingQuotation ? existingQuotation.isBilled : false,
-        paymentReceived: isCashReceived,
-        paymentDate: isCashReceived ? new Date().toISOString() : null
-    });
+        // Complete the quotation record
+        Object.assign(quotationRecord, {
+            date: new Date().toISOString(),
+            customer: {
+                name: currentCustomer.name,
+                address1: currentCustomer.address1,
+                address2: currentCustomer.address2,
+                city: currentCustomer.city,
+                mobile: currentCustomer.mobile
+            },
+            items: items.map(item => ({
+                ...item,
+                barcode: item.barcode || null
+            })),
+            total: total,
+            gst: gst,
+            netTotal: netTotal,
+            discount: discount,
+            advance: advance,
+            finalAmount: finalAmount,
+            rateSlab: currentRateSlab,
+            isBilled: existingQuotation ? existingQuotation.isBilled : false,
+            paymentReceived: isCashReceived,
+            paymentDate: isCashReceived ? new Date().toISOString() : null
+        });
 
-    // Update or add quotation
-    if (isEditing && existingQuotation) {
-        // Update existing quotation in array
-        const index = savedQuotations.findIndex(q => q.id === window.editingQuotationId || q.dbId === window.editingQuotationId);
-        if (index >= 0) {
-            savedQuotations[index] = quotationRecord;
+        // Update or add quotation
+        if (isEditing && existingQuotation) {
+            // Update existing quotation in array
+            const index = savedQuotations.findIndex(q => q.id === window.editingQuotationId || q.dbId === window.editingQuotationId);
+            if (index >= 0) {
+                savedQuotations[index] = quotationRecord;
+            }
+            // Clear editing flag
+            window.editingQuotationId = null;
+        } else {
+            // Add new quotation
+            savedQuotations.unshift(quotationRecord);
+            quotationCounter++;
         }
-        // Clear editing flag
-        window.editingQuotationId = null;
-    } else {
-        // Add new quotation
-        savedQuotations.unshift(quotationRecord);
-        quotationCounter++;
-    }
-    setCachedItem('savedQuotations', savedQuotations);
+        setCachedItem('savedQuotations', savedQuotations);
 
-    // Save quotation to API
-    try {
+        // Save quotation to API
+        try {
         const customerId = currentCustomer && currentCustomer.id ? currentCustomer.id : null;
         
         if (isEditing && quotationRecord.dbId) {
@@ -10123,6 +10801,19 @@ function updateMCTypeLabel() {
         }
     } catch (error) {
         console.error('Failed to save quotation to API:', error);
+        showDialog('Error', 'Failed to save quotation: ' + (error.message || 'Unknown error'), 'error');
+        // Re-enable button on API error
+        if (saveQuotationButton) {
+            saveQuotationButton.disabled = originalButtonDisabled;
+            saveQuotationButton.textContent = originalButtonText || '📕 Generate Quotation';
+        }
+        return; // Exit early on API error
+    } finally {
+        // Re-enable save button after everything is complete
+        if (saveQuotationButton) {
+            saveQuotationButton.disabled = originalButtonDisabled;
+            saveQuotationButton.textContent = originalButtonText || '📕 Generate Quotation';
+        }
     }
     
     // Clear items after saving quotation
@@ -10401,7 +11092,7 @@ function updateMCTypeLabel() {
     clearAll();
 }
     
-               function clearAll() {
+function clearAll() {
                     if (items.length === 0 || confirm('Clear all items from bill?')) {
                         // Force clear the items array
                         items = [];
@@ -11476,10 +12167,16 @@ function updateMCTypeLabel() {
                             }
 
                             async function deleteQuotation(id) {
-                                if (!confirm('Are you sure you want to delete this quotation?')) return;
-
                                 const quotation = savedQuotations.find(q => q.id === id);
-                                if (!quotation) return;
+                                if (!quotation) {
+                                    showDialog('Error', 'Quotation not found', 'error');
+                                    return;
+                                }
+
+                                // Show confirmation with quotation number
+                                if (!confirm(`Are you sure you want to delete Quote #${quotation.quotationNo}?\n\nThis action cannot be undone.`)) {
+                                    return;
+                                }
 
                                 // Delete from API if has database ID
                                 if (quotation.dbId) {
@@ -11487,6 +12184,8 @@ function updateMCTypeLabel() {
                                         await api.deleteQuotation(quotation.dbId);
                                     } catch (error) {
                                         console.error('Failed to delete quotation from API:', error);
+                                        showDialog('Error', 'Failed to delete quotation: ' + (error.message || 'Unknown error'), 'error');
+                                        return;
                                     }
                                 }
 
@@ -15557,24 +16256,25 @@ let filteredStyles = [];
 
 async function loadStyles() {
     try {
-        const response = await fetch('/api/styles');
-        if (response.ok) {
-            allStyles = await response.json();
-            filteredStyles = [...allStyles];
-            updateStylesTable();
-            updateStyleCategorySummary();
-        }
+        // Use the API helper to load all styles
+        allStyles = await api.getStyles();
+        filteredStyles = [...allStyles];
+        updateStylesTable();
+        updateStyleCategorySummary();
     } catch (error) {
         console.error('Error loading styles:', error);
+        showDialog('Error', 'Failed to load styles', 'error');
     }
 }
 
 function updateStyleCategorySummary() {
-    document.getElementById('styleTotalCount').textContent = allStyles.filter(s => s.is_active !== false).length;
-    document.getElementById('styleRingsCount').textContent = allStyles.filter(s => s.category === 'Rings' && s.is_active !== false).length;
-    document.getElementById('styleChainsCount').textContent = allStyles.filter(s => s.category === 'Chains' && s.is_active !== false).length;
-    document.getElementById('styleBanglesCount').textContent = allStyles.filter(s => s.category === 'Bangles' && s.is_active !== false).length;
-    document.getElementById('styleEarringsCount').textContent = allStyles.filter(s => s.category === 'Earrings' && s.is_active !== false).length;
+    // Count active styles (assuming is_active field exists, or count all if not)
+    const activeStyles = allStyles.filter(s => s.is_active !== false && s.is_active !== null);
+    document.getElementById('styleTotalCount').textContent = activeStyles.length;
+    document.getElementById('styleRingsCount').textContent = activeStyles.filter(s => s.category === 'Rings').length;
+    document.getElementById('styleChainsCount').textContent = activeStyles.filter(s => s.category === 'Chains').length;
+    document.getElementById('styleBanglesCount').textContent = activeStyles.filter(s => s.category === 'Bangles').length;
+    document.getElementById('styleEarringsCount').textContent = activeStyles.filter(s => s.category === 'Earrings').length;
 }
 
 function filterStylesByCategory(category) {
@@ -15591,9 +16291,10 @@ function filterStyles() {
     filteredStyles = allStyles.filter(style => {
         const matchSearch = !search || 
             style.style_code?.toLowerCase().includes(search) || 
+            style.sku_code?.toLowerCase().includes(search) ||
             style.item_name?.toLowerCase().includes(search);
         const matchCategory = !category || style.category === category;
-        const matchMC = !mcType || style.default_mc_type === mcType;
+        const matchMC = !mcType || style.mc_type === mcType;
         const matchStatus = status === 'all' || (status === 'active' && style.is_active !== false);
         
         return matchSearch && matchCategory && matchMC && matchStatus;
@@ -15616,19 +16317,20 @@ function updateStylesTable() {
     
     tbody.innerHTML = filteredStyles.map(style => `
         <tr class="hover:bg-amber-50 transition ${style.is_active === false ? 'opacity-50' : ''}">
-            <td class="px-4 py-3 font-mono font-bold text-amber-700">${style.style_code}</td>
+            <td class="px-4 py-3 font-mono font-bold text-amber-700">${style.style_code || '-'}</td>
+            <td class="px-4 py-3 font-mono text-sm text-gray-700">${style.sku_code || '-'}</td>
             <td class="px-4 py-3">${style.item_name || '-'}</td>
             <td class="px-4 py-3 text-center">
                 <span class="px-2 py-1 bg-gray-100 rounded text-xs">${style.category || '-'}</span>
             </td>
             <td class="px-4 py-3 text-center capitalize">${style.metal_type || 'gold'}</td>
-            <td class="px-4 py-3 text-center">${style.default_purity || 91.6}%</td>
+            <td class="px-4 py-3 text-center">${style.purity || style.default_purity || 91.6}%</td>
             <td class="px-4 py-3 text-center">
-                <span class="px-2 py-1 ${style.default_mc_type === 'FIXED' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'} rounded text-xs font-medium">
-                    ${style.default_mc_type === 'FIXED' ? 'Fixed' : 'Per Gram'}
+                <span class="px-2 py-1 ${(style.mc_type || style.default_mc_type) === 'FIXED' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'} rounded text-xs font-medium">
+                    ${(style.mc_type || style.default_mc_type) === 'FIXED' ? 'Fixed' : 'Per Gram'}
                 </span>
             </td>
-            <td class="px-4 py-3 text-right font-semibold">₹${parseFloat(style.default_mc_value || 0).toFixed(2)}</td>
+            <td class="px-4 py-3 text-right font-semibold">₹${parseFloat(style.mc_value || style.default_mc_value || 0).toFixed(2)}</td>
             <td class="px-4 py-3 text-center text-gray-500">${style.hsn_code || '7113'}</td>
             <td class="px-4 py-3 text-center">
                 ${style.is_active !== false 
@@ -15637,7 +16339,7 @@ function updateStylesTable() {
             </td>
             <td class="px-4 py-3 text-center">
                 <button onclick="editStyle(${style.id})" class="px-2 py-1 text-blue-600 hover:bg-blue-50 rounded" title="Edit">✏️</button>
-                <button onclick="deleteStyle(${style.id})" class="px-2 py-1 text-red-600 hover:bg-red-50 rounded" title="Deactivate">🗑️</button>
+                <button onclick="deleteStyle(${style.id})" class="px-2 py-1 text-red-600 hover:bg-red-50 rounded" title="Delete">🗑️</button>
             </td>
         </tr>
     `).join('');
@@ -15648,6 +16350,8 @@ function showAddStyleModal() {
     document.getElementById('styleEditId').value = '';
     document.getElementById('styleCode').value = '';
     document.getElementById('styleCode').disabled = false;
+    document.getElementById('styleSkuCode').value = '';
+    document.getElementById('styleSkuCode').disabled = false;
     document.getElementById('styleItemName').value = '';
     document.getElementById('styleCategory').value = '';
     document.getElementById('styleMetalType').value = 'gold';
@@ -15669,14 +16373,16 @@ function editStyle(id) {
     
     document.getElementById('styleModalTitle').textContent = 'Edit Style';
     document.getElementById('styleEditId').value = id;
-    document.getElementById('styleCode').value = style.style_code;
+    document.getElementById('styleCode').value = style.style_code || '';
     document.getElementById('styleCode').disabled = true;
+    document.getElementById('styleSkuCode').value = style.sku_code || '';
+    document.getElementById('styleSkuCode').disabled = true;
     document.getElementById('styleItemName').value = style.item_name || '';
     document.getElementById('styleCategory').value = style.category || '';
     document.getElementById('styleMetalType').value = style.metal_type || 'gold';
-    document.getElementById('stylePurity').value = style.default_purity || 91.6;
-    document.getElementById('styleMCType').value = style.default_mc_type || 'PER_GRAM';
-    document.getElementById('styleMCValue').value = style.default_mc_value || 0;
+    document.getElementById('stylePurity').value = style.purity || style.default_purity || 91.6;
+    document.getElementById('styleMCType').value = style.mc_type || style.default_mc_type || 'PER_GRAM';
+    document.getElementById('styleMCValue').value = style.mc_value || style.default_mc_value || 0;
     document.getElementById('styleHSN').value = style.hsn_code || '7113';
     document.getElementById('styleDescription').value = style.description || '';
     document.getElementById('styleModal').classList.remove('hidden');
@@ -15686,53 +16392,70 @@ async function saveStyle(event) {
     event.preventDefault();
     
     const editId = document.getElementById('styleEditId').value;
+    const styleCode = document.getElementById('styleCode').value.toUpperCase().trim();
+    const skuCode = document.getElementById('styleSkuCode').value.toUpperCase().trim();
+    
+    if (!styleCode || !skuCode) {
+        showDialog('Error', 'Style Code and SKU Code are required', 'error');
+        return;
+    }
+    
     const data = {
-        style_code: document.getElementById('styleCode').value.toUpperCase().trim(),
         item_name: document.getElementById('styleItemName').value.trim(),
-        category: document.getElementById('styleCategory').value,
-        metal_type: document.getElementById('styleMetalType').value,
-        default_purity: parseFloat(document.getElementById('stylePurity').value) || 91.6,
-        default_mc_type: document.getElementById('styleMCType').value,
-        default_mc_value: parseFloat(document.getElementById('styleMCValue').value) || 0,
-        hsn_code: document.getElementById('styleHSN').value.trim(),
-        description: document.getElementById('styleDescription').value.trim()
+        category: document.getElementById('styleCategory').value || null,
+        metal_type: document.getElementById('styleMetalType').value || null,
+        purity: parseFloat(document.getElementById('stylePurity').value) || null,
+        mc_type: document.getElementById('styleMCType').value || null,
+        mc_value: parseFloat(document.getElementById('styleMCValue').value) || null,
+        hsn_code: document.getElementById('styleHSN').value.trim() || null,
+        description: document.getElementById('styleDescription').value.trim() || null
     };
     
+    if (!data.item_name) {
+        showDialog('Error', 'Item Name is required', 'error');
+        return;
+    }
+    
     try {
-        const url = editId ? `/api/styles/${editId}` : '/api/styles';
-        const method = editId ? 'PUT' : 'POST';
-        
-        const response = await fetch(url, {
-            method,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-        
-        if (response.ok) {
-            closeStyleModal();
-            loadStyles();
-            showDialog('Success', `Style ${editId ? 'updated' : 'created'} successfully!`, 'success');
+        if (editId) {
+            // Update existing style
+            const style = allStyles.find(s => s.id === parseInt(editId));
+            if (style) {
+                await api.updateStyle(style.style_code, style.sku_code, data);
+            } else {
+                throw new Error('Style not found');
+            }
         } else {
-            const error = await response.json();
-            showDialog('Error', error.error || 'Failed to save style', 'error');
+            // Create new style
+            await api.createStyle({
+                style_code: styleCode,
+                sku_code: skuCode,
+                ...data
+            });
         }
+        
+        closeStyleModal();
+        await loadStyles();
+        showDialog('Success', `Style ${editId ? 'updated' : 'created'} successfully!`, 'success');
     } catch (error) {
         console.error('Error saving style:', error);
-        showDialog('Error', 'Failed to save style', 'error');
+        showDialog('Error', error.message || 'Failed to save style', 'error');
     }
 }
 
 async function deleteStyle(id) {
-    if (!confirm('Are you sure you want to deactivate this style?')) return;
+    const style = allStyles.find(s => s.id === id);
+    if (!style) return;
+    
+    if (!confirm(`Are you sure you want to delete style "${style.style_code}" with SKU "${style.sku_code}"?\n\nThis action cannot be undone.`)) return;
     
     try {
-        const response = await fetch(`/api/styles/${id}`, { method: 'DELETE' });
-        if (response.ok) {
-            loadStyles();
-            showDialog('Success', 'Style deactivated successfully!', 'success');
-        }
+        await api.deleteStyle(style.style_code, style.sku_code);
+        await loadStyles();
+        showDialog('Success', 'Style deleted successfully!', 'success');
     } catch (error) {
         console.error('Error deleting style:', error);
+        showDialog('Error', error.message || 'Failed to delete style', 'error');
     }
 }
 
@@ -15742,16 +16465,17 @@ function exportStyles() {
         return;
     }
     
-    const headers = ['Style Code', 'Item Name', 'Category', 'Metal', 'Purity', 'MC Type', 'MC Value', 'HSN', 'Status'];
+    const headers = ['Style Code', 'SKU Code', 'Item Name', 'Category', 'Metal', 'Purity', 'MC Type', 'MC Value', 'HSN', 'Status'];
     const rows = filteredStyles.map(s => [
-        s.style_code,
-        s.item_name,
+        s.style_code || '',
+        s.sku_code || '',
+        s.item_name || '',
         s.category || '',
-        s.metal_type,
-        s.default_purity,
-        s.default_mc_type,
-        s.default_mc_value,
-        s.hsn_code,
+        s.metal_type || '',
+        s.purity || s.default_purity || '',
+        s.mc_type || s.default_mc_type || '',
+        s.mc_value || s.default_mc_value || 0,
+        s.hsn_code || '7113',
         s.is_active !== false ? 'Active' : 'Inactive'
     ]);
     

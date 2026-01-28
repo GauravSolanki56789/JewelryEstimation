@@ -139,6 +139,7 @@ async function initSchema() {
             is_billed BOOLEAN DEFAULT false,
             bill_no VARCHAR(50),
             bill_date TIMESTAMP,
+            is_deleted BOOLEAN DEFAULT false,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
         
@@ -279,6 +280,24 @@ async function initSchema() {
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
         
+        // Styles table (Product Hierarchy)
+        `CREATE TABLE IF NOT EXISTS styles (
+            id SERIAL PRIMARY KEY,
+            style_code VARCHAR(100) NOT NULL,
+            sku_code VARCHAR(100) NOT NULL,
+            item_name VARCHAR(255),
+            category VARCHAR(100),
+            metal_type VARCHAR(50),
+            purity VARCHAR(50),
+            mc_type VARCHAR(50),
+            mc_value NUMERIC(10,2),
+            hsn_code VARCHAR(50),
+            description TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(style_code, sku_code)
+        )`,
+        
         // Create indexes
         `CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode)`,
         `CREATE INDEX IF NOT EXISTS idx_products_style_code ON products(style_code)`,
@@ -290,6 +309,8 @@ async function initSchema() {
         `CREATE INDEX IF NOT EXISTS idx_sales_returns_bill_no ON sales_returns(bill_no)`,
         `CREATE INDEX IF NOT EXISTS idx_sales_returns_ssr_no ON sales_returns(ssr_no)`,
         `CREATE INDEX IF NOT EXISTS idx_quotations_is_billed ON quotations(is_billed)`,
+        `CREATE INDEX IF NOT EXISTS idx_styles_style_code ON styles(style_code)`,
+        `CREATE INDEX IF NOT EXISTS idx_styles_sku_code ON styles(sku_code)`,
     ];
     
     for (const query of queries) {
