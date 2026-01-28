@@ -416,6 +416,125 @@ async function checkAndCreateStylesTable() {
     }
 }
 
+// Check and migrate users table schema (add missing columns)
+async function checkAndMigrateUsersTable() {
+    try {
+        console.log('🔍 Checking users table schema...');
+        
+        const dbPool = getPool();
+        
+        // Check and add 'permissions' column (JSONB)
+        await dbPool.query(`
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'users' AND column_name = 'permissions'
+                ) THEN
+                    ALTER TABLE users ADD COLUMN permissions JSONB DEFAULT '{}';
+                    RAISE NOTICE 'Added permissions column';
+                END IF;
+            END $$;
+        `);
+        
+        // Check and add 'allowed_tabs' column (TEXT[])
+        await dbPool.query(`
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'users' AND column_name = 'allowed_tabs'
+                ) THEN
+                    ALTER TABLE users ADD COLUMN allowed_tabs TEXT[];
+                    RAISE NOTICE 'Added allowed_tabs column';
+                END IF;
+            END $$;
+        `);
+        
+        // Check and add 'account_status' column (VARCHAR)
+        await dbPool.query(`
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'users' AND column_name = 'account_status'
+                ) THEN
+                    ALTER TABLE users ADD COLUMN account_status VARCHAR(50) DEFAULT 'pending';
+                    UPDATE users SET account_status = 'pending' WHERE account_status IS NULL;
+                    RAISE NOTICE 'Added account_status column';
+                END IF;
+            END $$;
+        `);
+        
+        // Check and add 'role' column (VARCHAR)
+        await dbPool.query(`
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'users' AND column_name = 'role'
+                ) THEN
+                    ALTER TABLE users ADD COLUMN role VARCHAR(50) DEFAULT 'employee';
+                    UPDATE users SET role = 'employee' WHERE role IS NULL;
+                    RAISE NOTICE 'Added role column';
+                END IF;
+            END $$;
+        `);
+        
+        // Check and add 'is_deleted' column (BOOLEAN) for soft deletes
+        await dbPool.query(`
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'users' AND column_name = 'is_deleted'
+                ) THEN
+                    ALTER TABLE users ADD COLUMN is_deleted BOOLEAN DEFAULT false;
+                    UPDATE users SET is_deleted = false WHERE is_deleted IS NULL;
+                    RAISE NOTICE 'Added is_deleted column';
+                END IF;
+            END $$;
+        `);
+        
+        // Create indexes for performance (if they don't exist)
+        await dbPool.query(`
+            CREATE INDEX IF NOT EXISTS idx_users_permissions ON users USING gin(permissions);
+        `);
+        
+        await dbPool.query(`
+            CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+        `);
+        
+        await dbPool.query(`
+            CREATE INDEX IF NOT EXISTS idx_users_account_status ON users(account_status);
+        `);
+        
+        // Update existing users with default permissions if needed
+        await dbPool.query(`
+            UPDATE users 
+            SET permissions = COALESCE(permissions, '{}'::jsonb)
+            WHERE permissions IS NULL;
+        `);
+        
+        // Set default permissions for super admin
+        await dbPool.query(`
+            UPDATE users 
+            SET permissions = '{"all": true, "modules": ["*"]}'::jsonb,
+                allowed_tabs = COALESCE(allowed_tabs, ARRAY['all']),
+                role = COALESCE(role, 'admin')
+            WHERE email = 'jaigaurav56789@gmail.com'
+            AND (permissions IS NULL OR permissions = '{}'::jsonb);
+        `);
+        
+        console.log('✅ Users table schema verified and migrated');
+        return true;
+    } catch (error) {
+        console.error('❌ Users table migration failed:', error.message);
+        console.error('   Full error:', error);
+        return false;
+    }
+}
+
 // Initialize database on startup
 initDatabase().then(async success => {
     if (success) {
@@ -423,6 +542,7 @@ initDatabase().then(async success => {
         // Run schema check after database initialization
         await checkAndUpdateProductsSchema();
         await checkAndCreateStylesTable();
+        await checkAndMigrateUsersTable();
     } else {
         console.log('⚠️ Server started but database initialization failed.');
         console.log('💡 Please check your PostgreSQL connection and restart the server.');

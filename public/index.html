@@ -4919,8 +4919,28 @@ function updateTabVisibility() {
     
     console.log('✅ Tab visibility updated. User:', currentUser.username);
     
-    const allTabs = ['billing', 'products', 'customers', 'rol', 'quotations', 'salesbill', 'salesreturn', 'billhistory', 'ledger', 'pv', 'tagsplit', 'tagsearch', 'floor'];
-    let allowedTabs = currentUser.allowedTabs || [];
+    // STRICT BUTTON-TO-PERMISSION MAPPING
+    // Maps Button IDs to Permission Keys (handles both underscore and no-underscore variants)
+    const permissionMap = {
+        'btnBilling': ['billing'],
+        'btnProducts': ['products_stock', 'products'], // Check both variants
+        'btnCustomers': ['customers', 'customers'],
+        'btnROL': ['rol'],
+        'btnSalesBill': ['sales_bill', 'salesbill'],
+        'btnSalesReturn': ['sales_return', 'salesreturn'], // FIX: Added sales_return mapping
+        'btnQuotations': ['quotations'],
+        'btnBillHistory': ['bill_history', 'billhistory'],
+        'btnLedger': ['ledger'],
+        'btnPV': ['stock_in', 'pv'],
+        'btnTagSplit': ['tag_split_merge', 'tagsplit'],
+        'btnReports': ['reports'],
+        'btnTagSearch': ['tag_search', 'tagsearch'],
+        'btnFloor': ['floor_management', 'floor']
+    };
+    
+    // Get user permissions and allowed tabs
+    let allowedTabs = currentUser.allowedTabs || currentUser.allowed_tabs || [];
+    const permissions = currentUser?.permissions || {};
     
     // Ensure allowedTabs is an array (handle PostgreSQL TEXT[] format)
     if (typeof allowedTabs === 'string') {
@@ -4935,47 +4955,73 @@ function updateTabVisibility() {
         allowedTabs = [];
     }
     
-    console.log('Updating tab visibility. User:', currentUser.username, 'Allowed tabs:', allowedTabs);
+    // Check if user is admin or super_admin
+    const isAdmin = currentUser.role === 'admin' || currentUser.role === 'super_admin';
     
-    // Map tab names to button IDs (handles special cases)
-    const tabToButtonId = {
-        'billing': 'btnBilling',
-        'products': 'btnProducts',
-        'customers': 'btnCustomers',
-        'rol': 'btnROL',
-        'quotations': 'btnQuotations',
-        'salesbill': 'btnSalesBill',
-        'salesreturn': 'btnSalesReturn',
-        'billhistory': 'btnBillHistory',
-        'ledger': 'btnLedger',
-        'pv': 'btnPV',
-        'tagsplit': 'btnTagSplit',
-        'tagsearch': 'btnTagSearch',
-        'floor': 'btnFloor'
+    console.log('Updating tab visibility. User:', currentUser.username, 'Role:', currentUser.role, 'Allowed tabs:', allowedTabs, 'Permissions:', permissions);
+    
+    // Helper function to check if user has permission for a key
+    const hasPermission = (permissionKeys) => {
+        // Admin always has access
+        if (isAdmin) return true;
+        
+        // Check if user has 'all' access
+        if (allowedTabs.includes('all')) return true;
+        
+        // Check permissions object
+        for (const key of permissionKeys) {
+            if (permissions[key] === true) return true;
+        }
+        
+        // Check allowedTabs array (handle both underscore and no-underscore variants)
+        for (const key of permissionKeys) {
+            if (allowedTabs.includes(key)) return true;
+        }
+        
+        return false;
     };
     
-    allTabs.forEach(tab => {
-        const btnId = tabToButtonId[tab] || ('btn' + tab.charAt(0).toUpperCase() + tab.slice(1));
-        const btn = document.getElementById(btnId);
-        if (btn) {
-            const hasAccess = allowedTabs.includes('all') || allowedTabs.includes(tab);
+    // Apply visibility to each button based on permission map
+    Object.entries(permissionMap).forEach(([buttonId, permissionKeys]) => {
+        const button = document.getElementById(buttonId);
+        if (button) {
+            const hasAccess = hasPermission(permissionKeys);
             if (hasAccess) {
-                btn.classList.remove('hidden');
+                button.classList.remove('hidden');
             } else {
-                btn.classList.add('hidden');
+                button.classList.add('hidden');
+                
                 // Also hide the tab content if it's currently visible
-                const tabElement = document.getElementById(tab + 'Tab');
-                if (tabElement && !tabElement.classList.contains('hidden')) {
-                    tabElement.classList.add('hidden');
+                // Map button IDs back to tab names for hiding content
+                const tabNameMap = {
+                    'btnBilling': 'billing',
+                    'btnProducts': 'products',
+                    'btnCustomers': 'customers',
+                    'btnROL': 'rol',
+                    'btnSalesBill': 'salesbill',
+                    'btnSalesReturn': 'salesreturn',
+                    'btnQuotations': 'quotations',
+                    'btnBillHistory': 'billhistory',
+                    'btnLedger': 'ledger',
+                    'btnPV': 'pv',
+                    'btnTagSplit': 'tagsplit',
+                    'btnReports': 'reports',
+                    'btnTagSearch': 'tagsearch',
+                    'btnFloor': 'floor'
+                };
+                
+                const tabName = tabNameMap[buttonId];
+                if (tabName) {
+                    const tabElement = document.getElementById(tabName + 'Tab');
+                    if (tabElement && !tabElement.classList.contains('hidden')) {
+                        tabElement.classList.add('hidden');
+                    }
                 }
             }
         }
     });
     
     // Show/hide admin-only buttons (Manage Users, Tally Config)
-    const permissions = currentUser?.permissions || {};
-    const isAdmin = permissions.isAdmin || currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
-    
     const btnManageUsers = document.getElementById('btnManageUsers');
     const btnTallyConfig = document.getElementById('btnTallyConfig');
     
