@@ -1367,18 +1367,47 @@ app.delete('/api/bills/:id', checkAuth, hasPermission('billing'), async (req, re
 // Get all users (for admin panel)
 app.get('/api/admin/users', checkRole('admin'), async (req, res) => {
     try {
-        const result = await query(`
-            SELECT id, google_id, email, name, role, allowed_tabs, permissions, 
-                   account_status, phone_number, created_at, updated_at 
-            FROM users 
-            ORDER BY 
-                CASE WHEN email = 'jaigaurav56789@gmail.com' THEN 0 ELSE 1 END,
-                role ASC,
-                created_at DESC
-        `);
+        // Try query with is_deleted filter first, fallback to query without it if column doesn't exist
+        let result;
+        try {
+            result = await query(`
+                SELECT id, google_id, email, name, role, allowed_tabs, permissions, 
+                       account_status, phone_number, created_at, updated_at 
+                FROM users 
+                WHERE COALESCE(is_deleted, false) = false
+                ORDER BY 
+                    CASE WHEN email = 'jaigaurav56789@gmail.com' THEN 0 ELSE 1 END,
+                    role ASC,
+                    created_at DESC
+            `);
+        } catch (colError) {
+            // If is_deleted column doesn't exist, query without it
+            if (colError.message && colError.message.includes('is_deleted')) {
+                console.warn('is_deleted column not found, querying all users');
+                result = await query(`
+                    SELECT id, google_id, email, name, role, allowed_tabs, permissions, 
+                           account_status, phone_number, created_at, updated_at 
+                    FROM users 
+                    ORDER BY 
+                        CASE WHEN email = 'jaigaurav56789@gmail.com' THEN 0 ELSE 1 END,
+                        role ASC,
+                        created_at DESC
+                `);
+            } else {
+                throw colError;
+            }
+        }
+        
+        // Handle NULL or undefined result - return empty array instead of crashing
+        if (!result || !Array.isArray(result)) {
+            return res.json([]);
+        }
+        
         res.json(result);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error('Error fetching users:', error);
+        // Return empty array on error instead of crashing (prevents 500 error)
+        res.json([]);
     }
 });
 

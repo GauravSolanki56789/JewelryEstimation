@@ -854,6 +854,10 @@ const UserManagement = {
                     await loadWhitelistedUsers();
                 }
             } else {
+                // Handle 409 Conflict specifically
+                if (response.status === 409) {
+                    throw new Error('This email is already registered. Please search the list or restore the deleted user.');
+                }
                 throw new Error(result.error || 'Failed to save user');
             }
         } catch (error) {
