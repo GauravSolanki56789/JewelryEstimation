@@ -38,7 +38,7 @@ app.use(express.json());
 app.use(session({
     secret: process.env.SESSION_SECRET || 'jewelry_estimation_secret_change_me',
     resave: false,
-    saveUninitialized: false,
+    saveUninitialized: true,
     name: 'jp.sid', // Custom session name (not default 'connect.sid')
     cookie: { 
         secure: process.env.NODE_ENV === 'production',
