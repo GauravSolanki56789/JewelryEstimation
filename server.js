@@ -125,9 +125,55 @@ setInterval(() => {
 // GOOGLE OAUTH ROUTES (WHITELIST-BASED)
 // ==========================================
 
-app.get('/auth/google',
-    passport.authenticate('google', { scope: ['profile', 'email'] })
-);
+app.get('/auth/google', async (req, res, next) => {
+    // 🛠️ LOCAL DEV BYPASS
+    if (process.env.NODE_ENV === 'development') {
+        console.log("🛠️ Local Dev Detected: Attempting Bypass...");
+        
+        try {
+            const email = 'jaigaurav56789@gmail.com'; // Your admin email
+            
+            // 1. Try to find the user in your LOCAL database
+            let result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+            let user = result.rows[0];
+
+            // 2. If user doesn't exist locally, create a temporary one so you don't crash
+            if (!user) {
+                console.log("⚠️ Admin not found locally. Creating one...");
+                // Note: We let PostgreSQL generate the UUID automatically to avoid syntax errors
+                const newUser = await pool.query(`
+                    INSERT INTO users (email, name, role, account_status, allowed_tabs, permissions)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                    RETURNING *
+                `, [
+                    email, 
+                    'Local Admin', 
+                    'super_admin', 
+                    'active', 
+                    ['all'], 
+                    JSON.stringify({ all: true, modules: ["*"] })
+                ]);
+                user = newUser.rows[0];
+            }
+
+            // 3. Log in with the REAL database user object (has correct UUID)
+            req.login(user, (err) => {
+                if (err) { 
+                    console.error("Login Error:", err);
+                    return next(err); 
+                }
+                return res.redirect('/'); // Success! Go to dashboard
+            });
+
+        } catch (error) {
+            console.error("Bypass Error:", error);
+            res.status(500).send("Local login failed: " + error.message);
+        }
+    } else {
+        // 🔒 PRODUCTION: Strict Google Auth
+        passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
+    }
+});
 
 
 // Google OAuth Callback - Handle whitelist denial
