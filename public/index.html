@@ -4865,10 +4865,9 @@ let currentUser = null;
 
 // ==========================================
 // SHADOW MODE (Number 2) - Global State
+// Variables declared in dashboard.js - using global scope
 // ==========================================
-let currentAppMode = 'TAX'; // Default mode: 'TAX' or 'ESTIMATE'
-let shadowModeBuffer = ''; // Buffer for capturing key sequence
-let shadowModeArmed = false; // Whether F11 has been pressed (arming state)
+// Note: currentAppMode, shadowModeBuffer, isArmed, bufferTimeout are declared in dashboard.js
 
 function saveAuthUsers() {
     setCachedItem('authUsers', AUTH_USERS);
@@ -19150,31 +19149,33 @@ window.addEventListener('error', function(e) {
 // ==========================================
 // SHADOW MODE (Number 2) - Key Listener
 // Secret trigger: F11 -> n -> o -> 2 -> Enter
+// Uses global variables from dashboard.js: currentAppMode, shadowModeBuffer, isArmed, bufferTimeout
 // ==========================================
+// Note: Variables are declared in dashboard.js and accessible in global scope
 document.addEventListener('keydown', function(event) {
     // F11 is the "Arming" key
     if (event.key === 'F11') {
         event.preventDefault(); // Prevent browser fullscreen
-        shadowModeArmed = true;
+        isArmed = true;
         shadowModeBuffer = '';
         // Clear any existing timeout
-        if (shadowModeBufferTimeout) {
-            clearTimeout(shadowModeBufferTimeout);
-            shadowModeBufferTimeout = null;
+        if (bufferTimeout) {
+            clearTimeout(bufferTimeout);
+            bufferTimeout = null;
         }
         console.log('🔓 Shadow Mode armed. Enter sequence: n -> o -> 2 -> Enter');
         return;
     }
     
     // Only process sequence if armed
-    if (!shadowModeArmed) return;
+    if (!isArmed) return;
     
     // Reset buffer if too much time passes (5 seconds timeout)
-    if (!shadowModeBufferTimeout) {
-        shadowModeBufferTimeout = setTimeout(() => {
-            shadowModeArmed = false;
+    if (!bufferTimeout) {
+        bufferTimeout = setTimeout(() => {
+            isArmed = false;
             shadowModeBuffer = '';
-            shadowModeBufferTimeout = null;
+            bufferTimeout = null;
         }, 5000);
     }
     
@@ -19184,13 +19185,13 @@ document.addEventListener('keydown', function(event) {
             event.preventDefault();
             
             // Clear timeout
-            if (shadowModeBufferTimeout) {
-                clearTimeout(shadowModeBufferTimeout);
-                shadowModeBufferTimeout = null;
+            if (bufferTimeout) {
+                clearTimeout(bufferTimeout);
+                bufferTimeout = null;
             }
             
             // Reset state
-            shadowModeArmed = false;
+            isArmed = false;
             shadowModeBuffer = '';
             
             // Permission check: ONLY unlock if user has no2_access permission explicitly set to true
@@ -19203,7 +19204,7 @@ document.addEventListener('keydown', function(event) {
                 return;
             }
             
-            // Toggle mode
+            // Toggle mode - uses global variable from dashboard.js
             currentAppMode = currentAppMode === 'TAX' ? 'ESTIMATE' : 'TAX';
             
             // Refresh quotation list with appropriate type filter
@@ -19219,11 +19220,11 @@ document.addEventListener('keydown', function(event) {
             console.log(`✅ Shadow Mode toggled: ${currentAppMode}`);
         } else {
             // Enter pressed but buffer doesn't match - reset
-            shadowModeArmed = false;
+            isArmed = false;
             shadowModeBuffer = '';
-            if (shadowModeBufferTimeout) {
-                clearTimeout(shadowModeBufferTimeout);
-                shadowModeBufferTimeout = null;
+            if (bufferTimeout) {
+                clearTimeout(bufferTimeout);
+                bufferTimeout = null;
             }
         }
         return;
@@ -19240,26 +19241,24 @@ document.addEventListener('keydown', function(event) {
             shadowModeBuffer = newBuffer;
         } else {
             // Invalid character - immediately reset buffer and disarm
-            shadowModeArmed = false;
+            isArmed = false;
             shadowModeBuffer = '';
-            if (shadowModeBufferTimeout) {
-                clearTimeout(shadowModeBufferTimeout);
-                shadowModeBufferTimeout = null;
+            if (bufferTimeout) {
+                clearTimeout(bufferTimeout);
+                bufferTimeout = null;
             }
         }
     } else if (event.key !== 'F11') {
         // Any other key (except F11) that's not alphanumeric or Enter - reset immediately
         // This includes: Space, Backspace, Arrow keys, etc.
-        shadowModeArmed = false;
+        isArmed = false;
         shadowModeBuffer = '';
-        if (shadowModeBufferTimeout) {
-            clearTimeout(shadowModeBufferTimeout);
-            shadowModeBufferTimeout = null;
+        if (bufferTimeout) {
+            clearTimeout(bufferTimeout);
+            bufferTimeout = null;
         }
     }
 });
-
-let shadowModeBufferTimeout = null;
             </script>
     
     <!-- Enterprise Feature Modules -->
