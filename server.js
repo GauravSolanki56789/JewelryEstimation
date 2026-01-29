@@ -20,6 +20,7 @@ const TallyIntegration = require('./config/tally-integration');
 const TallySyncService = require('./config/tally-sync-service');
 
 const app = express();
+app.set('trust proxy', 1);
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
