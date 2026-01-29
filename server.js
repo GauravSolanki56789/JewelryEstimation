@@ -1289,7 +1289,20 @@ app.delete('/api/customers/:id', checkAuth, hasPermission('customers'), async (r
 
 app.get('/api/quotations', checkAuth, hasPermission('quotations'), async (req, res) => {
     try {
-        const result = await query('SELECT * FROM quotations WHERE is_deleted = false OR is_deleted IS NULL ORDER BY date DESC');
+        const { type } = req.query;
+        
+        let queryText = 'SELECT * FROM quotations WHERE (is_deleted = false OR is_deleted IS NULL)';
+        const params = [];
+        
+        // Filter by bill_type if provided
+        if (type) {
+            queryText += ' AND bill_type = $1';
+            params.push(type);
+        }
+        
+        queryText += ' ORDER BY date DESC';
+        
+        const result = await query(queryText, params);
         res.json(result);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -1299,20 +1312,51 @@ app.get('/api/quotations', checkAuth, hasPermission('quotations'), async (req, r
 app.post('/api/quotations', checkAuth, hasPermission('quotations'), async (req, res) => {
     try {
         const quotation = req.body;
+        const billType = quotation.bill_type || 'TAX'; // Default to 'TAX' if not provided
         
         const queryText = `INSERT INTO quotations (
             quotation_no, customer_id, customer_name, customer_mobile, items, total, gst, net_total,
-            discount, advance, final_amount, payment_status, remarks
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`;
+            discount, advance, final_amount, payment_status, remarks, bill_type
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`;
         
         const params = [
             quotation.quotationNo, quotation.customerId, quotation.customerName,
             quotation.customerMobile, JSON.stringify(quotation.items), quotation.total,
             quotation.gst, quotation.netTotal, quotation.discount || 0, quotation.advance || 0,
-            quotation.finalAmount, quotation.paymentStatus, quotation.remarks
+            quotation.finalAmount, quotation.paymentStatus, quotation.remarks, billType
         ];
         
         const result = await query(queryText, params);
+        
+        // CRUCIAL: When quotation is saved, mark products as 'sold' in products table
+        // This ensures physical stock decreases regardless of bill type
+        if (quotation.items && Array.isArray(quotation.items)) {
+            const barcodes = quotation.items
+                .map(item => item.barcode)
+                .filter(barcode => barcode); // Filter out null/undefined barcodes
+            
+            if (barcodes.length > 0) {
+                try {
+                    const placeholders = barcodes.map((_, i) => `$${i + 1}`).join(',');
+                    const markSoldQuery = `UPDATE products 
+                        SET status = 'sold', 
+                            sold_bill_no = $${barcodes.length + 1},
+                            sold_customer_name = $${barcodes.length + 2},
+                            is_sold = true,
+                            updated_at = CURRENT_TIMESTAMP 
+                        WHERE barcode IN (${placeholders}) AND (status IS NULL OR status = 'available')`;
+                    
+                    const markSoldParams = [...barcodes, quotation.quotationNo || null, quotation.customerName || null];
+                    await query(markSoldQuery, markSoldParams);
+                    
+                    broadcast('products-sold', { barcodes, billNo: quotation.quotationNo });
+                } catch (markSoldError) {
+                    // Log error but don't fail the quotation creation
+                    console.error('Error marking products as sold:', markSoldError);
+                }
+            }
+        }
+        
         broadcast('quotation-created', result[0]);
         res.json(result[0]);
     } catch (error) {
@@ -1328,14 +1372,15 @@ app.put('/api/quotations/:id', checkAuth, hasPermission('quotations'), async (re
         const queryText = `UPDATE quotations SET
             customer_id = $1, customer_name = $2, customer_mobile = $3, items = $4,
             total = $5, gst = $6, net_total = $7, discount = $8, advance = $9,
-            final_amount = $10, payment_status = $11, remarks = $12
-        WHERE id = $13 RETURNING *`;
+            final_amount = $10, payment_status = $11, remarks = $12, bill_type = COALESCE($13, bill_type)
+        WHERE id = $14 RETURNING *`;
         
         const params = [
             quotation.customerId, quotation.customerName, quotation.customerMobile,
             JSON.stringify(quotation.items), quotation.total, quotation.gst,
             quotation.netTotal, quotation.discount || 0, quotation.advance || 0,
-            quotation.finalAmount, quotation.paymentStatus, quotation.remarks, id
+            quotation.finalAmount, quotation.paymentStatus, quotation.remarks, 
+            quotation.bill_type || null, id
         ];
         
         const result = await query(queryText, params);
@@ -1669,7 +1714,7 @@ app.get('/api/admin/permission-modules', checkRole('admin'), (req, res) => {
 // Add user to whitelist (pre-approve email) with permissions
 app.post('/api/admin/add-user', checkRole('admin'), async (req, res) => {
     try {
-        const { email, name, role, allowed_tabs } = req.body;
+        const { email, name, role, allowed_tabs, permissions: requestPermissions } = req.body;
         
         if (!email) {
             return res.status(400).json({ error: 'Email is required' });
@@ -1705,10 +1750,11 @@ app.post('/api/admin/add-user', checkRole('admin'), async (req, res) => {
             userAllowedTabs = ['billing']; // Fallback to billing
         }
         
-        // Build permissions JSON
+        // Build permissions JSON - merge with request permissions (for no2_access)
         const permissions = {
             all: userAllowedTabs.includes('all'),
-            modules: userAllowedTabs.includes('all') ? ['*'] : userAllowedTabs
+            modules: userAllowedTabs.includes('all') ? ['*'] : userAllowedTabs,
+            ...(requestPermissions || {}) // Merge custom permissions like no2_access
         };
         
         // Insert new user with permissions
@@ -1735,7 +1781,7 @@ app.post('/api/admin/add-user', checkRole('admin'), async (req, res) => {
 app.put('/api/admin/users/:id', checkRole('admin'), async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, role, account_status, allowed_tabs } = req.body;
+        const { name, role, account_status, allowed_tabs, permissions } = req.body;
         
         // Check if user exists
         const existingUser = await query('SELECT * FROM users WHERE id = $1', [id]);
@@ -1791,14 +1837,28 @@ app.put('/api/admin/users/:id', checkRole('admin'), async (req, res) => {
                 updates.push(`allowed_tabs = $${paramIndex++}`);
                 params.push(cleanTabs);
                 
-                // Also update permissions JSON
+                // Merge permissions instead of overwriting (preserve no2_access and other custom permissions)
+                const existingPermissions = user.permissions || {};
                 const permissions = {
+                    ...existingPermissions, // Preserve existing permissions (like no2_access)
                     all: cleanTabs.includes('all'),
                     modules: cleanTabs.includes('all') ? ['*'] : cleanTabs
                 };
                 updates.push(`permissions = $${paramIndex++}`);
                 params.push(JSON.stringify(permissions));
             }
+        }
+        
+        // Handle permissions update separately (for no2_access and other custom permissions)
+        if (permissions !== undefined && typeof permissions === 'object') {
+            // Merge with existing permissions instead of overwriting
+            const existingPermissions = user.permissions || {};
+            const mergedPermissions = {
+                ...existingPermissions,
+                ...permissions // Merge new permissions (preserves no2_access if sent)
+            };
+            updates.push(`permissions = $${paramIndex++}`);
+            params.push(JSON.stringify(mergedPermissions));
         }
         
         if (updates.length === 0) {

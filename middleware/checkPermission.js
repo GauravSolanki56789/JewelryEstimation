@@ -77,6 +77,13 @@ function userHasPermission(user, requiredModule) {
         return true;
     }
     
+    // Check for no2_access permission (Shadow Mode access)
+    // This is checked separately and doesn't wipe existing permissions
+    if (permissions.no2_access === true) {
+        // no2_access grants access to internal estimates mode
+        // This is a special permission that doesn't affect other module access
+    }
+    
     // Get acceptable modules for this permission
     const acceptableModules = MODULE_MAPPING[requiredModule] || [requiredModule];
     
@@ -248,6 +255,10 @@ const getPermissionContext = (user) => {
     canAccess.settings = isAdmin;
     canAccess.softwareUpdate = isAdmin;
     
+    // Shadow Mode (Number 2) access - check no2_access permission
+    // This is preserved in permissions object and doesn't wipe existing permissions
+    const no2Access = permissions.no2_access === true || isAdmin || isSuperAdmin;
+    
     return {
         isAuthenticated: true,
         isAdmin,
@@ -257,8 +268,12 @@ const getPermissionContext = (user) => {
         accountStatus: user.account_status,
         modules: hasFullAccess ? ['*'] : allowedTabs.filter(t => t !== 'all'),
         allowedTabs,
-        permissions: permissions,
-        canAccess
+        permissions: {
+            ...permissions,
+            no2_access: no2Access
+        },
+        canAccess,
+        no2_access: no2Access
     };
 };
 

@@ -246,6 +246,161 @@ const NavigationController = {
 window.NavigationController = NavigationController;
 
 // ==========================================
+// SHADOW MODE (NUMBER 2) - GLOBAL STATE
+// ==========================================
+
+let currentAppMode = 'TAX'; // 'TAX' or 'ESTIMATE'
+
+// Key sequence buffer for F11 -> n -> o -> 2 -> Enter
+let shadowModeBuffer = '';
+let isArmed = false; // F11 pressed
+let bufferTimeout = null;
+
+// Initialize Shadow Mode key listener
+function initShadowMode() {
+    document.addEventListener('keydown', (e) => {
+        // F11 key is the "Arming" key
+        if (e.key === 'F11') {
+            e.preventDefault(); // Prevent browser fullscreen
+            isArmed = true;
+            shadowModeBuffer = '';
+            console.log('🔓 Shadow Mode: Armed (F11 pressed)');
+            
+            // Clear buffer after 5 seconds of inactivity
+            if (bufferTimeout) clearTimeout(bufferTimeout);
+            bufferTimeout = setTimeout(() => {
+                isArmed = false;
+                shadowModeBuffer = '';
+                console.log('🔒 Shadow Mode: Disarmed (timeout)');
+            }, 5000);
+            return;
+        }
+        
+        // Only capture keys if armed
+        if (!isArmed) return;
+        
+        // Capture Enter key to complete sequence
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            
+            // Check if buffer equals "no2"
+            if (shadowModeBuffer.toLowerCase() === 'no2') {
+                // Permission check: ONLY unlock if user has no2_access permission
+                const currentUser = window.currentUser || {};
+                const permissions = currentUser.permissions || {};
+                const hasNo2Access = permissions.no2_access === true || 
+                                     currentUser.isAdmin || 
+                                     currentUser.role === 'admin' || 
+                                     currentUser.role === 'super_admin';
+                
+                if (!hasNo2Access) {
+                    console.warn('🚫 Shadow Mode: Access denied - no2_access permission required');
+                    showShadowModeToast('Access Denied: No2 Access permission required', 'error');
+                    isArmed = false;
+                    shadowModeBuffer = '';
+                    return;
+                }
+                
+                // Toggle mode
+                currentAppMode = currentAppMode === 'TAX' ? 'ESTIMATE' : 'TAX';
+                
+                // Refresh quotation list with current mode
+                refreshQuotationListForMode();
+                
+                // Show toast notification
+                const modeText = currentAppMode === 'ESTIMATE' ? 'ESTIMATE (Shadow Mode)' : 'TAX';
+                showShadowModeToast(`Mode switched to: ${modeText}`, 'success');
+                
+                console.log(`✅ Shadow Mode: Switched to ${currentAppMode}`);
+            } else {
+                // Invalid sequence
+                showShadowModeToast('Invalid sequence', 'error');
+            }
+            
+            // Reset
+            isArmed = false;
+            shadowModeBuffer = '';
+            if (bufferTimeout) clearTimeout(bufferTimeout);
+            return;
+        }
+        
+        // Capture alphanumeric characters for buffer
+        if (e.key.length === 1 && /[a-zA-Z0-9]/.test(e.key)) {
+            shadowModeBuffer += e.key.toLowerCase();
+            console.log(`🔓 Shadow Mode Buffer: "${shadowModeBuffer}"`);
+            
+            // Limit buffer size
+            if (shadowModeBuffer.length > 10) {
+                shadowModeBuffer = shadowModeBuffer.slice(-10);
+            }
+        }
+    });
+    
+    console.log('✅ Shadow Mode key listener initialized');
+}
+
+// Refresh quotation list based on current mode
+async function refreshQuotationListForMode() {
+    try {
+        const API_BASE = window.API_BASE_URL || 'http://localhost:3000/api';
+        const response = await fetch(`${API_BASE}/quotations?type=${currentAppMode}`);
+        
+        if (response.ok) {
+            const quotationsData = await response.json();
+            
+            // Trigger custom event for quotation list refresh
+            window.dispatchEvent(new CustomEvent('quotationsRefreshed', { 
+                detail: { quotations: quotationsData, mode: currentAppMode } 
+            }));
+            
+            // If there's a global loadQuotations function, call it
+            if (typeof window.loadQuotations === 'function') {
+                await window.loadQuotations();
+            }
+        }
+    } catch (error) {
+        console.error('Error refreshing quotations:', error);
+    }
+}
+
+// Show toast notification for Shadow Mode
+function showShadowModeToast(message, type = 'info') {
+    // Try to use existing toast/dialog system
+    if (typeof showDialog === 'function') {
+        showDialog('Shadow Mode', message, type);
+        return;
+    }
+    
+    // Fallback: Create simple toast
+    const toast = document.createElement('div');
+    toast.className = `fixed top-4 right-4 z-[100] px-6 py-3 rounded-lg shadow-lg ${
+        type === 'success' ? 'bg-green-500 text-white' : 
+        type === 'error' ? 'bg-red-500 text-white' : 
+        'bg-blue-500 text-white'
+    }`;
+    toast.textContent = message;
+    toast.style.animation = 'slideIn 0.3s ease-out';
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.style.animation = 'slideOut 0.3s ease-out';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+// Make globally accessible
+window.currentAppMode = () => currentAppMode;
+window.getCurrentAppMode = () => currentAppMode;
+window.refreshQuotationListForMode = refreshQuotationListForMode;
+
+// Initialize when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initShadowMode);
+} else {
+    initShadowMode();
+}
+
+// ==========================================
 // DROPDOWN & MOBILE MENU FUNCTIONS
 // ==========================================
 
@@ -580,6 +735,18 @@ const UserManagement = {
                                 </label>
                             </div>
                             
+                            <!-- Shadow Mode (Number 2) Access Toggle -->
+                            <div class="bg-gradient-to-r from-gray-50 to-slate-50 p-4 rounded-lg border-2 border-gray-300 mb-4">
+                                <label class="flex items-center gap-3 cursor-pointer">
+                                    <input type="checkbox" id="no2AccessToggle"
+                                        class="w-5 h-5 text-gray-600 rounded focus:ring-gray-500">
+                                    <div>
+                                        <span class="font-bold text-gray-800">🔐 Allow Internal Mode Access (Shadow Mode)</span>
+                                        <p class="text-xs text-gray-600">Grant access to internal estimate mode (F11 → n → o → 2 → Enter)</p>
+                                    </div>
+                                </label>
+                            </div>
+                            
                             <!-- Module Checkboxes -->
                             <div id="moduleCheckboxes" class="space-y-4">
                                 <!-- Will be populated dynamically -->
@@ -701,10 +868,17 @@ const UserManagement = {
         
         // Set permissions
         const allowedTabs = user.allowed_tabs || [];
+        const permissions = user.permissions || {};
         const isFullAccess = allowedTabs.includes('all');
         
         document.getElementById('fullAccessToggle').checked = isFullAccess;
         this.toggleFullAccess();
+        
+        // Set Shadow Mode (no2_access) checkbox
+        const no2AccessToggle = document.getElementById('no2AccessToggle');
+        if (no2AccessToggle) {
+            no2AccessToggle.checked = permissions.no2_access === true || isFullAccess || user.role === 'admin';
+        }
         
         if (!isFullAccess) {
             // Check individual modules
@@ -725,6 +899,10 @@ const UserManagement = {
     resetForm() {
         document.getElementById('userPermissionsForm').reset();
         document.getElementById('fullAccessToggle').checked = false;
+        const no2AccessToggle = document.getElementById('no2AccessToggle');
+        if (no2AccessToggle) {
+            no2AccessToggle.checked = false;
+        }
         document.querySelectorAll('.module-checkbox').forEach(cb => {
             cb.checked = false;
             cb.disabled = false;
@@ -784,6 +962,7 @@ const UserManagement = {
         const role = document.getElementById('userRole').value;
         const status = document.getElementById('userStatus')?.value || 'active';
         const fullAccess = document.getElementById('fullAccessToggle').checked;
+        const no2Access = document.getElementById('no2AccessToggle')?.checked || false;
         
         // Collect selected modules
         let allowedTabs = [];
@@ -794,6 +973,13 @@ const UserManagement = {
                 allowedTabs.push(cb.value);
             });
         }
+        
+        // Build permissions object with no2_access
+        // Save the exact checkbox value: if checked = true, if unchecked = false
+        // Full access users automatically get it, otherwise use checkbox value
+        const permissions = {
+            no2_access: fullAccess ? true : no2Access
+        };
         
         // Validate
         if (!email) {
@@ -823,7 +1009,8 @@ const UserManagement = {
                         name,
                         role,
                         account_status: status,
-                        allowed_tabs: allowedTabs
+                        allowed_tabs: allowedTabs,
+                        permissions: permissions
                     })
                 });
             } else {
@@ -835,7 +1022,8 @@ const UserManagement = {
                         email,
                         name,
                         role,
-                        allowed_tabs: allowedTabs
+                        allowed_tabs: allowedTabs,
+                        permissions: permissions
                     })
                 });
             }

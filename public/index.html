@@ -3945,9 +3945,9 @@
         }
         
         // Load quotations from API
-        async function loadQuotations() {
+        async function loadQuotations(type = null) {
             try {
-                const quotationsData = await api.getQuotations();
+                const quotationsData = await api.getQuotations(type);
                 if (Array.isArray(quotationsData)) {
                     savedQuotations = quotationsData.map(q => ({
                         id: q.id,
@@ -3968,7 +3968,8 @@
                         finalAmount: parseFloat(q.final_amount) || 0,
                         isBilled: q.is_billed || false,
                         paymentReceived: q.payment_status === 'paid',
-                        paymentDate: q.payment_date
+                        paymentDate: q.payment_date,
+                        billType: q.bill_type || 'TAX'
                     }));
                     setCachedItem('savedQuotations', savedQuotations);
                 }
@@ -4225,8 +4226,9 @@
             },
             
             // Quotations API
-            async getQuotations() {
-                return this.request('/quotations');
+            async getQuotations(type = null) {
+                const endpoint = type ? `/quotations?type=${encodeURIComponent(type)}` : '/quotations';
+                return this.request(endpoint);
             },
             
             async createQuotation(quotation) {
@@ -4860,6 +4862,13 @@ let AUTH_USERS = getCachedItem('authUsers', {
 });
 
 let currentUser = null;
+
+// ==========================================
+// SHADOW MODE (Number 2) - Global State
+// ==========================================
+let currentAppMode = 'TAX'; // Default mode: 'TAX' or 'ESTIMATE'
+let shadowModeBuffer = ''; // Buffer for capturing key sequence
+let shadowModeArmed = false; // Whether F11 has been pressed (arming state)
 
 function saveAuthUsers() {
     setCachedItem('authUsers', AUTH_USERS);
@@ -10613,6 +10622,7 @@ function updateMCTypeLabel() {
                     const paymentStatus = isSold ? 'paid' : 'pending';
                     
                     try {
+                        // Get current app mode (TAX or ESTIMATE)
                         // Save quotation to database
                         const savedQuotation = await api.createQuotation({
                             quotationNo: currentQuotationData.quotationNo,
@@ -10627,7 +10637,8 @@ function updateMCTypeLabel() {
                             advance: currentQuotationData.advance,
                             finalAmount: currentQuotationData.finalAmount,
                             paymentStatus: paymentStatus,
-                            remarks: paymentMode === 'online' ? `Ref: ${refNo}` : ''
+                            remarks: paymentMode === 'online' ? `Ref: ${refNo}` : '',
+                            bill_type: currentAppMode // Send current app mode (TAX or ESTIMATE)
                         });
                         
                         // If cash/online received, record in ledger
@@ -19135,6 +19146,120 @@ window.addEventListener('error', function(e) {
     console.error('Global Error:', e.error);
     // Silently handle errors in production
 });
+
+// ==========================================
+// SHADOW MODE (Number 2) - Key Listener
+// Secret trigger: F11 -> n -> o -> 2 -> Enter
+// ==========================================
+document.addEventListener('keydown', function(event) {
+    // F11 is the "Arming" key
+    if (event.key === 'F11') {
+        event.preventDefault(); // Prevent browser fullscreen
+        shadowModeArmed = true;
+        shadowModeBuffer = '';
+        // Clear any existing timeout
+        if (shadowModeBufferTimeout) {
+            clearTimeout(shadowModeBufferTimeout);
+            shadowModeBufferTimeout = null;
+        }
+        console.log('🔓 Shadow Mode armed. Enter sequence: n -> o -> 2 -> Enter');
+        return;
+    }
+    
+    // Only process sequence if armed
+    if (!shadowModeArmed) return;
+    
+    // Reset buffer if too much time passes (5 seconds timeout)
+    if (!shadowModeBufferTimeout) {
+        shadowModeBufferTimeout = setTimeout(() => {
+            shadowModeArmed = false;
+            shadowModeBuffer = '';
+            shadowModeBufferTimeout = null;
+        }, 5000);
+    }
+    
+    // Handle Enter key - completes the sequence
+    if (event.key === 'Enter') {
+        if (shadowModeBuffer === 'no2') {
+            event.preventDefault();
+            
+            // Clear timeout
+            if (shadowModeBufferTimeout) {
+                clearTimeout(shadowModeBufferTimeout);
+                shadowModeBufferTimeout = null;
+            }
+            
+            // Reset state
+            shadowModeArmed = false;
+            shadowModeBuffer = '';
+            
+            // Permission check: ONLY unlock if user has no2_access permission explicitly set to true
+            const userPermissions = currentUser?.permissions || window.PermissionContext?.getData()?.permissions || {};
+            const hasNo2Access = userPermissions.no2_access === true;
+            
+            if (!hasNo2Access) {
+                showToast('❌ Access Denied: You do not have permission for Internal Mode');
+                console.warn('🚫 Shadow Mode access denied for user:', currentUser?.email || 'unknown');
+                return;
+            }
+            
+            // Toggle mode
+            currentAppMode = currentAppMode === 'TAX' ? 'ESTIMATE' : 'TAX';
+            
+            // Refresh quotation list with appropriate type filter
+            const filterType = currentAppMode === 'ESTIMATE' ? 'ESTIMATE' : null;
+            if (typeof loadQuotations === 'function') {
+                loadQuotations(filterType);
+            }
+            
+            // Show toast notification
+            const modeText = currentAppMode === 'ESTIMATE' ? 'Internal Estimate Mode' : 'Tax Mode';
+            showToast(`🔄 Mode switched to: ${modeText}`);
+            
+            console.log(`✅ Shadow Mode toggled: ${currentAppMode}`);
+        } else {
+            // Enter pressed but buffer doesn't match - reset
+            shadowModeArmed = false;
+            shadowModeBuffer = '';
+            if (shadowModeBufferTimeout) {
+                clearTimeout(shadowModeBufferTimeout);
+                shadowModeBufferTimeout = null;
+            }
+        }
+        return;
+    }
+    
+    // Capture alphanumeric characters for sequence
+    if (event.key.length === 1 && /[a-z0-9]/i.test(event.key)) {
+        const newChar = event.key.toLowerCase();
+        const newBuffer = shadowModeBuffer + newChar;
+        
+        // Check if new buffer matches valid pattern
+        if (newBuffer.match(/^(n|no|no2)$/)) {
+            // Valid continuation - update buffer
+            shadowModeBuffer = newBuffer;
+        } else {
+            // Invalid character - immediately reset buffer and disarm
+            shadowModeArmed = false;
+            shadowModeBuffer = '';
+            if (shadowModeBufferTimeout) {
+                clearTimeout(shadowModeBufferTimeout);
+                shadowModeBufferTimeout = null;
+            }
+        }
+    } else if (event.key !== 'F11') {
+        // Any other key (except F11) that's not alphanumeric or Enter - reset immediately
+        // This includes: Space, Backspace, Arrow keys, etc.
+        shadowModeArmed = false;
+        shadowModeBuffer = '';
+        if (shadowModeBufferTimeout) {
+            clearTimeout(shadowModeBufferTimeout);
+            shadowModeBufferTimeout = null;
+        }
+    }
+});
+
+let shadowModeBufferTimeout = null;
             </script>
     
     <!-- Enterprise Feature Modules -->

@@ -195,6 +195,9 @@ const getUserPermissions = (user) => {
     const allowedTabs = user.allowed_tabs || [];
     const hasAllAccess = allowedTabs.includes('all');
     
+    const permissions = user.permissions || {};
+    const no2Access = permissions.no2_access === true || isAdmin;
+    
     return {
         isLoggedIn: true,
         isAdmin: isAdmin,
@@ -207,7 +210,12 @@ const getUserPermissions = (user) => {
         canAccessCustomers: isAdmin || hasAllAccess || allowedTabs.includes('customers'),
         canAccessReports: isAdmin || hasAllAccess || allowedTabs.includes('reports'),
         canAccessSettings: isAdmin,
-        allowedTabs: hasAllAccess ? ['all'] : allowedTabs
+        allowedTabs: hasAllAccess ? ['all'] : allowedTabs,
+        no2_access: no2Access,
+        permissions: {
+            ...permissions,
+            no2_access: no2Access
+        }
     };
 };
 
