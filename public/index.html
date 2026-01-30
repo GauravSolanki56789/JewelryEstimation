@@ -570,6 +570,8 @@
                     class="w-full px-2 py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 font-medium">➕ New</button>
             </div>
             <div class="col-span-4 flex gap-2 justify-end">
+                <button onclick="newBill()"
+                    class="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700 font-bold">🆕 New Bill</button>
                 <button onclick="generateQuote()"
                     class="flex-1 px-3 py-1.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 font-bold">📄 Generate Quote</button>
                 <button onclick="clearAll()"
@@ -1573,7 +1575,7 @@
             <div class="flex gap-2">
                 <button onclick="showAddStyleModal()"
                     class="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-bold text-sm">
-                    ➕ Add Style
+                    ➕ Create New Style
                 </button>
                 <button onclick="exportStyles()"
                     class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-sm">
@@ -1608,8 +1610,8 @@
 
         <!-- Filter Bar -->
         <div class="bg-gray-50 p-4 rounded-lg mb-4">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <input type="text" id="styleSearch" placeholder="🔍 Search by Style Code, SKU Code, or Name..."
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <input type="text" id="styleSearch" placeholder="🔍 Search by Style Code or Category..."
                     oninput="filterStyles()" class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
                 <select id="styleCategoryFilter" onchange="filterStyles()" class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
                     <option value="">All Categories</option>
@@ -1622,11 +1624,6 @@
                     <option value="Bracelets">Bracelets</option>
                     <option value="Others">Others</option>
                 </select>
-                <select id="styleMCFilter" onchange="filterStyles()" class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
-                    <option value="">All MC Types</option>
-                    <option value="PER_GRAM">Per Gram (MC/GM)</option>
-                    <option value="FIXED">Fixed MC</option>
-                </select>
                 <select id="styleStatusFilter" onchange="filterStyles()" class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
                     <option value="active">Active Only</option>
                     <option value="all">All Styles</option>
@@ -1634,63 +1631,94 @@
             </div>
         </div>
 
-        <!-- Styles Table -->
-        <div class="overflow-x-auto rounded-lg border">
-            <table class="w-full text-sm">
-                <thead class="bg-gradient-to-r from-amber-100 to-orange-100">
-                    <tr>
-                        <th class="px-4 py-3 text-left font-semibold text-gray-700">Style Code</th>
-                        <th class="px-4 py-3 text-left font-semibold text-gray-700">SKU Code</th>
-                        <th class="px-4 py-3 text-left font-semibold text-gray-700">Item Name</th>
-                        <th class="px-4 py-3 text-center font-semibold text-gray-700">Category</th>
-                        <th class="px-4 py-3 text-center font-semibold text-gray-700">Metal</th>
-                        <th class="px-4 py-3 text-center font-semibold text-gray-700">Purity</th>
-                        <th class="px-4 py-3 text-center font-semibold text-gray-700">MC Type</th>
-                        <th class="px-4 py-3 text-right font-semibold text-gray-700">MC Value</th>
-                        <th class="px-4 py-3 text-center font-semibold text-gray-700">HSN</th>
-                        <th class="px-4 py-3 text-center font-semibold text-gray-700">Status</th>
-                        <th class="px-4 py-3 text-center font-semibold text-gray-700">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="stylesTableBody" class="divide-y divide-gray-200">
-                    <!-- Populated by JS -->
-                </tbody>
-            </table>
-        </div>
+        <!-- Split View: Styles List (Left) and SKUs Detail (Right) -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" style="min-height: 500px;">
+            <!-- LEFT SIDE: Styles List -->
+            <div class="bg-white rounded-lg border-2 border-gray-200 overflow-hidden flex flex-col">
+                <div class="bg-gradient-to-r from-amber-100 to-orange-100 px-4 py-3 border-b">
+                    <h3 class="text-lg font-bold text-gray-800">📋 Styles List</h3>
+                </div>
+                <div class="flex-1 overflow-y-auto">
+                    <div id="stylesListContainer" class="divide-y divide-gray-200">
+                        <!-- Styles will be populated here -->
+                    </div>
+                    <!-- Empty State for Styles List -->
+                    <div id="stylesListEmptyState" class="text-center py-12 hidden">
+                        <div class="text-5xl mb-3">🎨</div>
+                        <h4 class="text-lg font-bold text-gray-700 mb-1">No Styles Found</h4>
+                        <p class="text-gray-500 text-sm mb-4">Create your first style to get started</p>
+                        <button onclick="showAddStyleModal()" class="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-bold text-sm">
+                            ➕ Create Style
+                        </button>
+                    </div>
+                </div>
+            </div>
 
-        <!-- Empty State -->
-        <div id="stylesEmptyState" class="text-center py-12 hidden">
-            <div class="text-6xl mb-4">🎨</div>
-            <h3 class="text-xl font-bold text-gray-700 mb-2">No Styles Found</h3>
-            <p class="text-gray-500 mb-4">Create your first style code to get started</p>
-            <button onclick="showAddStyleModal()" class="px-6 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-bold">
-                ➕ Add First Style
-            </button>
+            <!-- RIGHT SIDE: SKUs Detail View -->
+            <div class="bg-white rounded-lg border-2 border-gray-200 overflow-hidden flex flex-col">
+                <div class="bg-gradient-to-r from-blue-100 to-indigo-100 px-4 py-3 border-b flex justify-between items-center">
+                    <h3 class="text-lg font-bold text-gray-800">
+                        <span id="selectedStyleTitle">📦 SKUs</span>
+                        <span id="selectedStyleCode" class="text-sm font-mono text-gray-600 ml-2"></span>
+                    </h3>
+                    <button id="addSkuButton" onclick="showAddSkuModal()" class="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-sm hidden">
+                        ➕ Add SKU
+                    </button>
+                </div>
+                <div class="flex-1 overflow-y-auto p-4">
+                    <!-- SKUs Table -->
+                    <div id="skusDetailContainer" class="hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead class="bg-gray-100">
+                                    <tr>
+                                        <th class="px-3 py-2 text-left font-semibold text-gray-700">SKU Code</th>
+                                        <th class="px-3 py-2 text-left font-semibold text-gray-700">Item Name</th>
+                                        <th class="px-3 py-2 text-center font-semibold text-gray-700">Metal</th>
+                                        <th class="px-3 py-2 text-center font-semibold text-gray-700">Purity</th>
+                                        <th class="px-3 py-2 text-center font-semibold text-gray-700">MC Type</th>
+                                        <th class="px-3 py-2 text-right font-semibold text-gray-700">MC Value</th>
+                                        <th class="px-3 py-2 text-center font-semibold text-gray-700">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="skusTableBody" class="divide-y divide-gray-200">
+                                    <!-- Populated by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <!-- Empty State for SKUs -->
+                    <div id="skusEmptyState" class="text-center py-12">
+                        <div class="text-5xl mb-3">📦</div>
+                        <h4 class="text-lg font-bold text-gray-700 mb-1">Select a Style</h4>
+                        <p class="text-gray-500 text-sm">Choose a style from the left to view its SKUs</p>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Style Modal (Add/Edit) -->
+<!-- Style Modal (Add Style Only - No SKU) -->
 <div id="styleModal" class="fixed inset-0 z-50 hidden">
     <div class="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onclick="closeStyleModal()"></div>
-    <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl shadow-2xl w-full max-w-lg p-6">
+    <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-6">
-            <h3 class="text-xl font-bold text-gray-800" id="styleModalTitle">Add New Style</h3>
+            <h3 class="text-xl font-bold text-gray-800" id="styleModalTitle">Create New Style</h3>
             <button onclick="closeStyleModal()" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
         </div>
         <form id="styleForm" onsubmit="saveStyle(event)">
-            <input type="hidden" id="styleEditId">
-            <div class="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Style Code *</label>
-                    <input type="text" id="styleCode" required placeholder="RING-001"
-                        class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 uppercase">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">SKU Code *</label>
-                    <input type="text" id="styleSkuCode" required placeholder="RING-001-SKU1"
-                        class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 uppercase">
-                </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Style Code *</label>
+                <input type="text" id="styleCode" required placeholder="RING-001"
+                    class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 uppercase">
+                <p class="text-xs text-gray-500 mt-1">Unique identifier for this style (e.g., RING-001)</p>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Item Name *</label>
+                <input type="text" id="styleItemName" required placeholder="e.g. Gold Ring"
+                    class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500">
+                <p class="text-xs text-gray-500 mt-1">Product/item name for this style</p>
             </div>
             <div class="grid grid-cols-2 gap-4 mb-4">
                 <div>
@@ -1708,56 +1736,99 @@
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Item/Product Name *</label>
-                    <input type="text" id="styleItemName" required placeholder="Gold Ring Plain"
-                        class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500">
-                </div>
-            </div>
-            <div class="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Metal Type</label>
-                    <select id="styleMetalType" class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500">
-                        <option value="gold">Gold</option>
-                        <option value="silver">Silver</option>
-                        <option value="platinum">Platinum</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Default Purity</label>
-                    <input type="number" id="stylePurity" step="0.01" value="91.6" min="0" max="100"
-                        class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500">
-                </div>
-            </div>
-            <div class="grid grid-cols-3 gap-4 mb-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">MC Type</label>
-                    <select id="styleMCType" class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500">
-                        <option value="PER_GRAM">Per Gram</option>
-                        <option value="FIXED">Fixed</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">MC Value (₹)</label>
-                    <input type="number" id="styleMCValue" step="0.01" value="0" min="0"
-                        class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500">
-                </div>
-                <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">HSN Code</label>
                     <input type="text" id="styleHSN" value="7113"
                         class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500">
                 </div>
             </div>
-            <div class="mb-6">
+            <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
                 <textarea id="styleDescription" rows="2" placeholder="Optional description..."
                     class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"></textarea>
+            </div>
+            <div class="bg-amber-50 border-l-4 border-amber-500 p-3 mb-4">
+                <p class="text-sm text-amber-800">
+                    <strong>Note:</strong> After creating the style, you can add SKUs (variants) using the "Add SKU" button in the detail view.
+                </p>
             </div>
             <div class="flex gap-3">
                 <button type="button" onclick="closeStyleModal()" class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-bold">
                     Cancel
                 </button>
                 <button type="submit" class="flex-1 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-bold">
-                    💾 Save Style
+                    💾 Create Style
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Add SKU Modal -->
+<div id="addSkuModal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onclick="closeAddSkuModal()"></div>
+    <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-xl font-bold text-gray-800">Add SKU to Style</h3>
+            <button onclick="closeAddSkuModal()" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+        </div>
+        <form id="addSkuForm" onsubmit="saveSku(event)">
+            <input type="hidden" id="skuStyleCode">
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Style Code</label>
+                <input type="text" id="skuStyleCodeDisplay" readonly
+                    class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg bg-gray-100 font-mono uppercase">
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">SKU Code *</label>
+                <input type="text" id="skuCode" required placeholder="RING-001-SKU1"
+                    class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 uppercase">
+                <p class="text-xs text-gray-500 mt-1">Unique SKU identifier (e.g., RING-001-SKU1)</p>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Item/Product Name *</label>
+                <input type="text" id="skuItemName" required placeholder="Gold Ring Plain"
+                    class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Metal Type</label>
+                    <select id="skuMetalType" class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <option value="gold">Gold</option>
+                        <option value="silver">Silver</option>
+                        <option value="platinum">Platinum</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Purity (%)</label>
+                    <input type="number" id="skuPurity" step="0.01" value="91.6" min="0" max="100"
+                        class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">MC Type</label>
+                    <select id="skuMCType" class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <option value="PER_GRAM">Per Gram (MC/GM)</option>
+                        <option value="FIXED">Fixed MC</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">MC Value (₹)</label>
+                    <input type="number" id="skuMCValue" step="0.01" value="0" min="0"
+                        class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea id="skuDescription" rows="2" placeholder="Optional description..."
+                    class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"></textarea>
+            </div>
+            <div class="flex gap-3">
+                <button type="button" onclick="closeAddSkuModal()" class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-bold">
+                    Cancel
+                </button>
+                <button type="submit" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold">
+                    💾 Add SKU
                 </button>
             </div>
         </form>
@@ -11194,6 +11265,56 @@ function clearAll() {
                     }
                 }
 
+                // New Bill function - clears everything without confirmation
+                function newBill() {
+                    // Clear items array
+                    items = [];
+                    items.length = 0;
+                    
+                    // Clear double-scanned barcodes for this session
+                    doubleScannedBarcodes = [];
+                    localStorage.removeItem('doubleScannedBarcodes');
+                    
+                    // Clear customer fields
+                    const customerSelect = document.getElementById('customerSelect');
+                    const customerMobile = document.getElementById('customerMobile');
+                    const rateSlabEl = getCachedElement('rateSlab');
+                    
+                    if (customerSelect) customerSelect.value = '';
+                    if (customerMobile) customerMobile.value = '';
+                    if (rateSlabEl) {
+                        rateSlabEl.value = 'R';
+                    }
+                    currentCustomer = null;
+                    currentRateSlab = 'R';
+                    
+                    // Hide customer details display
+                    const customerDetailsDisplay = document.getElementById('customerDetailsDisplay');
+                    if (customerDetailsDisplay) {
+                        customerDetailsDisplay.classList.add('hidden');
+                    }
+                    
+                    // Clear item form
+                    clearItemForm();
+                    
+                    // Update UI
+                    updateItemsTable();
+                    updateSummary();
+                    updateRateSlabInfo();
+                    
+                    // Focus barcode input
+                    const barcodeInput = getCachedElement('barcodeInput');
+                    if (barcodeInput) {
+                        barcodeInput.focus();
+                    }
+                    
+                    // Force a re-render to ensure table is cleared
+                    setTimeout(() => {
+                        updateItemsTable();
+                        updateSummary();
+                    }, 10);
+                }
+
           function viewSoldProductsReport() {
                 if (soldProducts.length === 0) {
                     alert('No products have been sold yet.');
@@ -12252,6 +12373,12 @@ function clearAll() {
                                     return;
                                 }
 
+                                // Close any open modals first
+                                const customDialog = document.getElementById('customDialog');
+                                if (customDialog) {
+                                    customDialog.remove();
+                                }
+
                                 // Delete from API if has database ID
                                 if (quotation.dbId) {
                                     try {
@@ -12281,10 +12408,14 @@ function clearAll() {
                                     setCachedItem('products', products);
                                 }
 
+                                // Remove from local array
                                 savedQuotations = savedQuotations.filter(q => q.id !== id);
                                 setCachedItem('savedQuotations', savedQuotations);
 
-                                loadQuotationsHistory();
+                                // Refresh the quotations list immediately
+                                await loadQuotationsHistory();
+                                
+                                // Show success message
                                 showDialog('Success', 'Quotation deleted successfully! Items returned to original floors.', 'success');
                             }
 
@@ -16322,33 +16453,60 @@ function closePaymentModal() {
     }
 
 // ==========================================
-// STYLE MASTER FUNCTIONS (Enterprise)
+// STYLE MASTER FUNCTIONS (Enterprise) - Split View
 // ==========================================
 
-let allStyles = [];
-let filteredStyles = [];
+let allStylesData = []; // All style records from API
+let uniqueStyles = []; // Unique style codes grouped
+let filteredStyles = []; // Filtered unique styles
+let selectedStyleCode = null; // Currently selected style
+let currentSKUs = []; // SKUs for selected style
 
+// Load all styles and group by style_code
 async function loadStyles() {
     try {
-        // Use the API helper to load all styles
-        allStyles = await api.getStyles();
-        filteredStyles = [...allStyles];
-        updateStylesTable();
+        const API_BASE = window.API_BASE_URL || 'http://localhost:3000/api';
+        const response = await fetch(`${API_BASE}/styles/all`);
+        if (!response.ok) throw new Error('Failed to load styles');
+        
+        allStylesData = await response.json();
+        
+        // Group by style_code to get unique styles
+        const styleMap = new Map();
+        allStylesData.forEach(style => {
+            if (!styleMap.has(style.style_code)) {
+                styleMap.set(style.style_code, {
+                    style_code: style.style_code,
+                    category: style.category,
+                    hsn_code: style.hsn_code,
+                    sku_count: 0
+                });
+            }
+            styleMap.get(style.style_code).sku_count++;
+        });
+        
+        uniqueStyles = Array.from(styleMap.values());
+        filteredStyles = [...uniqueStyles];
+        
+        updateStylesList();
         updateStyleCategorySummary();
+        
+        // If a style was selected, reload its SKUs
+        if (selectedStyleCode) {
+            await loadSKUsForStyle(selectedStyleCode);
+        }
     } catch (error) {
         console.error('Error loading styles:', error);
-        showDialog('Error', 'Failed to load styles', 'error');
+        showDialog('Error', 'Failed to load styles: ' + error.message, 'error');
     }
 }
 
 function updateStyleCategorySummary() {
-    // Count active styles (assuming is_active field exists, or count all if not)
-    const activeStyles = allStyles.filter(s => s.is_active !== false && s.is_active !== null);
-    document.getElementById('styleTotalCount').textContent = activeStyles.length;
-    document.getElementById('styleRingsCount').textContent = activeStyles.filter(s => s.category === 'Rings').length;
-    document.getElementById('styleChainsCount').textContent = activeStyles.filter(s => s.category === 'Chains').length;
-    document.getElementById('styleBanglesCount').textContent = activeStyles.filter(s => s.category === 'Bangles').length;
-    document.getElementById('styleEarringsCount').textContent = activeStyles.filter(s => s.category === 'Earrings').length;
+    document.getElementById('styleTotalCount').textContent = uniqueStyles.length;
+    document.getElementById('styleRingsCount').textContent = uniqueStyles.filter(s => s.category === 'Rings').length;
+    document.getElementById('styleChainsCount').textContent = uniqueStyles.filter(s => s.category === 'Chains').length;
+    document.getElementById('styleBanglesCount').textContent = uniqueStyles.filter(s => s.category === 'Bangles').length;
+    document.getElementById('styleEarringsCount').textContent = uniqueStyles.filter(s => s.category === 'Earrings').length;
 }
 
 function filterStylesByCategory(category) {
@@ -16359,79 +16517,109 @@ function filterStylesByCategory(category) {
 function filterStyles() {
     const search = document.getElementById('styleSearch').value.toLowerCase();
     const category = document.getElementById('styleCategoryFilter').value;
-    const mcType = document.getElementById('styleMCFilter').value;
     const status = document.getElementById('styleStatusFilter').value;
     
-    filteredStyles = allStyles.filter(style => {
-        const matchSearch = !search || 
-            style.style_code?.toLowerCase().includes(search) || 
-            style.sku_code?.toLowerCase().includes(search) ||
-            style.item_name?.toLowerCase().includes(search);
+    filteredStyles = uniqueStyles.filter(style => {
+        const matchSearch = !search || style.style_code?.toLowerCase().includes(search);
         const matchCategory = !category || style.category === category;
-        const matchMC = !mcType || style.mc_type === mcType;
-        const matchStatus = status === 'all' || (status === 'active' && style.is_active !== false);
-        
-        return matchSearch && matchCategory && matchMC && matchStatus;
+        return matchSearch && matchCategory;
     });
     
-    updateStylesTable();
+    updateStylesList();
 }
 
-function updateStylesTable() {
-    const tbody = document.getElementById('stylesTableBody');
-    const emptyState = document.getElementById('stylesEmptyState');
+function updateStylesList() {
+    const container = document.getElementById('stylesListContainer');
+    const emptyState = document.getElementById('stylesListEmptyState');
     
     if (filteredStyles.length === 0) {
-        tbody.innerHTML = '';
+        container.innerHTML = '';
         emptyState?.classList.remove('hidden');
         return;
     }
     
     emptyState?.classList.add('hidden');
     
-    tbody.innerHTML = filteredStyles.map(style => `
-        <tr class="hover:bg-amber-50 transition ${style.is_active === false ? 'opacity-50' : ''}">
-            <td class="px-4 py-3 font-mono font-bold text-amber-700">${style.style_code || '-'}</td>
-            <td class="px-4 py-3 font-mono text-sm text-gray-700">${style.sku_code || '-'}</td>
-            <td class="px-4 py-3">${style.item_name || '-'}</td>
-            <td class="px-4 py-3 text-center">
-                <span class="px-2 py-1 bg-gray-100 rounded text-xs">${style.category || '-'}</span>
-            </td>
-            <td class="px-4 py-3 text-center capitalize">${style.metal_type || 'gold'}</td>
-            <td class="px-4 py-3 text-center">${style.purity || style.default_purity || 91.6}%</td>
-            <td class="px-4 py-3 text-center">
-                <span class="px-2 py-1 ${(style.mc_type || style.default_mc_type) === 'FIXED' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'} rounded text-xs font-medium">
-                    ${(style.mc_type || style.default_mc_type) === 'FIXED' ? 'Fixed' : 'Per Gram'}
+    container.innerHTML = filteredStyles.map(style => {
+        const isSelected = selectedStyleCode === style.style_code;
+        return `
+            <div onclick="selectStyle('${style.style_code}')" 
+                class="p-4 cursor-pointer transition ${isSelected ? 'bg-amber-100 border-l-4 border-amber-600' : 'hover:bg-gray-50'}">
+                <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                        <div class="font-mono font-bold text-lg text-amber-700">${style.style_code || '-'}</div>
+                        <div class="text-sm text-gray-600 mt-1">
+                            ${style.category ? `<span class="px-2 py-0.5 bg-gray-100 rounded text-xs">${style.category}</span>` : ''}
+                            <span class="ml-2 text-gray-500">${style.sku_count || 0} SKU${style.sku_count !== 1 ? 's' : ''}</span>
+                        </div>
+                    </div>
+                    ${isSelected ? '<span class="text-amber-600 text-xl">▶</span>' : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+async function selectStyle(styleCode) {
+    selectedStyleCode = styleCode;
+    updateStylesList();
+    await loadSKUsForStyle(styleCode);
+}
+
+async function loadSKUsForStyle(styleCode) {
+    try {
+        const API_BASE = window.API_BASE_URL || 'http://localhost:3000/api';
+        const response = await fetch(`${API_BASE}/styles/${encodeURIComponent(styleCode)}/skus`);
+        if (!response.ok) throw new Error('Failed to load SKUs');
+        
+        currentSKUs = await response.json();
+        
+        // Update UI
+        document.getElementById('selectedStyleCode').textContent = styleCode;
+        document.getElementById('addSkuButton').classList.remove('hidden');
+        document.getElementById('skusEmptyState').classList.add('hidden');
+        document.getElementById('skusDetailContainer').classList.remove('hidden');
+        
+        updateSKUsTable();
+    } catch (error) {
+        console.error('Error loading SKUs:', error);
+        showDialog('Error', 'Failed to load SKUs: ' + error.message, 'error');
+    }
+}
+
+function updateSKUsTable() {
+    const tbody = document.getElementById('skusTableBody');
+    
+    if (currentSKUs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">No SKUs found. Click "Add SKU" to create one.</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = currentSKUs.map(sku => `
+        <tr class="hover:bg-blue-50 transition">
+            <td class="px-3 py-2 font-mono text-sm font-semibold text-gray-700">${sku.sku_code || '-'}</td>
+            <td class="px-3 py-2">${sku.item_name || '-'}</td>
+            <td class="px-3 py-2 text-center capitalize">${sku.metal_type || 'gold'}</td>
+            <td class="px-3 py-2 text-center">${sku.purity || 91.6}%</td>
+            <td class="px-3 py-2 text-center">
+                <span class="px-2 py-1 ${sku.mc_type === 'FIXED' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'} rounded text-xs font-medium">
+                    ${sku.mc_type === 'FIXED' ? 'Fixed' : 'Per Gram'}
                 </span>
             </td>
-            <td class="px-4 py-3 text-right font-semibold">₹${parseFloat(style.mc_value || style.default_mc_value || 0).toFixed(2)}</td>
-            <td class="px-4 py-3 text-center text-gray-500">${style.hsn_code || '7113'}</td>
-            <td class="px-4 py-3 text-center">
-                ${style.is_active !== false 
-                    ? '<span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">Active</span>'
-                    : '<span class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs">Inactive</span>'}
-            </td>
-            <td class="px-4 py-3 text-center">
-                <button onclick="editStyle(${style.id})" class="px-2 py-1 text-blue-600 hover:bg-blue-50 rounded" title="Edit">✏️</button>
-                <button onclick="deleteStyle(${style.id})" class="px-2 py-1 text-red-600 hover:bg-red-50 rounded" title="Delete">🗑️</button>
+            <td class="px-3 py-2 text-right font-semibold">₹${parseFloat(sku.mc_value || 0).toFixed(2)}</td>
+            <td class="px-3 py-2 text-center">
+                <button onclick="editSku('${selectedStyleCode}', '${sku.sku_code}')" class="px-2 py-1 text-blue-600 hover:bg-blue-50 rounded text-sm" title="Edit">✏️</button>
+                <button onclick="deleteSku('${selectedStyleCode}', '${sku.sku_code}')" class="px-2 py-1 text-red-600 hover:bg-red-50 rounded text-sm" title="Delete">🗑️</button>
             </td>
         </tr>
     `).join('');
 }
 
 function showAddStyleModal() {
-    document.getElementById('styleModalTitle').textContent = 'Add New Style';
-    document.getElementById('styleEditId').value = '';
+    document.getElementById('styleModalTitle').textContent = 'Create New Style';
     document.getElementById('styleCode').value = '';
-    document.getElementById('styleCode').disabled = false;
-    document.getElementById('styleSkuCode').value = '';
-    document.getElementById('styleSkuCode').disabled = false;
     document.getElementById('styleItemName').value = '';
     document.getElementById('styleCategory').value = '';
-    document.getElementById('styleMetalType').value = 'gold';
-    document.getElementById('stylePurity').value = '91.6';
-    document.getElementById('styleMCType').value = 'PER_GRAM';
-    document.getElementById('styleMCValue').value = '0';
     document.getElementById('styleHSN').value = '7113';
     document.getElementById('styleDescription').value = '';
     document.getElementById('styleModal').classList.remove('hidden');
@@ -16441,119 +16629,231 @@ function closeStyleModal() {
     document.getElementById('styleModal').classList.add('hidden');
 }
 
-function editStyle(id) {
-    const style = allStyles.find(s => s.id === id);
-    if (!style) return;
-    
-    document.getElementById('styleModalTitle').textContent = 'Edit Style';
-    document.getElementById('styleEditId').value = id;
-    document.getElementById('styleCode').value = style.style_code || '';
-    document.getElementById('styleCode').disabled = true;
-    document.getElementById('styleSkuCode').value = style.sku_code || '';
-    document.getElementById('styleSkuCode').disabled = true;
-    document.getElementById('styleItemName').value = style.item_name || '';
-    document.getElementById('styleCategory').value = style.category || '';
-    document.getElementById('styleMetalType').value = style.metal_type || 'gold';
-    document.getElementById('stylePurity').value = style.purity || style.default_purity || 91.6;
-    document.getElementById('styleMCType').value = style.mc_type || style.default_mc_type || 'PER_GRAM';
-    document.getElementById('styleMCValue').value = style.mc_value || style.default_mc_value || 0;
-    document.getElementById('styleHSN').value = style.hsn_code || '7113';
-    document.getElementById('styleDescription').value = style.description || '';
-    document.getElementById('styleModal').classList.remove('hidden');
-}
-
 async function saveStyle(event) {
     event.preventDefault();
     
-    const editId = document.getElementById('styleEditId').value;
     const styleCode = document.getElementById('styleCode').value.toUpperCase().trim();
-    const skuCode = document.getElementById('styleSkuCode').value.toUpperCase().trim();
+    const itemName = document.getElementById('styleItemName').value.trim();
     
-    if (!styleCode || !skuCode) {
-        showDialog('Error', 'Style Code and SKU Code are required', 'error');
+    if (!styleCode) {
+        showDialog('Error', 'Style Code is required', 'error');
         return;
     }
     
-    const data = {
-        item_name: document.getElementById('styleItemName').value.trim(),
-        category: document.getElementById('styleCategory').value || null,
-        metal_type: document.getElementById('styleMetalType').value || null,
-        purity: parseFloat(document.getElementById('stylePurity').value) || null,
-        mc_type: document.getElementById('styleMCType').value || null,
-        mc_value: parseFloat(document.getElementById('styleMCValue').value) || null,
-        hsn_code: document.getElementById('styleHSN').value.trim() || null,
-        description: document.getElementById('styleDescription').value.trim() || null
-    };
-    
-    if (!data.item_name) {
+    if (!itemName) {
         showDialog('Error', 'Item Name is required', 'error');
         return;
     }
     
+    // Create a default SKU with the style code
+    const skuCode = `${styleCode}-SKU1`;
+    const data = {
+        style_code: styleCode,
+        sku_code: skuCode,
+        item_name: itemName,
+        category: document.getElementById('styleCategory').value || null,
+        hsn_code: document.getElementById('styleHSN').value.trim() || null,
+        description: document.getElementById('styleDescription').value.trim() || null
+    };
+    
     try {
-        if (editId) {
-            // Update existing style
-            const style = allStyles.find(s => s.id === parseInt(editId));
-            if (style) {
-                await api.updateStyle(style.style_code, style.sku_code, data);
-            } else {
-                throw new Error('Style not found');
-            }
-        } else {
-            // Create new style
-            await api.createStyle({
-                style_code: styleCode,
-                sku_code: skuCode,
-                ...data
-            });
+        const API_BASE = window.API_BASE_URL || 'http://localhost:3000/api';
+        const response = await fetch(`${API_BASE}/styles`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to create style');
         }
         
         closeStyleModal();
         await loadStyles();
-        showDialog('Success', `Style ${editId ? 'updated' : 'created'} successfully!`, 'success');
+        
+        // Auto-select the newly created style
+        await selectStyle(styleCode);
+        
+        showDialog('Success', 'Style created successfully! You can now add SKUs.', 'success');
     } catch (error) {
         console.error('Error saving style:', error);
         showDialog('Error', error.message || 'Failed to save style', 'error');
     }
 }
 
-async function deleteStyle(id) {
-    const style = allStyles.find(s => s.id === id);
-    if (!style) return;
+function showAddSkuModal() {
+    if (!selectedStyleCode) {
+        showDialog('Error', 'Please select a style first', 'error');
+        return;
+    }
     
-    if (!confirm(`Are you sure you want to delete style "${style.style_code}" with SKU "${style.sku_code}"?\n\nThis action cannot be undone.`)) return;
+    const form = document.getElementById('addSkuForm');
+    form.dataset.editMode = 'false';
+    form.dataset.styleCode = '';
+    form.dataset.skuCode = '';
+    
+    document.getElementById('skuStyleCode').value = selectedStyleCode;
+    document.getElementById('skuStyleCodeDisplay').value = selectedStyleCode;
+    document.getElementById('skuCode').value = '';
+    document.getElementById('skuCode').readOnly = false;
+    document.getElementById('skuItemName').value = '';
+    document.getElementById('skuMetalType').value = 'gold';
+    document.getElementById('skuPurity').value = '91.6';
+    document.getElementById('skuMCType').value = 'PER_GRAM';
+    document.getElementById('skuMCValue').value = '0';
+    document.getElementById('skuDescription').value = '';
+    document.getElementById('addSkuModal').classList.remove('hidden');
+}
+
+function closeAddSkuModal() {
+    document.getElementById('addSkuModal').classList.add('hidden');
+}
+
+async function saveSku(event) {
+    event.preventDefault();
+    
+    const form = document.getElementById('addSkuForm');
+    const isEditMode = form.dataset.editMode === 'true';
+    const styleCode = document.getElementById('skuStyleCode').value.toUpperCase().trim();
+    const skuCode = document.getElementById('skuCode').value.toUpperCase().trim();
+    const itemName = document.getElementById('skuItemName').value.trim();
+    
+    if (!styleCode || !skuCode || !itemName) {
+        showDialog('Error', 'Style Code, SKU Code, and Item Name are required', 'error');
+        return;
+    }
+    
+    const data = {
+        item_name: itemName,
+        metal_type: document.getElementById('skuMetalType').value || null,
+        purity: parseFloat(document.getElementById('skuPurity').value) || null,
+        mc_type: document.getElementById('skuMCType').value || null,
+        mc_value: parseFloat(document.getElementById('skuMCValue').value) || null,
+        description: document.getElementById('skuDescription').value.trim() || null
+    };
     
     try {
-        await api.deleteStyle(style.style_code, style.sku_code);
-        await loadStyles();
-        showDialog('Success', 'Style deleted successfully!', 'success');
+        const API_BASE = window.API_BASE_URL || 'http://localhost:3000/api';
+        let response;
+        
+        if (isEditMode) {
+            // Update existing SKU
+            const editStyleCode = form.dataset.styleCode;
+            const editSkuCode = form.dataset.skuCode;
+            response = await fetch(`${API_BASE}/styles/${encodeURIComponent(editStyleCode)}/${encodeURIComponent(editSkuCode)}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+        } else {
+            // Create new SKU
+            data.style_code = styleCode;
+            data.sku_code = skuCode;
+            response = await fetch(`${API_BASE}/styles`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+        }
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || `Failed to ${isEditMode ? 'update' : 'create'} SKU`);
+        }
+        
+        closeAddSkuModal();
+        // Reset form state
+        form.dataset.editMode = 'false';
+        form.dataset.styleCode = '';
+        form.dataset.skuCode = '';
+        document.getElementById('skuCode').readOnly = false;
+        
+        await loadSKUsForStyle(styleCode);
+        await loadStyles(); // Refresh styles list to update SKU count
+        showDialog('Success', `SKU ${isEditMode ? 'updated' : 'added'} successfully!`, 'success');
     } catch (error) {
-        console.error('Error deleting style:', error);
-        showDialog('Error', error.message || 'Failed to delete style', 'error');
+        console.error('Error saving SKU:', error);
+        showDialog('Error', error.message || 'Failed to save SKU', 'error');
+    }
+}
+
+async function editSku(styleCode, skuCode) {
+    try {
+        const API_BASE = window.API_BASE_URL || 'http://localhost:3000/api';
+        const response = await fetch(`${API_BASE}/styles/${encodeURIComponent(styleCode)}/${encodeURIComponent(skuCode)}`);
+        if (!response.ok) throw new Error('Failed to load SKU');
+        
+        const sku = await response.json();
+        const form = document.getElementById('addSkuForm');
+        
+        // Populate modal
+        document.getElementById('skuStyleCode').value = styleCode;
+        document.getElementById('skuStyleCodeDisplay').value = styleCode;
+        document.getElementById('skuCode').value = sku.sku_code || '';
+        document.getElementById('skuCode').readOnly = true;
+        document.getElementById('skuItemName').value = sku.item_name || '';
+        document.getElementById('skuMetalType').value = sku.metal_type || 'gold';
+        document.getElementById('skuPurity').value = sku.purity || 91.6;
+        document.getElementById('skuMCType').value = sku.mc_type || 'PER_GRAM';
+        document.getElementById('skuMCValue').value = sku.mc_value || 0;
+        document.getElementById('skuDescription').value = sku.description || '';
+        
+        // Store for update
+        form.dataset.editMode = 'true';
+        form.dataset.styleCode = styleCode;
+        form.dataset.skuCode = skuCode;
+        
+        document.getElementById('addSkuModal').classList.remove('hidden');
+    } catch (error) {
+        console.error('Error loading SKU:', error);
+        showDialog('Error', 'Failed to load SKU: ' + error.message, 'error');
+    }
+}
+
+async function deleteSku(styleCode, skuCode) {
+    if (!confirm(`Are you sure you want to delete SKU "${skuCode}"?\n\nThis action cannot be undone.`)) return;
+    
+    try {
+        const API_BASE = window.API_BASE_URL || 'http://localhost:3000/api';
+        const response = await fetch(`${API_BASE}/styles/${encodeURIComponent(styleCode)}/${encodeURIComponent(skuCode)}`, {
+            method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to delete SKU');
+        }
+        
+        await loadSKUsForStyle(styleCode);
+        await loadStyles(); // Refresh styles list
+        showDialog('Success', 'SKU deleted successfully!', 'success');
+    } catch (error) {
+        console.error('Error deleting SKU:', error);
+        showDialog('Error', error.message || 'Failed to delete SKU', 'error');
     }
 }
 
 function exportStyles() {
-    if (filteredStyles.length === 0) {
+    if (allStylesData.length === 0) {
         showDialog('No Data', 'No styles to export', 'warning');
         return;
     }
     
-    const headers = ['Style Code', 'SKU Code', 'Item Name', 'Category', 'Metal', 'Purity', 'MC Type', 'MC Value', 'HSN', 'Status'];
-    const rows = filteredStyles.map(s => [
+    const headers = ['Style Code', 'SKU Code', 'Item Name', 'Category', 'Metal', 'Purity', 'MC Type', 'MC Value', 'HSN'];
+    const rows = allStylesData.map(s => [
         s.style_code || '',
         s.sku_code || '',
         s.item_name || '',
         s.category || '',
         s.metal_type || '',
-        s.purity || s.default_purity || '',
-        s.mc_type || s.default_mc_type || '',
-        s.mc_value || s.default_mc_value || 0,
-        s.hsn_code || '7113',
-        s.is_active !== false ? 'Active' : 'Inactive'
+        s.purity || '',
+        s.mc_type || '',
+        s.mc_value || 0,
+        s.hsn_code || '7113'
     ]);
     
-    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const csvContent = [headers.join(','), ...rows.map(r => r.map(cell => `"${cell}"`).join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

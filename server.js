@@ -455,6 +455,72 @@ async function checkAndCreateStylesTable() {
             CREATE INDEX IF NOT EXISTS idx_styles_sku_code ON styles(sku_code)
         `);
         
+        // Add missing columns if they don't exist (for existing tables)
+        await dbPool.query(`
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'styles' AND column_name = 'purity'
+                ) THEN
+                    ALTER TABLE styles ADD COLUMN purity VARCHAR(50);
+                    RAISE NOTICE 'Added purity column';
+                END IF;
+            END $$;
+        `);
+        
+        await dbPool.query(`
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'styles' AND column_name = 'metal_type'
+                ) THEN
+                    ALTER TABLE styles ADD COLUMN metal_type VARCHAR(50);
+                    RAISE NOTICE 'Added metal_type column';
+                END IF;
+            END $$;
+        `);
+        
+        await dbPool.query(`
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'styles' AND column_name = 'item_name'
+                ) THEN
+                    ALTER TABLE styles ADD COLUMN item_name VARCHAR(255);
+                    RAISE NOTICE 'Added item_name column';
+                END IF;
+            END $$;
+        `);
+        
+        await dbPool.query(`
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'styles' AND column_name = 'mc_type'
+                ) THEN
+                    ALTER TABLE styles ADD COLUMN mc_type VARCHAR(50);
+                    RAISE NOTICE 'Added mc_type column';
+                END IF;
+            END $$;
+        `);
+        
+        await dbPool.query(`
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'styles' AND column_name = 'mc_value'
+                ) THEN
+                    ALTER TABLE styles ADD COLUMN mc_value NUMERIC(10,2);
+                    RAISE NOTICE 'Added mc_value column';
+                END IF;
+            END $$;
+        `);
+        
         console.log('✅ Styles table verified and ready');
         return true;
     } catch (error) {
@@ -1876,6 +1942,9 @@ app.put('/api/admin/users/:id', checkRole('admin'), async (req, res) => {
             }
         }
         
+        // Handle permissions update - merge logic to avoid duplicate column assignment
+        let finalPermissions = user.permissions || {};
+        
         if (allowed_tabs !== undefined && Array.isArray(allowed_tabs)) {
             // Validate allowed_tabs values
             const validTabs = ['all', ...PERMISSION_MODULES];
@@ -1886,27 +1955,27 @@ app.put('/api/admin/users/:id', checkRole('admin'), async (req, res) => {
                 params.push(cleanTabs);
                 
                 // Merge permissions instead of overwriting (preserve no2_access and other custom permissions)
-                const existingPermissions = user.permissions || {};
-                const permissions = {
-                    ...existingPermissions, // Preserve existing permissions (like no2_access)
+                finalPermissions = {
+                    ...finalPermissions, // Preserve existing permissions (like no2_access)
                     all: cleanTabs.includes('all'),
                     modules: cleanTabs.includes('all') ? ['*'] : cleanTabs
                 };
-                updates.push(`permissions = $${paramIndex++}`);
-                params.push(JSON.stringify(permissions));
             }
         }
         
-        // Handle permissions update separately (for no2_access and other custom permissions)
+        // Handle explicit permissions update separately (for no2_access and other custom permissions)
         if (permissions !== undefined && typeof permissions === 'object') {
             // Merge with existing permissions instead of overwriting
-            const existingPermissions = user.permissions || {};
-            const mergedPermissions = {
-                ...existingPermissions,
+            finalPermissions = {
+                ...finalPermissions,
                 ...permissions // Merge new permissions (preserves no2_access if sent)
             };
+        }
+        
+        // Only add permissions to SET clause once if it was modified
+        if (allowed_tabs !== undefined || (permissions !== undefined && typeof permissions === 'object')) {
             updates.push(`permissions = $${paramIndex++}`);
-            params.push(JSON.stringify(mergedPermissions));
+            params.push(JSON.stringify(finalPermissions));
         }
         
         if (updates.length === 0) {
@@ -2025,6 +2094,23 @@ app.get('/api/rates', checkAuth, async (req, res) => {
 });
 
 app.post('/api/rates', checkAuth, async (req, res) => {
+    try {
+        const { gold, silver, platinum } = req.body;
+        
+        const queryText = `UPDATE rates SET gold = $1, silver = $2, platinum = $3, updated_at = CURRENT_TIMESTAMP
+        WHERE id = (SELECT id FROM rates ORDER BY updated_at DESC LIMIT 1)
+        RETURNING *`;
+        
+        const result = await query(queryText, [gold, silver, platinum]);
+        broadcast('rates-updated', result[0]);
+        res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// PUT route for rates (same as POST, for RESTful API compatibility)
+app.put('/api/rates', checkAuth, async (req, res) => {
     try {
         const { gold, silver, platinum } = req.body;
         
