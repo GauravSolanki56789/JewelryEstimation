@@ -41,7 +41,7 @@ app.use(session({
     saveUninitialized: true,
     name: 'jp.sid', // Custom session name (not default 'connect.sid')
     cookie: { 
-        secure: process.env.NODE_ENV === 'production',
+        secure: false,
         httpOnly: true, // Prevent XSS access to cookie
         sameSite: 'lax', // CSRF protection
         maxAge: 24 * 60 * 60 * 1000 // 24 hours
