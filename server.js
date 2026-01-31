@@ -1517,6 +1517,87 @@ app.delete('/api/quotations/:id', checkAuth, hasPermission('quotations'), async 
     }
 });
 
+app.post('/api/quotations/:id/recycle', checkAuth, hasPermission('quotations'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        // Step 1: Fetch the current quotation to get its items
+        const quotationResult = await query('SELECT * FROM quotations WHERE id = $1', [id]);
+        if (quotationResult.length === 0) {
+            return res.status(404).json({ error: 'Quotation not found' });
+        }
+        
+        const quotation = quotationResult[0];
+        let items = [];
+        
+        // Parse items JSON if it exists
+        if (quotation.items) {
+            try {
+                items = typeof quotation.items === 'string' ? JSON.parse(quotation.items) : quotation.items;
+            } catch (parseError) {
+                console.error('Error parsing quotation items:', parseError);
+                items = [];
+            }
+        }
+        
+        // Step 2: Revert Stock - Mark all items as 'available' in products table
+        if (items && Array.isArray(items) && items.length > 0) {
+            const barcodes = items
+                .map(item => item.barcode)
+                .filter(barcode => barcode); // Filter out null/undefined barcodes
+            
+            if (barcodes.length > 0) {
+                try {
+                    const placeholders = barcodes.map((_, i) => `$${i + 1}`).join(',');
+                    const revertStockQuery = `UPDATE products 
+                        SET status = 'available', 
+                            sold_bill_no = NULL,
+                            sold_customer_name = NULL,
+                            is_sold = false,
+                            updated_at = CURRENT_TIMESTAMP 
+                        WHERE barcode IN (${placeholders})`;
+                    
+                    await query(revertStockQuery, barcodes);
+                    broadcast('products-reverted', { barcodes, quotationId: id });
+                } catch (revertError) {
+                    console.error('Error reverting product stock:', revertError);
+                    // Continue with quotation reset even if stock revert fails
+                }
+            }
+        }
+        
+        // Step 3: Reset Quotation - Clear customer data, items, and totals
+        const resetQuery = `UPDATE quotations SET
+            customer_id = NULL,
+            customer_name = '',
+            customer_mobile = '',
+            items = '[]',
+            total = 0,
+            gst = 0,
+            net_total = 0,
+            discount = 0,
+            advance = 0,
+            final_amount = 0,
+            payment_status = NULL,
+            remarks = NULL,
+            is_deleted = false,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1 RETURNING *`;
+        
+        const resetResult = await query(resetQuery, [id]);
+        broadcast('quotation-recycled', resetResult[0]);
+        
+        res.json({ 
+            success: true, 
+            message: 'Quotation reset successfully',
+            quotation: resetResult[0]
+        });
+    } catch (error) {
+        console.error('Error recycling quotation:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // ==========================================
 // BILLS API
 // Protected by: hasPermission('billing')

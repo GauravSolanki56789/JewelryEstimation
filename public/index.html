@@ -4322,6 +4322,12 @@
                 });
             },
             
+            async recycleQuotation(id) {
+                return this.request(`/quotations/${id}/recycle`, {
+                    method: 'POST',
+                });
+            },
+            
             // Bills API
             async getBills() {
                 return this.request('/bills');
@@ -12411,46 +12417,66 @@ function clearAll() {
                             }
 
                             function editQuotation(id) {
-                                const quotation = savedQuotations.find(q => q.id === id);
-                                if (!quotation) return;
+                                // Try to find by dbId first (for database quotations), then by id
+                                let quotation = savedQuotations.find(q => q.dbId === id || q.id === id);
+                                if (!quotation) {
+                                    console.warn('Quotation not found:', id);
+                                    return;
+                                }
 
                                 // Switch to billing tab
                                 showTab('billing');
 
-                                // Load customer - set the input field value to customer name
-                                const customer = customers.find(c => c.name === quotation.customer.name);
-                                if (customer) {
-                                    document.getElementById('customerSelect').value = customer.name;
-                                    loadCustomerByObject(customer);
+                                // Load customer - set the input field value to customer name (handle empty customer gracefully)
+                                if (quotation.customer && quotation.customer.name) {
+                                    const customer = customers.find(c => c.name === quotation.customer.name);
+                                    if (customer) {
+                                        document.getElementById('customerSelect').value = customer.name;
+                                        loadCustomerByObject(customer);
+                                    } else {
+                                        // Customer name exists but not found in customers list - clear the field
+                                        document.getElementById('customerSelect').value = '';
+                                    }
+                                } else {
+                                    // No customer data - clear the field
+                                    document.getElementById('customerSelect').value = '';
                                 }
 
-                                // Load items into billing
-                                items = quotation.items.map(item => ({
-                                    ...item,
-                                    id: Date.now() + Math.random() // New IDs for editing
-                                }));
+                                // Load items into billing - handle empty items array gracefully
+                                if (quotation.items && Array.isArray(quotation.items) && quotation.items.length > 0) {
+                                    items = quotation.items.map(item => ({
+                                        ...item,
+                                        id: Date.now() + Math.random() // New IDs for editing
+                                    }));
 
-                                // Update rate slab
-                                currentRateSlab = quotation.rateSlab || 'R';
-                                document.getElementById('rateSlab').value = currentRateSlab;
-                                updateRateSlabInfo();
+                                    // Update rate slab
+                                    currentRateSlab = quotation.rateSlab || 'R';
+                                    document.getElementById('rateSlab').value = currentRateSlab;
+                                    updateRateSlabInfo();
 
-                                // Recalculate with current rates
-                                items.forEach(item => {
-                                    if (item.metalType) {
-                                        const currentRate = parseFloat(rates[item.metalType] || rates.silver);
-                                        item.rate = parseFloat(currentRate.toFixed(2));
-                                        const originalMCRate = item.originalMcRate || parseFloat(item.mcRate);
-                                        const adjustedMCRate = getAdjustedMCRate(originalMCRate);
-                                        item.mcRate = parseFloat(adjustedMCRate.toFixed(2));
-                                        
-                                        if (item.mcType === 'PieceCost') {
-                                            item.amount = (item.rate * item.weight) + item.mcRate + (item.boxCharges || 0) + (item.stoneCharges || 0);
-                                        } else {
-                                            item.amount = (item.rate + item.mcRate) * item.weight + (item.boxCharges || 0) + (item.stoneCharges || 0);
+                                    // Recalculate with current rates
+                                    items.forEach(item => {
+                                        if (item.metalType) {
+                                            const currentRate = parseFloat(rates[item.metalType] || rates.silver);
+                                            item.rate = parseFloat(currentRate.toFixed(2));
+                                            const originalMCRate = item.originalMcRate || parseFloat(item.mcRate);
+                                            const adjustedMCRate = getAdjustedMCRate(originalMCRate);
+                                            item.mcRate = parseFloat(adjustedMCRate.toFixed(2));
+                                            
+                                            if (item.mcType === 'PieceCost') {
+                                                item.amount = (item.rate * item.weight) + item.mcRate + (item.boxCharges || 0) + (item.stoneCharges || 0);
+                                            } else {
+                                                item.amount = (item.rate + item.mcRate) * item.weight + (item.boxCharges || 0) + (item.stoneCharges || 0);
+                                            }
                                         }
-                                    }
-                                });
+                                    });
+                                } else {
+                                    // Empty items array - initialize empty cart
+                                    items = [];
+                                    currentRateSlab = quotation.rateSlab || 'R';
+                                    document.getElementById('rateSlab').value = currentRateSlab;
+                                    updateRateSlabInfo();
+                                }
 
                                 updateItemsTable();
                                 updateSummary();
@@ -12458,7 +12484,13 @@ function clearAll() {
                                 // Store quotation ID for update (use dbId if available, otherwise use id)
                                 window.editingQuotationId = quotation.dbId || quotation.id;
 
-                                alert(`Quotation ${quotation.quotationNo} loaded for editing. Make your changes and save as a new quotation or update existing.`);
+                                // Show appropriate message based on whether quotation has items
+                                if (quotation.items && Array.isArray(quotation.items) && quotation.items.length > 0) {
+                                    alert(`Quotation ${quotation.quotationNo} loaded for editing. Make your changes and save as a new quotation or update existing.`);
+                                } else {
+                                    // Empty quotation - ready for new items
+                                    showToast(`Quotation ${quotation.quotationNo} ready for new items`, 'info');
+                                }
                             }
 
                             async function deleteQuotation(id) {
@@ -12468,8 +12500,8 @@ function clearAll() {
                                     return;
                                 }
 
-                                // Show confirmation with quotation number
-                                if (!confirm(`Are you sure you want to delete Quote #${quotation.quotationNo}?\n\nThis action cannot be undone.`)) {
+                                // Show confirmation with quotation number (for reset/recycle)
+                                if (!confirm(`Are you sure you want to reset Quote #${quotation.quotationNo}?\n\nThis will clear all items and customer data, making the quotation available for reuse.`)) {
                                     return;
                                 }
 
@@ -12485,40 +12517,40 @@ function clearAll() {
                                     deleteModal.classList.add('hidden');
                                 }
 
-                                // Delete from API if has database ID
+                                // Recycle/Reset quotation via API if has database ID
                                 if (quotation.dbId) {
                                     try {
-                                        await api.deleteQuotation(quotation.dbId);
+                                        await api.recycleQuotation(quotation.dbId);
                                     } catch (error) {
-                                        console.error('Failed to delete quotation from API:', error);
-                                        showDialog('Error', 'Failed to delete quotation: ' + (error.message || 'Unknown error'), 'error');
+                                        console.error('Failed to recycle quotation from API:', error);
+                                        showDialog('Error', 'Failed to reset quotation: ' + (error.message || 'Unknown error'), 'error');
                                         return;
                                     }
-                                }
-
-                                // Return items to their original floors
-                                quotation.items.forEach(item => {
-                                    if (item.barcode && item.originalFloor) {
-                                        const product = products.find(p => p.barcode === item.barcode);
-                                        if (product) {
-                                            product.floor = item.originalFloor;
-                                            const productIndex = products.findIndex(p => p.id === product.id);
-                                            if (productIndex >= 0) {
-                                                products[productIndex] = product;
-                                            }
-                                        }
+                                } else {
+                                    // For local-only quotations, manually reset
+                                    const quotationIndex = savedQuotations.findIndex(q => q.id === id);
+                                    if (quotationIndex >= 0) {
+                                        savedQuotations[quotationIndex] = {
+                                            ...savedQuotations[quotationIndex],
+                                            customer: { name: '', mobile: '' },
+                                            items: [],
+                                            total: 0,
+                                            gst: 0,
+                                            netTotal: 0
+                                        };
+                                        setCachedItem('savedQuotations', savedQuotations);
                                     }
-                                });
-                                
-                                if (quotation.items.some(item => item.barcode && item.originalFloor)) {
-                                    setCachedItem('products', products);
                                 }
 
-                                // Remove from local array
-                                savedQuotations = savedQuotations.filter(q => q.id !== id);
-                                setCachedItem('savedQuotations', savedQuotations);
-
-                                // Refresh the quotations list immediately - CRITICAL: Must be called after deletion
+                                // Store the database ID before reloading (needed to find quotation after reload)
+                                const quotationDbId = quotation.dbId || id;
+                                
+                                // Reload quotations from API to get updated data
+                                if (quotation.dbId) {
+                                    await loadQuotations();
+                                }
+                                
+                                // Refresh the quotations list display
                                 await loadQuotationsHistory();
                                 
                                 // Hide any remaining modals
@@ -12529,8 +12561,17 @@ function clearAll() {
                                     }
                                 });
                                 
-                                // Show success message
-                                showDialog('Success', 'Quotation deleted successfully! Items returned to original floors.', 'success');
+                                // Show success toast
+                                showToast('Quotation Reset for Reuse', 'success');
+                                
+                                // Switch to billing tab
+                                showTab('billing');
+                                
+                                // Load the reset quotation in edit mode using database ID
+                                // Small delay to ensure DOM is ready after tab switch
+                                setTimeout(() => {
+                                    editQuotation(quotationDbId);
+                                }, 100);
                             }
 
                             function downloadAllQuotations() {
