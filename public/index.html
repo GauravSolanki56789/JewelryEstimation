@@ -8883,63 +8883,163 @@ async function generateSalesBillPDF() {
         async function handleStyleCodeChange() {
             const styleSelect = document.getElementById('newStyleCode');
             const styleManual = document.getElementById('newStyleCodeManual');
-            const styleCode = styleSelect.value;
+            const skuSelect = document.getElementById('newSku');
+            const styleCode = styleSelect ? styleSelect.value : '';
             
             if (styleCode) {
-                styleManual.classList.add('hidden');
-                styleManual.value = '';
+                if (styleManual) {
+                    styleManual.classList.add('hidden');
+                    styleManual.value = '';
+                }
+                // Load and populate SKUs for this style code
                 await loadSKUsForStyle(styleCode);
+                // Ensure SKU dropdown is enabled after loading
+                if (skuSelect) {
+                    skuSelect.disabled = false;
+                }
             } else {
-                styleManual.classList.remove('hidden');
+                if (styleManual) {
+                    styleManual.classList.remove('hidden');
+                }
+                // Reset SKU dropdown when no style is selected
+                if (skuSelect) {
+                    skuSelect.innerHTML = '<option value="">-- Select Style Code first --</option>';
+                    skuSelect.disabled = true;
+                }
             }
         }
         
-        function handleStyleCodeManual() {
+        async function handleStyleCodeManual() {
             const styleManual = document.getElementById('newStyleCodeManual');
-            const styleCode = styleManual.value.trim();
+            const skuSelect = document.getElementById('newSku');
+            const styleCode = styleManual ? styleManual.value.trim() : '';
+            
             if (styleCode) {
-                loadSKUsForStyle(styleCode);
+                // Load and populate SKUs for this style code
+                await loadSKUsForStyle(styleCode);
+                // Ensure SKU dropdown is enabled after loading
+                if (skuSelect) {
+                    skuSelect.disabled = false;
+                }
+            } else {
+                // Reset SKU dropdown when no style is entered
+                if (skuSelect) {
+                    skuSelect.innerHTML = '<option value="">-- Select Style Code first --</option>';
+                    skuSelect.disabled = true;
+                }
             }
         }
         
         async function handleSKUChange() {
             const skuSelect = document.getElementById('newSku');
             const skuManual = document.getElementById('newSkuManual');
+            if (!skuSelect) return;
+            
             const skuCode = skuSelect.value;
             
             if (skuCode) {
-                skuManual.classList.add('hidden');
-                skuManual.value = '';
+                if (skuManual) {
+                    skuManual.classList.add('hidden');
+                    skuManual.value = '';
+                }
                 
                 // Auto-fill from selected SKU
                 const selectedOption = skuSelect.options[skuSelect.selectedIndex];
-                if (selectedOption.dataset.skuData) {
-                    const skuData = JSON.parse(selectedOption.dataset.skuData);
-                    const styleCode = document.getElementById('newStyleCode').value || document.getElementById('newStyleCodeManual').value;
-                    
-                    // Try to get full style details
+                let skuData = null;
+                
+                // Get SKU data from dataset if available
+                if (selectedOption && selectedOption.dataset.skuData) {
+                    try {
+                        skuData = JSON.parse(selectedOption.dataset.skuData);
+                    } catch (e) {
+                        console.error('Error parsing SKU data:', e);
+                    }
+                }
+                
+                // Get style code
+                const styleCodeSelect = document.getElementById('newStyleCode');
+                const styleCodeManual = document.getElementById('newStyleCodeManual');
+                const styleCode = (styleCodeSelect && styleCodeSelect.value) || (styleCodeManual && styleCodeManual.value) || '';
+                
+                // Try to get full style details from API
+                if (styleCode && skuCode) {
                     try {
                         const styleDetails = await api.getStyleDetails(styleCode, skuCode);
                         if (styleDetails) {
-                            document.getElementById('newShortName').value = styleDetails.item_name || '';
-                            document.getElementById('newMetalType').value = styleDetails.metal_type || 'gold';
-                            document.getElementById('newPurity').value = styleDetails.purity || '100';
-                            document.getElementById('newMcType').value = styleDetails.mc_type === 'PER_GRAM' ? 'MC/GM' : (styleDetails.mc_type === 'FIXED' ? 'PieceCost' : 'MC/GM');
-                            document.getElementById('newMcRate').value = styleDetails.mc_value || '0';
-                            document.getElementById('newHSNCode').value = styleDetails.hsn_code || '7113';
+                            // Autofill Product Name (newShortName)
+                            const productNameInput = document.getElementById('newShortName');
+                            if (productNameInput) productNameInput.value = styleDetails.item_name || '';
+                            
+                            // Autofill Purity
+                            const purityInput = document.getElementById('newPurity');
+                            if (purityInput) purityInput.value = styleDetails.purity || '100';
+                            
+                            // Autofill MC Type
+                            const mcTypeSelect = document.getElementById('newMcType');
+                            if (mcTypeSelect) {
+                                mcTypeSelect.value = styleDetails.mc_type === 'PER_GRAM' ? 'MC/GM' : 
+                                                    (styleDetails.mc_type === 'FIXED' ? 'PieceCost' : 'MC/GM');
+                            }
+                            
+                            // Autofill MC Rate
+                            const mcRateInput = document.getElementById('newMcRate');
+                            if (mcRateInput) mcRateInput.value = styleDetails.mc_value || '0';
+                            
+                            // Also set metal type and HSN if available
+                            const metalTypeSelect = document.getElementById('newMetalType');
+                            if (metalTypeSelect && styleDetails.metal_type) {
+                                metalTypeSelect.value = styleDetails.metal_type;
+                            }
+                            
+                            const hsnInput = document.getElementById('newHSNCode');
+                            if (hsnInput && styleDetails.hsn_code) {
+                                hsnInput.value = styleDetails.hsn_code;
+                            }
+                            
+                            return; // Successfully autofilled from API
                         }
                     } catch (error) {
-                        // Fallback to SKU data
-                        if (skuData.item_name) document.getElementById('newShortName').value = skuData.item_name;
-                        if (skuData.metal_type) document.getElementById('newMetalType').value = skuData.metal_type;
-                        if (skuData.purity) document.getElementById('newPurity').value = skuData.purity;
-                        if (skuData.mc_type) document.getElementById('newMcType').value = skuData.mc_type === 'PER_GRAM' ? 'MC/GM' : (skuData.mc_type === 'FIXED' ? 'PieceCost' : 'MC/GM');
-                        if (skuData.mc_value) document.getElementById('newMcRate').value = skuData.mc_value;
-                        if (skuData.hsn_code) document.getElementById('newHSNCode').value = skuData.hsn_code;
+                        console.warn('Could not fetch style details from API, using SKU data:', error);
+                    }
+                }
+                
+                // Fallback to SKU data from dataset
+                if (skuData) {
+                    const productNameInput = document.getElementById('newShortName');
+                    if (productNameInput && skuData.item_name) {
+                        productNameInput.value = skuData.item_name;
+                    }
+                    
+                    const purityInput = document.getElementById('newPurity');
+                    if (purityInput && skuData.purity) {
+                        purityInput.value = skuData.purity;
+                    }
+                    
+                    const mcTypeSelect = document.getElementById('newMcType');
+                    if (mcTypeSelect && skuData.mc_type) {
+                        mcTypeSelect.value = skuData.mc_type === 'PER_GRAM' ? 'MC/GM' : 
+                                            (skuData.mc_type === 'FIXED' ? 'PieceCost' : 'MC/GM');
+                    }
+                    
+                    const mcRateInput = document.getElementById('newMcRate');
+                    if (mcRateInput && skuData.mc_value) {
+                        mcRateInput.value = skuData.mc_value;
+                    }
+                    
+                    const metalTypeSelect = document.getElementById('newMetalType');
+                    if (metalTypeSelect && skuData.metal_type) {
+                        metalTypeSelect.value = skuData.metal_type;
+                    }
+                    
+                    const hsnInput = document.getElementById('newHSNCode');
+                    if (hsnInput && skuData.hsn_code) {
+                        hsnInput.value = skuData.hsn_code;
                     }
                 }
             } else {
-                skuManual.classList.remove('hidden');
+                if (skuManual) {
+                    skuManual.classList.remove('hidden');
+                }
             }
         }
         
@@ -12379,6 +12479,12 @@ function clearAll() {
                                     customDialog.remove();
                                 }
 
+                                // Hide any delete confirmation modals
+                                const deleteModal = document.querySelector('[id*="delete"], [class*="delete"][class*="modal"]');
+                                if (deleteModal) {
+                                    deleteModal.classList.add('hidden');
+                                }
+
                                 // Delete from API if has database ID
                                 if (quotation.dbId) {
                                     try {
@@ -12412,8 +12518,16 @@ function clearAll() {
                                 savedQuotations = savedQuotations.filter(q => q.id !== id);
                                 setCachedItem('savedQuotations', savedQuotations);
 
-                                // Refresh the quotations list immediately
+                                // Refresh the quotations list immediately - CRITICAL: Must be called after deletion
                                 await loadQuotationsHistory();
+                                
+                                // Hide any remaining modals
+                                const allModals = document.querySelectorAll('[class*="modal"]:not([class*="hidden"])');
+                                allModals.forEach(modal => {
+                                    if (modal.id && (modal.id.includes('delete') || modal.id.includes('confirm'))) {
+                                        modal.classList.add('hidden');
+                                    }
+                                });
                                 
                                 // Show success message
                                 showDialog('Success', 'Quotation deleted successfully! Items returned to original floors.', 'success');
@@ -16664,19 +16778,31 @@ async function saveStyle(event) {
             body: JSON.stringify(data)
         });
         
+        // Handle 409 Conflict - Style/SKU already exists
+        if (response.status === 409) {
+            showToast('Style/SKU already exists', 'error');
+            return; // Return immediately, do not throw error
+        }
+        
+        // Handle success (200 or 201)
+        if (response.status === 200 || response.status === 201) {
+            closeStyleModal();
+            await loadStyles();
+            
+            // Auto-select the newly created style
+            await selectStyle(styleCode);
+            
+            showToast('Style created successfully! You can now add SKUs.', 'success');
+            return;
+        }
+        
+        // Handle other errors
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.error || 'Failed to create style');
         }
-        
-        closeStyleModal();
-        await loadStyles();
-        
-        // Auto-select the newly created style
-        await selectStyle(styleCode);
-        
-        showDialog('Success', 'Style created successfully! You can now add SKUs.', 'success');
     } catch (error) {
+        // Only log and show error if it's not a 409 (which we already handled)
         console.error('Error saving style:', error);
         showDialog('Error', error.message || 'Failed to save style', 'error');
     }
