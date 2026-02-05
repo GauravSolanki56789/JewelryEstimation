@@ -4316,12 +4316,6 @@
                 });
             },
             
-            async deleteQuotation(id) {
-                return this.request(`/quotations/${id}`, {
-                    method: 'DELETE',
-                });
-            },
-            
             async recycleQuotation(id) {
                 return this.request(`/quotations/${id}/recycle`, {
                     method: 'POST',
@@ -12305,7 +12299,7 @@ function clearAll() {
             class="text-blue-600 hover:text-blue-800 font-medium mr-2" title="View">👁️</button>
         <button onclick="editQuotation(${quotation.id})" 
             class="text-green-600 hover:text-green-800 font-medium mr-2" title="Edit">✏️</button>
-        <button onclick="deleteQuotation(${quotation.id})" 
+        <button onclick="recycleQuotation(${quotation.id})" 
             class="text-red-600 hover:text-red-800 font-medium" title="Delete">🗑️</button>
     </td>
 `;
@@ -12493,86 +12487,57 @@ function clearAll() {
                                 }
                             }
 
-                            async function deleteQuotation(id) {
-                                const quotation = savedQuotations.find(q => q.id === id);
-                                if (!quotation) {
-                                    showDialog('Error', 'Quotation not found', 'error');
-                                    return;
-                                }
+                            async function recycleQuotation(id) {
+                                    const quotation = savedQuotations.find(q => q.id === id);
+                                    if (!quotation) { showDialog('Error', 'Quotation not found', 'error'); return; }
 
-                                // Show confirmation with quotation number (for reset/recycle)
-                                if (!confirm(`Are you sure you want to reset Quote #${quotation.quotationNo}?\n\nThis will clear all items and customer data, making the quotation available for reuse.`)) {
-                                    return;
-                                }
-
-                                // Close any open modals first
-                                const customDialog = document.getElementById('customDialog');
-                                if (customDialog) {
-                                    customDialog.remove();
-                                }
-
-                                // Hide any delete confirmation modals
-                                const deleteModal = document.querySelector('[id*="delete"], [class*="delete"][class*="modal"]');
-                                if (deleteModal) {
-                                    deleteModal.classList.add('hidden');
-                                }
-
-                                // Recycle/Reset quotation via API if has database ID
-                                if (quotation.dbId) {
-                                    try {
-                                        await api.recycleQuotation(quotation.dbId);
-                                    } catch (error) {
-                                        console.error('Failed to recycle quotation from API:', error);
-                                        showDialog('Error', 'Failed to reset quotation: ' + (error.message || 'Unknown error'), 'error');
+                                    // Manual Clear Confirmation
+                                    const confirmCode = prompt(`To RESET Quote #${quotation.quotationNo}, please type the number below:\n\n${quotation.quotationNo}`, "");
+                                    if (confirmCode !== quotation.quotationNo) {
+                                        if (confirmCode !== null) showDialog('Error', 'Incorrect Quotation Number', 'error');
                                         return;
                                     }
-                                } else {
-                                    // For local-only quotations, manually reset
-                                    const quotationIndex = savedQuotations.findIndex(q => q.id === id);
-                                    if (quotationIndex >= 0) {
-                                        savedQuotations[quotationIndex] = {
-                                            ...savedQuotations[quotationIndex],
+
+                                    // --- FIX: OPTIMISTIC UPDATE (Clear Local Data First) ---
+                                    const index = savedQuotations.findIndex(q => q.id === id);
+                                    if (index !== -1) {
+                                        // Reset the local object to empty state immediately
+                                        savedQuotations[index] = {
+                                            ...savedQuotations[index],
                                             customer: { name: '', mobile: '' },
                                             items: [],
-                                            total: 0,
-                                            gst: 0,
-                                            netTotal: 0
+                                            total: 0, gst: 0, netTotal: 0,
+                                            finalAmount: 0, discount: 0, advance: 0,
+                                            remarks: ''
                                         };
+                                        // Save to cache so a reload doesn't bring back old items
                                         setCachedItem('savedQuotations', savedQuotations);
                                     }
-                                }
 
-                                // Store the database ID before reloading (needed to find quotation after reload)
-                                const quotationDbId = quotation.dbId || id;
-                                
-                                // Reload quotations from API to get updated data
-                                if (quotation.dbId) {
-                                    await loadQuotations();
-                                }
-                                
-                                // Refresh the quotations list display
-                                await loadQuotationsHistory();
-                                
-                                // Hide any remaining modals
-                                const allModals = document.querySelectorAll('[class*="modal"]:not([class*="hidden"])');
-                                allModals.forEach(modal => {
-                                    if (modal.id && (modal.id.includes('delete') || modal.id.includes('confirm'))) {
-                                        modal.classList.add('hidden');
+                                    // --- Perform Server Action ---
+                                    if (quotation.dbId) {
+                                        try {
+                                            showLoader('Resetting Quotation...');
+                                            await api.recycleQuotation(quotation.dbId);
+                                        } catch (error) {
+                                            console.error('Recycle failed:', error);
+                                            showDialog('Error', 'Failed to reset on server: ' + error.message, 'error');
+                                            hideLoader();
+                                            return;
+                                        }
                                     }
-                                });
-                                
-                                // Show success toast
-                                showToast('Quotation Reset for Reuse', 'success');
-                                
-                                // Switch to billing tab
-                                showTab('billing');
-                                
-                                // Load the reset quotation in edit mode using database ID
-                                // Small delay to ensure DOM is ready after tab switch
-                                setTimeout(() => {
-                                    editQuotation(quotationDbId);
-                                }, 100);
-                            }
+
+                                    hideLoader();
+                                    showToast('Quotation Cleared & Ready', 'success');
+
+                                    // Switch to billing tab 
+                                    showTab('billing');
+                                    // Load the (now empty) quotation into the editor
+                                    editQuotation(quotation.id);
+                                    // Refresh background data safely
+                                    loadQuotations();
+                                    loadQuotationsHistory();
+                                }
 
                             function downloadAllQuotations() {
                                 if (savedQuotations.length === 0) {
