@@ -80,6 +80,7 @@ async function initSchema() {
             barcode VARCHAR(100) UNIQUE,
             sku VARCHAR(100),
             style_code VARCHAR(100),
+            item_code VARCHAR(100),
             short_name VARCHAR(255),
             item_name VARCHAR(255),
             metal_type VARCHAR(50),
@@ -100,6 +101,8 @@ async function initSchema() {
             status VARCHAR(50) DEFAULT 'available',
             sold_bill_no VARCHAR(50),
             sold_customer_name VARCHAR(255),
+            attributes JSONB DEFAULT '{}',
+            image_url TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
@@ -280,7 +283,7 @@ async function initSchema() {
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
         
-        // Styles table (Product Hierarchy)
+        // Styles table (Product Hierarchy: Style → SKU level)
         `CREATE TABLE IF NOT EXISTS styles (
             id SERIAL PRIMARY KEY,
             style_code VARCHAR(100) NOT NULL,
@@ -293,14 +296,48 @@ async function initSchema() {
             mc_value NUMERIC(10,2),
             hsn_code VARCHAR(50),
             description TEXT,
+            image_url TEXT,
+            is_active BOOLEAN DEFAULT true,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(style_code, sku_code)
+        )`,
+
+        // Items table (Hierarchy: Style → SKU → Item level)
+        `CREATE TABLE IF NOT EXISTS items (
+            id SERIAL PRIMARY KEY,
+            style_code VARCHAR(100) NOT NULL,
+            sku_code VARCHAR(100) NOT NULL,
+            item_code VARCHAR(100) NOT NULL,
+            item_name VARCHAR(255),
+            description TEXT,
+            image_url TEXT,
+            is_active BOOLEAN DEFAULT true,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(style_code, sku_code, item_code)
+        )`,
+
+        // Product images table (multiple images per product)
+        `CREATE TABLE IF NOT EXISTS product_images (
+            id SERIAL PRIMARY KEY,
+            product_barcode VARCHAR(100) NOT NULL,
+            image_url TEXT NOT NULL,
+            is_primary BOOLEAN DEFAULT false,
+            sort_order INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT fk_product_images_barcode
+                FOREIGN KEY (product_barcode)
+                REFERENCES products(barcode)
+                ON DELETE CASCADE
         )`,
         
         // Create indexes
         `CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode)`,
         `CREATE INDEX IF NOT EXISTS idx_products_style_code ON products(style_code)`,
+        `CREATE INDEX IF NOT EXISTS idx_products_item_code ON products(item_code)`,
+        `CREATE INDEX IF NOT EXISTS idx_products_attributes ON products USING GIN (attributes)`,
+        `CREATE INDEX IF NOT EXISTS idx_products_image_url ON products(image_url) WHERE image_url IS NOT NULL`,
         `CREATE INDEX IF NOT EXISTS idx_customers_mobile ON customers(mobile)`,
         `CREATE INDEX IF NOT EXISTS idx_quotations_date ON quotations(date)`,
         `CREATE INDEX IF NOT EXISTS idx_bills_date ON bills(date)`,
@@ -311,6 +348,10 @@ async function initSchema() {
         `CREATE INDEX IF NOT EXISTS idx_quotations_is_billed ON quotations(is_billed)`,
         `CREATE INDEX IF NOT EXISTS idx_styles_style_code ON styles(style_code)`,
         `CREATE INDEX IF NOT EXISTS idx_styles_sku_code ON styles(sku_code)`,
+        `CREATE INDEX IF NOT EXISTS idx_product_images_barcode ON product_images(product_barcode)`,
+        `CREATE INDEX IF NOT EXISTS idx_product_images_primary ON product_images(product_barcode, is_primary) WHERE is_primary = true`,
+        `CREATE INDEX IF NOT EXISTS idx_items_style_sku ON items(style_code, sku_code)`,
+        `CREATE INDEX IF NOT EXISTS idx_items_item_code ON items(item_code)`,
     ];
     
     for (const query of queries) {
@@ -354,6 +395,33 @@ async function initSchema() {
                                WHERE table_name='products' AND column_name='is_deleted') THEN
                     ALTER TABLE products ADD COLUMN is_deleted BOOLEAN DEFAULT false;
                     UPDATE products SET is_deleted = false WHERE is_deleted IS NULL;
+                END IF;
+            END $$;
+        `);
+
+        // B2B Image & Hierarchy columns (Phase 1)
+        await pool.query(`
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_name='products' AND column_name='attributes') THEN
+                    ALTER TABLE products ADD COLUMN attributes JSONB DEFAULT '{}';
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_name='products' AND column_name='image_url') THEN
+                    ALTER TABLE products ADD COLUMN image_url TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_name='products' AND column_name='item_code') THEN
+                    ALTER TABLE products ADD COLUMN item_code VARCHAR(100);
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_name='styles' AND column_name='image_url') THEN
+                    ALTER TABLE styles ADD COLUMN image_url TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_name='styles' AND column_name='is_active') THEN
+                    ALTER TABLE styles ADD COLUMN is_active BOOLEAN DEFAULT true;
                 END IF;
             END $$;
         `);

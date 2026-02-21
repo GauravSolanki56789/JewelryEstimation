@@ -18,6 +18,9 @@ const { checkRole, checkAuth, checkAdmin, noCache, securityHeaders, getUserPermi
 const { hasPermission, getPermissionContext } = require('./middleware/checkPermission');
 const TallyIntegration = require('./config/tally-integration');
 const TallySyncService = require('./config/tally-sync-service');
+const multer = require('multer');
+const fs = require('fs');
+const ExcelJS = require('exceljs');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -326,6 +329,91 @@ app.post('/api/auth/logout', (req, res) => {
 
 // Static files
 app.use(express.static('public'));
+
+// ==========================================
+// MULTER IMAGE UPLOAD CONFIG
+// ==========================================
+const uploadsDir = path.join(__dirname, 'public', 'uploads', 'products');
+if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadsDir),
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E6);
+        const ext = path.extname(file.originalname).toLowerCase();
+        cb(null, `img_${uniqueSuffix}${ext}`);
+    }
+});
+
+const imageFilter = (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|gif|webp/;
+    if (allowed.test(file.mimetype) && allowed.test(path.extname(file.originalname).toLowerCase())) {
+        cb(null, true);
+    } else {
+        cb(new Error('Only image files (jpg, png, gif, webp) are allowed'), false);
+    }
+};
+
+const upload = multer({ storage, fileFilter: imageFilter, limits: { fileSize: 10 * 1024 * 1024 } });
+
+// POST /api/upload - Single image upload
+app.post('/api/upload', checkAuth, upload.single('image'), (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ error: 'No image file provided' });
+    }
+    const imageUrl = `/uploads/products/${req.file.filename}`;
+    res.json({ success: true, imageUrl, filename: req.file.filename });
+});
+
+// POST /api/upload/multiple - Multiple image upload
+app.post('/api/upload/multiple', checkAuth, upload.array('images', 10), (req, res) => {
+    if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ error: 'No image files provided' });
+    }
+    const images = req.files.map(f => ({
+        imageUrl: `/uploads/products/${f.filename}`,
+        filename: f.filename
+    }));
+    res.json({ success: true, images });
+});
+
+// ==========================================
+// IMAGE CASCADE HELPER
+// Resolves the best image for a product by walking up the hierarchy:
+//   Product → Item → SKU
+// ==========================================
+async function resolveProductImage(barcode) {
+    const productRows = await query(
+        `SELECT p.image_url, p.item_code, p.style_code, p.sku,
+                (SELECT pi.image_url FROM product_images pi WHERE pi.product_barcode = p.barcode AND pi.is_primary = true LIMIT 1) as primary_image
+         FROM products p WHERE p.barcode = $1`, [barcode]
+    );
+    if (productRows.length === 0) return null;
+    const prod = productRows[0];
+
+    if (prod.primary_image) return prod.primary_image;
+    if (prod.image_url) return prod.image_url;
+
+    if (prod.item_code && prod.style_code && prod.sku) {
+        const itemRows = await query(
+            'SELECT image_url FROM items WHERE style_code = $1 AND sku_code = $2 AND item_code = $3 AND image_url IS NOT NULL LIMIT 1',
+            [prod.style_code, prod.sku, prod.item_code]
+        );
+        if (itemRows.length > 0 && itemRows[0].image_url) return itemRows[0].image_url;
+    }
+
+    if (prod.style_code && prod.sku) {
+        const skuRows = await query(
+            'SELECT image_url FROM styles WHERE style_code = $1 AND sku_code = $2 AND image_url IS NOT NULL LIMIT 1',
+            [prod.style_code, prod.sku]
+        );
+        if (skuRows.length > 0 && skuRows[0].image_url) return skuRows[0].image_url;
+    }
+
+    return null;
+}
 
 // ==========================================
 // SCHEMA CHECK FUNCTION - Ensures products table has required columns
@@ -951,18 +1039,22 @@ app.post('/api/products', checkAuth, hasPermission('products'), async (req, res)
             }
         }
         
+        const attrs = product.attributes && typeof product.attributes === 'object' ? JSON.stringify(product.attributes) : '{}';
+
         const queryText = `INSERT INTO products (
-            barcode, sku, style_code, short_name, item_name, metal_type, size, weight,
-            purity, rate, mc_rate, mc_type, pcs, box_charges, stone_charges, floor, avg_wt, status
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+            barcode, sku, style_code, item_code, short_name, item_name, metal_type, size, weight,
+            purity, rate, mc_rate, mc_type, pcs, box_charges, stone_charges, floor, avg_wt, status,
+            attributes, image_url
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
         RETURNING *`;
         
         const params = [
-            product.barcode, product.sku, product.styleCode, product.shortName, product.itemName,
+            product.barcode, product.sku, product.styleCode, product.itemCode || null,
+            product.shortName, product.itemName,
             product.metalType, product.size, product.weight, product.purity, product.rate,
             product.mcRate, product.mcType, product.pcs || 1, product.boxCharges || 0,
             product.stoneCharges || 0, product.floor, product.avgWt || product.weight,
-            product.status || 'available'
+            product.status || 'available', attrs, product.imageUrl || null
         ];
         
         const result = await query(queryText, params);
@@ -981,19 +1073,25 @@ app.put('/api/products/:id', checkAuth, hasPermission('products'), async (req, r
         const { id } = req.params;
         const product = req.body;
         
+        const attrs = product.attributes && typeof product.attributes === 'object' ? JSON.stringify(product.attributes) : undefined;
+
         const queryText = `UPDATE products SET
-            barcode = $1, sku = $2, style_code = $3, short_name = $4, item_name = $5,
-            metal_type = $6, size = $7, weight = $8, purity = $9, rate = $10,
-            mc_rate = $11, mc_type = $12, pcs = $13, box_charges = $14, stone_charges = $15,
-            floor = $16, avg_wt = $17, status = COALESCE($18, status), updated_at = CURRENT_TIMESTAMP
-        WHERE id = $19 RETURNING *`;
+            barcode = $1, sku = $2, style_code = $3, item_code = COALESCE($4, item_code),
+            short_name = $5, item_name = $6,
+            metal_type = $7, size = $8, weight = $9, purity = $10, rate = $11,
+            mc_rate = $12, mc_type = $13, pcs = $14, box_charges = $15, stone_charges = $16,
+            floor = $17, avg_wt = $18, status = COALESCE($19, status),
+            attributes = COALESCE($20::jsonb, attributes), image_url = COALESCE($21, image_url),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $22 RETURNING *`;
         
         const params = [
-            product.barcode, product.sku, product.styleCode, product.shortName, product.itemName,
+            product.barcode, product.sku, product.styleCode, product.itemCode || null,
+            product.shortName, product.itemName,
             product.metalType, product.size, product.weight, product.purity, product.rate,
             product.mcRate, product.mcType, product.pcs || 1, product.boxCharges || 0,
             product.stoneCharges || 0, product.floor, product.avgWt || product.weight,
-            product.status || 'available', id
+            product.status || 'available', attrs || null, product.imageUrl || null, id
         ];
         
         const result = await query(queryText, params);
@@ -1021,9 +1119,10 @@ app.post('/api/products/bulk', checkAuth, hasPermission('products'), async (req,
             const errors = [];
             
             const insertQuery = `INSERT INTO products (
-                barcode, sku, style_code, short_name, item_name, metal_type, size, weight,
-                purity, rate, mc_rate, mc_type, pcs, box_charges, stone_charges, floor, avg_wt, status
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+                barcode, sku, style_code, item_code, short_name, item_name, metal_type, size, weight,
+                purity, rate, mc_rate, mc_type, pcs, box_charges, stone_charges, floor, avg_wt, status,
+                attributes, image_url
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
             RETURNING *`;
             
             for (const product of productsArray) {
@@ -1034,9 +1133,12 @@ app.post('/api/products/bulk', checkAuth, hasPermission('products'), async (req,
                         errors.push({ barcode: product.barcode, error: 'Barcode already exists' });
                         continue;
                     }
+
+                    const attrs = product.attributes && typeof product.attributes === 'object' ? JSON.stringify(product.attributes) : '{}';
                     
                     const params = [
-                        product.barcode, product.sku || '', product.styleCode || '', 
+                        product.barcode, product.sku || '', product.styleCode || '',
+                        product.itemCode || null,
                         product.shortName, product.itemName || product.shortName,
                         product.metalType || 'gold', product.size || '', 
                         product.weight || 0, product.purity || 100, 
@@ -1044,7 +1146,7 @@ app.post('/api/products/bulk', checkAuth, hasPermission('products'), async (req,
                         product.mcType || 'MC/GM', product.pcs || 1, 
                         product.boxCharges || 0, product.stoneCharges || 0,
                         product.floor || 'Main Floor', product.avgWt || product.weight || 0,
-                        product.status || 'available'
+                        product.status || 'available', attrs, product.imageUrl || null
                     ];
                     
                     const result = await client.query(insertQuery, params);
@@ -1206,7 +1308,7 @@ app.get('/api/styles/:styleCode/:skuCode', checkAuth, hasPermission('products'),
 app.put('/api/styles/:styleCode/:skuCode', checkAuth, hasPermission('products'), async (req, res) => {
     try {
         const { styleCode, skuCode } = req.params;
-        const { item_name, category, metal_type, purity, mc_type, mc_value, hsn_code, description } = req.body;
+        const { item_name, category, metal_type, purity, mc_type, mc_value, hsn_code, description, image_url } = req.body;
         
         const updates = [];
         const params = [];
@@ -1243,6 +1345,10 @@ app.put('/api/styles/:styleCode/:skuCode', checkAuth, hasPermission('products'),
         if (description !== undefined) {
             updates.push(`description = $${paramIndex++}`);
             params.push(description);
+        }
+        if (image_url !== undefined) {
+            updates.push(`image_url = $${paramIndex++}`);
+            params.push(image_url);
         }
         
         if (updates.length === 0) {
@@ -1287,20 +1393,21 @@ app.delete('/api/styles/:styleCode/:skuCode', checkAuth, hasPermission('products
 // Create new style
 app.post('/api/styles', checkAuth, hasPermission('products'), async (req, res) => {
     try {
-        const { style_code, sku_code, item_name, category, metal_type, purity, mc_type, mc_value, hsn_code, description } = req.body;
+        const { style_code, sku_code, item_name, category, metal_type, purity, mc_type, mc_value, hsn_code, description, image_url } = req.body;
         
         if (!style_code || !sku_code) {
             return res.status(400).json({ error: 'style_code and sku_code are required' });
         }
         
         const queryText = `INSERT INTO styles (
-            style_code, sku_code, item_name, category, metal_type, purity, mc_type, mc_value, hsn_code, description
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            style_code, sku_code, item_name, category, metal_type, purity, mc_type, mc_value, hsn_code, description, image_url
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING *`;
         
         const params = [
             style_code, sku_code, item_name || null, category || null, metal_type || null,
-            purity || null, mc_type || null, mc_value || null, hsn_code || null, description || null
+            purity || null, mc_type || null, mc_value || null, hsn_code || null, description || null,
+            image_url || null
         ];
         
         const result = await query(queryText, params);
@@ -1309,6 +1416,342 @@ app.post('/api/styles', checkAuth, hasPermission('products'), async (req, res) =
         if (error.message.includes('unique') || error.message.includes('duplicate')) {
             return res.status(409).json({ error: 'Style with this style_code and sku_code already exists' });
         }
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ==========================================
+// ITEMS API (Style → SKU → Item hierarchy level)
+// ==========================================
+
+// Get all items (optionally filtered by style_code and/or sku_code)
+app.get('/api/items', checkAuth, hasPermission('products'), async (req, res) => {
+    try {
+        const { style_code, sku_code } = req.query;
+        let queryText = 'SELECT * FROM items WHERE is_active = true';
+        const params = [];
+        let paramCount = 1;
+
+        if (style_code) {
+            queryText += ` AND style_code = $${paramCount++}`;
+            params.push(style_code);
+        }
+        if (sku_code) {
+            queryText += ` AND sku_code = $${paramCount++}`;
+            params.push(sku_code);
+        }
+
+        queryText += ' ORDER BY style_code, sku_code, item_code';
+        const result = await query(queryText, params);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get items for a specific style+SKU pair
+app.get('/api/items/:styleCode/:skuCode', checkAuth, hasPermission('products'), async (req, res) => {
+    try {
+        const { styleCode, skuCode } = req.params;
+        const result = await query(
+            'SELECT * FROM items WHERE style_code = $1 AND sku_code = $2 AND is_active = true ORDER BY item_code',
+            [styleCode, skuCode]
+        );
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get single item
+app.get('/api/items/:styleCode/:skuCode/:itemCode', checkAuth, hasPermission('products'), async (req, res) => {
+    try {
+        const { styleCode, skuCode, itemCode } = req.params;
+        const result = await query(
+            'SELECT * FROM items WHERE style_code = $1 AND sku_code = $2 AND item_code = $3',
+            [styleCode, skuCode, itemCode]
+        );
+        if (result.length === 0) return res.status(404).json({ error: 'Item not found' });
+        res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Create item
+app.post('/api/items', checkAuth, hasPermission('products'), async (req, res) => {
+    try {
+        const { style_code, sku_code, item_code, item_name, description, image_url } = req.body;
+        if (!style_code || !sku_code || !item_code) {
+            return res.status(400).json({ error: 'style_code, sku_code, and item_code are required' });
+        }
+        const result = await query(
+            `INSERT INTO items (style_code, sku_code, item_code, item_name, description, image_url)
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+            [style_code, sku_code, item_code, item_name || null, description || null, image_url || null]
+        );
+        res.json(result[0]);
+    } catch (error) {
+        if (error.message.includes('unique') || error.message.includes('duplicate')) {
+            return res.status(409).json({ error: 'Item with this style_code, sku_code, and item_code already exists' });
+        }
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Update item
+app.put('/api/items/:styleCode/:skuCode/:itemCode', checkAuth, hasPermission('products'), async (req, res) => {
+    try {
+        const { styleCode, skuCode, itemCode } = req.params;
+        const { item_name, description, image_url, is_active } = req.body;
+
+        const updates = [];
+        const params = [];
+        let idx = 1;
+
+        if (item_name !== undefined) { updates.push(`item_name = $${idx++}`); params.push(item_name); }
+        if (description !== undefined) { updates.push(`description = $${idx++}`); params.push(description); }
+        if (image_url !== undefined) { updates.push(`image_url = $${idx++}`); params.push(image_url); }
+        if (is_active !== undefined) { updates.push(`is_active = $${idx++}`); params.push(is_active); }
+
+        if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
+
+        updates.push('updated_at = CURRENT_TIMESTAMP');
+        params.push(styleCode, skuCode, itemCode);
+
+        const queryText = `UPDATE items SET ${updates.join(', ')} WHERE style_code = $${idx} AND sku_code = $${idx + 1} AND item_code = $${idx + 2} RETURNING *`;
+        const result = await query(queryText, params);
+
+        if (result.length === 0) return res.status(404).json({ error: 'Item not found' });
+        res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Delete item (soft delete)
+app.delete('/api/items/:styleCode/:skuCode/:itemCode', checkAuth, hasPermission('products'), async (req, res) => {
+    try {
+        const { styleCode, skuCode, itemCode } = req.params;
+        const result = await query(
+            'UPDATE items SET is_active = false, updated_at = CURRENT_TIMESTAMP WHERE style_code = $1 AND sku_code = $2 AND item_code = $3 RETURNING *',
+            [styleCode, skuCode, itemCode]
+        );
+        if (result.length === 0) return res.status(404).json({ error: 'Item not found' });
+        res.json({ success: true, deleted: result[0] });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ==========================================
+// PRODUCT IMAGES API
+// ==========================================
+
+// Get images for a product barcode
+app.get('/api/product-images/:barcode', checkAuth, async (req, res) => {
+    try {
+        const { barcode } = req.params;
+        const result = await query(
+            'SELECT * FROM product_images WHERE product_barcode = $1 ORDER BY is_primary DESC, sort_order ASC',
+            [barcode]
+        );
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Add image to a product
+app.post('/api/product-images', checkAuth, hasPermission('products'), async (req, res) => {
+    try {
+        const { product_barcode, image_url, is_primary } = req.body;
+        if (!product_barcode || !image_url) {
+            return res.status(400).json({ error: 'product_barcode and image_url are required' });
+        }
+
+        // If marking as primary, unset other primaries first
+        if (is_primary) {
+            await query('UPDATE product_images SET is_primary = false WHERE product_barcode = $1', [product_barcode]);
+        }
+
+        const result = await query(
+            'INSERT INTO product_images (product_barcode, image_url, is_primary) VALUES ($1, $2, $3) RETURNING *',
+            [product_barcode, image_url, is_primary || false]
+        );
+
+        // Also update products.image_url if this is the primary image
+        if (is_primary) {
+            await query('UPDATE products SET image_url = $1, updated_at = CURRENT_TIMESTAMP WHERE barcode = $2', [image_url, product_barcode]);
+        }
+
+        res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Set an image as primary
+app.put('/api/product-images/:id/primary', checkAuth, hasPermission('products'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const imgRow = await query('SELECT * FROM product_images WHERE id = $1', [id]);
+        if (imgRow.length === 0) return res.status(404).json({ error: 'Image not found' });
+
+        const barcode = imgRow[0].product_barcode;
+        await query('UPDATE product_images SET is_primary = false WHERE product_barcode = $1', [barcode]);
+        await query('UPDATE product_images SET is_primary = true WHERE id = $1', [id]);
+        await query('UPDATE products SET image_url = $1, updated_at = CURRENT_TIMESTAMP WHERE barcode = $2', [imgRow[0].image_url, barcode]);
+
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Delete a product image
+app.delete('/api/product-images/:id', checkAuth, hasPermission('products'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const imgRow = await query('SELECT * FROM product_images WHERE id = $1', [id]);
+        if (imgRow.length === 0) return res.status(404).json({ error: 'Image not found' });
+
+        await query('DELETE FROM product_images WHERE id = $1', [id]);
+
+        // If deleted image was primary, clear products.image_url too
+        if (imgRow[0].is_primary) {
+            await query('UPDATE products SET image_url = NULL, updated_at = CURRENT_TIMESTAMP WHERE barcode = $1', [imgRow[0].product_barcode]);
+        }
+
+        // Try to delete the file from disk
+        const filename = imgRow[0].image_url.replace('/uploads/products/', '');
+        const filePath = path.join(uploadsDir, filename);
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+        }
+
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Resolve best image for a product (cascade: Product → Item → SKU)
+app.get('/api/product-image/:barcode', checkAuth, async (req, res) => {
+    try {
+        const imageUrl = await resolveProductImage(req.params.barcode);
+        res.json({ imageUrl });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ==========================================
+// B2B EXCEL EXPORT (with embedded images)
+// ==========================================
+
+app.post('/api/exports/b2b-excel', checkAuth, async (req, res) => {
+    try {
+        const { items: exportItems } = req.body;
+        if (!Array.isArray(exportItems) || exportItems.length === 0) {
+            return res.status(400).json({ error: 'Items array is required' });
+        }
+
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = 'Jewellery ERP';
+        const sheet = workbook.addWorksheet('B2B Selection', {
+            properties: { defaultRowHeight: 80 }
+        });
+
+        sheet.columns = [
+            { header: 'S.No', key: 'sno', width: 6 },
+            { header: 'Image', key: 'image', width: 15 },
+            { header: 'Style Code', key: 'styleCode', width: 15 },
+            { header: 'SKU', key: 'sku', width: 15 },
+            { header: 'Item', key: 'itemName', width: 20 },
+            { header: 'Attributes', key: 'attributes', width: 20 },
+            { header: 'Size', key: 'size', width: 10 },
+            { header: 'Weight (g)', key: 'weight', width: 12 },
+            { header: 'Qty', key: 'qty', width: 8 },
+            { header: 'Remarks', key: 'remarks', width: 15 },
+        ];
+
+        // Style header row
+        const headerRow = sheet.getRow(1);
+        headerRow.font = { bold: true, size: 11 };
+        headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
+        headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4A853' } };
+
+        for (let i = 0; i < exportItems.length; i++) {
+            const entry = exportItems[i];
+            const barcode = entry.barcode;
+            const qty = entry.qty || 1;
+
+            // Fetch product details
+            const prodRows = await query('SELECT * FROM products WHERE barcode = $1', [barcode]);
+            if (prodRows.length === 0) continue;
+            const prod = prodRows[0];
+
+            const attrs = prod.attributes || {};
+            const attrStr = Object.entries(attrs).map(([k, v]) => `${k}: ${v}`).join(', ');
+
+            const rowNum = i + 2;
+            const row = sheet.getRow(rowNum);
+            row.height = 80;
+            row.alignment = { vertical: 'middle', wrapText: true };
+
+            row.getCell('sno').value = i + 1;
+            row.getCell('styleCode').value = prod.style_code || '';
+            row.getCell('sku').value = prod.sku || '';
+            row.getCell('itemName').value = prod.short_name || prod.item_name || '';
+            row.getCell('attributes').value = attrStr;
+            row.getCell('size').value = prod.size || '';
+            row.getCell('weight').value = prod.weight ? parseFloat(prod.weight) : '';
+            row.getCell('qty').value = qty;
+            row.getCell('remarks').value = '';
+
+            // Resolve image via cascade
+            const imageUrl = await resolveProductImage(barcode);
+            if (imageUrl) {
+                const imgPath = path.join(__dirname, 'public', imageUrl);
+                if (fs.existsSync(imgPath)) {
+                    try {
+                        const ext = path.extname(imgPath).toLowerCase().replace('.', '');
+                        const imgId = workbook.addImage({
+                            filename: imgPath,
+                            extension: ext === 'jpg' ? 'jpeg' : ext,
+                        });
+                        sheet.addImage(imgId, {
+                            tl: { col: 1, row: rowNum - 1 },
+                            ext: { width: 90, height: 75 },
+                            editAs: 'oneCell'
+                        });
+                    } catch (imgErr) {
+                        console.warn(`Could not embed image for ${barcode}:`, imgErr.message);
+                    }
+                }
+            }
+        }
+
+        // Add borders
+        sheet.eachRow((row) => {
+            row.eachCell((cell) => {
+                cell.border = {
+                    top: { style: 'thin' },
+                    left: { style: 'thin' },
+                    bottom: { style: 'thin' },
+                    right: { style: 'thin' }
+                };
+            });
+        });
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename=B2B_Selection_${Date.now()}.xlsx`);
+
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (error) {
+        console.error('B2B Excel export error:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -2987,14 +3430,18 @@ app.post('/api/purchase-vouchers', checkAuth, async (req, res) => {
                 const tagNo = item.tag_no || `${pv_no}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`.toUpperCase();
                 const barcode = item.barcode || tagNo;
                 
+                const pvAttrs = item.attributes && typeof item.attributes === 'object' ? JSON.stringify(item.attributes) : '{}';
+
                 await client.query(`
-                    INSERT INTO products (barcode, tag_no, style_code, short_name, item_name, metal_type, gross_wt, net_wt, weight, purity, rate, mc_rate, mc_type, purchase_cost, vendor_code, pv_id, bin_location)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+                    INSERT INTO products (barcode, tag_no, style_code, item_code, short_name, item_name, metal_type, gross_wt, net_wt, weight, purity, rate, mc_rate, mc_type, purchase_cost, vendor_code, pv_id, bin_location, attributes, image_url)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
                 `, [
-                    barcode, tagNo, item.style_code, item.item_name || item.style_code, item.item_name || item.style_code,
+                    barcode, tagNo, item.style_code, item.item_code || null,
+                    item.item_name || item.style_code, item.item_name || item.style_code,
                     item.metal_type || 'gold', item.gross_wt, item.net_wt || item.gross_wt, item.net_wt || item.gross_wt,
                     item.purity || 91.6, item.rate || 0, item.mc_value || 0, item.mc_type || 'PER_GRAM',
-                    item.cost || 0, vendor_code, pvId, item.bin_location || ''
+                    item.cost || 0, vendor_code, pvId, item.bin_location || '',
+                    pvAttrs, item.image_url || null
                 ]);
             }
             

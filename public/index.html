@@ -13,6 +13,19 @@
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <style>
     
+    /* Professional form controls - use class input-pro for consistent styling */
+    .input-pro {
+        border: 1px solid #d1d5db !important;
+        border-radius: 0.375rem;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+    }
+    .input-pro:focus {
+        outline: none !important;
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5) !important;
+        border-color: #3b82f6 !important;
+    }
+    
     /* Table hover effects */
     tbody tr:hover {
         background-color: #f9fafb !important;
@@ -434,6 +447,8 @@
                         class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">🔍 Tag Search</button>
                     <button onclick="showTab('floor')" id="btnFloor"
                         class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">🏢 Floor</button>
+                    <button onclick="showTab('b2b')" id="btnB2B"
+                        class="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition">🏪 B2B</button>
                     <button onclick="showUserManagement()" id="btnManageUsers"
                         class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium transition hidden admin-only">👥 Manage Users</button>
                     <button onclick="showTallyConfig()" id="btnTallyConfig"
@@ -517,6 +532,10 @@
                         class="w-full px-4 py-3 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition text-left flex items-center gap-2">
                         <span>🏢</span> Floor
                     </button>
+                    <button onclick="showTab('b2b'); toggleMobileMenu();" 
+                        class="w-full px-4 py-3 bg-amber-800 text-white rounded-lg hover:bg-amber-900 font-medium transition text-left flex items-center gap-2">
+                        <span>🏪</span> B2B Mode
+                    </button>
                 </nav>
                 
                 <!-- Drawer Footer -->
@@ -545,19 +564,19 @@
                 <input type="text" id="customerSelect" 
                     oninput="handleCustomerInput()" onfocus="showCustomerSuggestions()" onblur="hideCustomerSuggestions()"
                     placeholder="Type or select customer..."
-                    class="w-full px-2 py-1.5 text-xs border-2 border-gray-300 rounded focus:ring-1 focus:ring-amber-500 bg-white">
+                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white">
                 <div id="customerSuggestionsDropdown" class="hidden absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                     <!-- Suggestions will be populated here -->
                 </div>
             </div>
             <div class="col-span-2">
                 <label class="block text-xs font-medium text-gray-700 mb-1">Mobile</label>
-                <input type="text" id="customerMobile" readonly class="w-full px-2 py-1.5 text-xs bg-gray-100 border rounded" onpaste="return false;" oncopy="return false;" oncut="return false;">
+                <input type="text" id="customerMobile" readonly class="w-full px-3 py-2 text-sm bg-gray-100 border border-gray-300 rounded-md" onpaste="return false;" oncopy="return false;" oncut="return false;">
             </div>
             <div class="col-span-2">
                 <label class="block text-xs font-medium text-gray-700 mb-1">Rate Slab</label>
                 <select id="rateSlab" onchange="updateRateSlabInfo()"
-                    class="w-full px-2 py-1.5 text-xs border-2 border-amber-300 rounded focus:ring-1 focus:ring-amber-500 font-semibold">
+                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent font-semibold">
                     <option value="R">R</option>
                     <option value="R1">R1</option>
                     <option value="R2">R2</option>
@@ -614,7 +633,7 @@
                 </div>
                 <div class="flex gap-1">
                     <input id="barcodeInput" type="text" placeholder="Scan barcode..."
-                        class="flex-1 px-2 py-2 border-2 border-white/30 rounded focus:ring-1 focus:ring-white text-sm text-gray-900 font-semibold" autofocus>
+                        class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900 font-semibold" autofocus>
                     <button type="button" onclick="openCameraScanner()" class="md:hidden px-3 py-2 bg-white/20 hover:bg-white/30 rounded text-lg" title="Open Camera">
                         📷
                     </button>
@@ -648,26 +667,26 @@
             <div class="bg-white p-2 rounded-lg shadow border flex-1">
                 <h3 class="font-bold text-gray-800 text-xs mb-2">Manual Entry</h3>
                 <div class="space-y-1.5">
-                    <input type="text" id="itemSku" placeholder="SKU" class="w-full px-1.5 py-1 text-xs border rounded" onkeypress="handleSkuShortcut(event)">
-                    <input type="text" id="itemStyleCode" placeholder="Style Code" class="w-full px-1.5 py-1 text-xs border rounded">
-                    <input type="text" id="itemName" placeholder="Item Name" class="w-full px-1.5 py-1 text-xs border rounded">
+                    <input type="text" id="itemSku" placeholder="SKU" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent" onkeypress="handleSkuShortcut(event)">
+                    <input type="text" id="itemStyleCode" placeholder="Style Code" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <input type="text" id="itemName" placeholder="Item Name" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                     <div class="grid grid-cols-2 gap-1">
-                        <input type="text" id="itemSize" placeholder="Size" class="px-1.5 py-1 text-xs border rounded">
-                        <input type="number" step="0.01" id="itemWeight" placeholder="Weight" class="px-1.5 py-1 text-xs border rounded">
+                        <input type="text" id="itemSize" placeholder="Size" class="px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <input type="number" step="0.01" id="itemWeight" placeholder="Weight" class="px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                     </div>
                     <div class="grid grid-cols-2 gap-1">
-                        <input type="number" step="0.1" id="itemPurity" placeholder="Purity %" value="100" class="px-1.5 py-1 text-xs border rounded">
-                        <input type="number" step="0.01" id="itemRate" placeholder="Rate/gm" class="px-1.5 py-1 text-xs border rounded">
+                        <input type="number" step="0.1" id="itemPurity" placeholder="Purity %" value="100" class="px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <input type="number" step="0.01" id="itemRate" placeholder="Rate/gm" class="px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                     </div>
-                    <input type="number" step="0.01" id="itemMcRate" placeholder="MC Rate/gm" class="w-full px-1.5 py-1 text-xs border rounded">
-                    <select id="itemMcType" onchange="updateMCTypeLabel()" class="w-full px-1.5 py-1 text-xs border rounded">
+                    <input type="number" step="0.01" id="itemMcRate" placeholder="MC Rate/gm" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <select id="itemMcType" onchange="updateMCTypeLabel()" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         <option value="MC/GM">MC per Gram</option>
                         <option value="PieceCost">Piece Cost</option>
                     </select>
-                    <input type="number" id="itemPcs" placeholder="PCS" value="1" min="1" class="w-full px-1.5 py-1 text-xs border rounded">
+                    <input type="number" id="itemPcs" placeholder="PCS" value="1" min="1" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                     <input type="hidden" id="itemMetalType">
-                    <input type="number" step="0.01" id="itemBoxCharges" placeholder="Box Charges" class="w-full px-1.5 py-1 text-xs border rounded">
-                    <input type="number" step="0.01" id="itemStoneCharges" placeholder="Stone Charges" class="w-full px-1.5 py-1 text-xs border rounded">
+                    <input type="number" step="0.01" id="itemBoxCharges" placeholder="Box Charges" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <input type="number" step="0.01" id="itemStoneCharges" placeholder="Stone Charges" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                     <div class="bg-amber-50 border-2 border-amber-300 rounded p-1.5 text-center">
                         <p class="text-xs text-gray-600">Amount</p>
                         <div class="text-sm font-bold text-amber-700" id="itemAmount">₹0.00</div>
@@ -1026,19 +1045,19 @@
                             <label class="block text-sm font-medium text-gray-700 mb-2">Search</label>
                             <input type="text" id="quotationSearch" onkeyup="filterQuotations()"
                                 placeholder="🔍 Search by Quote No, Customer..."
-                                class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Customer</label>
                             <select id="quotationCustomerFilter" onchange="filterQuotations()"
-                                class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                                 <option value="all">All Customers</option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Status</label>
                             <select id="quotationStatusFilter" onchange="filterQuotations()"
-                                class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                                 <option value="all">All Quotations</option>
                                 <option value="pending">Pending Bills</option>
                                 <option value="billed">Already Billed</option>
@@ -1047,7 +1066,7 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Remarks</label>
                             <select id="quotationRemarksFilter" onchange="filterQuotations()"
-                                class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                                 <option value="all">All Remarks</option>
                                 <option value="rate-unfixed">Rate-Unfixed</option>
                                 <option value="approval">Approval</option>
@@ -1057,12 +1076,12 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">From Date</label>
                             <input type="date" id="quotationFromDate" onchange="filterQuotations()"
-                                class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">To Date</label>
                             <input type="date" id="quotationToDate" onchange="filterQuotations()"
-                                class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
                     </div>
                 </div>
@@ -1130,7 +1149,7 @@
                     </div>
                     <div class="flex gap-3">
                         <input type="text" id="salesReturnBillNo" placeholder="Enter Bill Number (e.g., SCB1002)"
-                            class="flex-1 px-4 py-2 border-2 border-red-300 rounded-lg focus:ring-2 focus:ring-red-500"
+                            class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             onkeypress="if(event.key === 'Enter') loadBillForSalesReturn()">
                         <button onclick="loadBillForSalesReturn()"
                             class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold">
@@ -1168,7 +1187,7 @@
                     <div class="mb-4">
                         <label class="block text-sm font-medium mb-2">Return Reason</label>
                         <textarea id="salesReturnReason" rows="2" placeholder="Enter reason for return..."
-                            class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg"></textarea>
+                            class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"></textarea>
                     </div>
                     
                     <div class="overflow-x-auto mb-6">
@@ -1257,7 +1276,7 @@
                     <div class="flex gap-4 items-end">
                         <div class="flex-1">
                             <label class="block text-sm font-medium mb-2">Select Quotation</label>
-                            <select id="selectQuotationForBill" class="w-full border rounded px-3 py-2"
+                            <select id="selectQuotationForBill" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                 onchange="loadQuotationForBill()">
                                 <option value="">-- Select a Quotation --</option>
                             </select>
@@ -1307,7 +1326,7 @@
                     <div class="flex gap-4 items-center">
                         <div>
                             <label class="block text-sm font-medium mb-2">Rate Slab</label>
-                            <select id="billRateSlab" class="border rounded px-3 py-2" onchange="updateBillRateSlabInfo()">
+                            <select id="billRateSlab" class="px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent" onchange="updateBillRateSlabInfo()">
                                 <option value="R">R - Standard Rate</option>
                                 <option value="R1">R1 - Silver -3% + MC -₹2</option>
                                 <option value="R2">R2 - Silver -3% + MC -₹5</option>
@@ -2421,6 +2440,116 @@
     </div>
 </div>
 
+<!-- ==========================================
+     B2B MODE TAB - Wholesale Selection & Excel Export
+     ========================================== -->
+<div id="b2bTab" class="hidden">
+    <div class="max-w-7xl mx-auto space-y-4">
+        <!-- Header -->
+        <div class="bg-gradient-to-r from-indigo-600 to-purple-700 text-white p-5 rounded-xl shadow-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+                <h2 class="text-2xl font-bold flex items-center gap-2">🏪 B2B Wholesale Selection</h2>
+                <p class="text-indigo-100 text-sm mt-1">Scan products, set quantities, and export Excel with embedded images for your client.</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <span class="bg-white/20 px-3 py-1.5 rounded-lg text-sm font-bold" id="b2bSessionCount">0 items</span>
+                <button onclick="b2bExportExcel()" id="b2bExportBtn" disabled
+                    class="px-5 py-2.5 bg-green-500 hover:bg-green-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg font-bold text-sm transition shadow-lg">
+                    📥 Export B2B Excel
+                </button>
+                <button onclick="b2bClearSession()"
+                    class="px-4 py-2.5 bg-red-500/80 hover:bg-red-600 text-white rounded-lg font-bold text-sm transition">
+                    🗑️ Clear All
+                </button>
+            </div>
+        </div>
+
+        <!-- Scanner + Live Preview Row -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <!-- LEFT: Scanner Panel -->
+            <div class="lg:col-span-1 space-y-4">
+                <!-- Barcode Scanner -->
+                <div class="bg-white p-4 rounded-xl shadow-lg border-2 border-indigo-200">
+                    <h3 class="font-bold text-gray-800 text-sm mb-3 flex items-center gap-2">📷 Scan Product</h3>
+                    <input type="text" id="b2bBarcodeInput" placeholder="Scan barcode here..."
+                        class="w-full px-3 py-3 text-base border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-semibold"
+                        onkeydown="if(event.key==='Enter'){event.preventDefault(); b2bScanBarcode();}" autofocus>
+                    <p class="text-xs text-gray-500 mt-2">Scan or type barcode and press Enter</p>
+                </div>
+
+                <!-- Quantity Panel (shown after scan) -->
+                <div id="b2bQtyPanel" class="bg-white p-4 rounded-xl shadow-lg border-2 border-green-200 hidden">
+                    <h3 class="font-bold text-gray-800 text-sm mb-2">📦 Set Quantity</h3>
+                    <div class="flex gap-2">
+                        <input type="number" id="b2bQtyInput" min="1" value="1" placeholder="Qty"
+                            class="flex-1 px-3 py-3 text-lg font-bold text-center border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            onkeydown="if(event.key==='Enter'){event.preventDefault(); b2bAddToSession();}">
+                        <button onclick="b2bAddToSession()"
+                            class="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-md font-bold text-sm transition">
+                            ➕ Add
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">Type quantity and press Enter, then scan next</p>
+                </div>
+
+                <!-- Product Info Card (shown after scan) -->
+                <div id="b2bProductInfo" class="bg-white rounded-xl shadow-lg overflow-hidden hidden">
+                    <div class="bg-gradient-to-r from-gray-50 to-gray-100 p-3 border-b">
+                        <h3 class="font-bold text-gray-800 text-sm">Product Details</h3>
+                    </div>
+                    <div class="p-4 space-y-2 text-sm">
+                        <div class="flex justify-between"><span class="text-gray-500">Barcode:</span><span class="font-semibold" id="b2bInfoBarcode">-</span></div>
+                        <div class="flex justify-between"><span class="text-gray-500">Style:</span><span class="font-semibold" id="b2bInfoStyle">-</span></div>
+                        <div class="flex justify-between"><span class="text-gray-500">SKU:</span><span class="font-semibold" id="b2bInfoSku">-</span></div>
+                        <div class="flex justify-between"><span class="text-gray-500">Name:</span><span class="font-semibold" id="b2bInfoName">-</span></div>
+                        <div class="flex justify-between"><span class="text-gray-500">Size:</span><span class="font-semibold" id="b2bInfoSize">-</span></div>
+                        <div class="flex justify-between"><span class="text-gray-500">Weight:</span><span class="font-semibold" id="b2bInfoWeight">-</span></div>
+                        <div id="b2bInfoAttrsContainer" class="hidden pt-2 border-t">
+                            <span class="text-gray-500 text-xs">Attributes:</span>
+                            <div id="b2bInfoAttrs" class="flex flex-wrap gap-1 mt-1"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT: Large Image Preview (client-facing) -->
+            <div class="lg:col-span-2">
+                <div id="b2bImagePreview" class="bg-white rounded-xl shadow-lg border-2 border-gray-200 flex items-center justify-center overflow-hidden" style="min-height: 400px;">
+                    <div id="b2bImagePlaceholder" class="text-center p-8">
+                        <div class="text-7xl mb-4 opacity-30">📷</div>
+                        <p class="text-gray-400 text-lg font-medium">Scan a barcode to see the product image</p>
+                        <p class="text-gray-300 text-sm mt-1">The product image will appear here large for your client to see</p>
+                    </div>
+                    <img id="b2bImageLarge" src="" alt="Product" class="hidden max-h-[500px] w-full object-contain p-4">
+                    <div id="b2bImageNone" class="hidden text-center p-8">
+                        <div class="text-7xl mb-4 opacity-30">🖼️</div>
+                        <p class="text-gray-400 text-lg">No image available for this product</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Session List Grid -->
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+            <div class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-5 py-3 flex justify-between items-center">
+                <h3 class="font-bold text-sm flex items-center gap-2">📋 Selection List</h3>
+                <span class="bg-white/20 px-3 py-1 rounded-full text-xs font-bold" id="b2bTotalQty">Total Qty: 0</span>
+            </div>
+
+            <!-- Empty State -->
+            <div id="b2bEmptyState" class="text-center py-12">
+                <div class="text-5xl mb-3 opacity-30">🏪</div>
+                <p class="text-gray-400 font-medium">No items scanned yet</p>
+                <p class="text-gray-300 text-sm">Start scanning product barcodes above</p>
+            </div>
+
+            <!-- Items Grid -->
+            <div id="b2bSessionGrid" class="hidden p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- PV Upload Modal -->
 <div id="pvUploadModal" class="hidden">
     <div class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
@@ -2803,6 +2932,46 @@
                 <label class="block text-sm font-medium mb-1">HSN Code</label>
                 <input type="text" id="newHSNCode" class="w-full px-3 py-2 border rounded-lg" placeholder="7113">
             </div>
+            <div>
+                <label class="block text-sm font-medium mb-1">Item Code</label>
+                <select id="newItemCode" class="w-full px-3 py-2 border rounded-lg" disabled>
+                    <option value="">-- Select Style+SKU first --</option>
+                </select>
+            </div>
+
+            <!-- Image Upload -->
+            <div class="col-span-2 border-2 border-dashed border-gray-200 rounded-lg p-3 bg-gray-50">
+                <label class="block text-sm font-medium mb-2">Product Image</label>
+                <input type="hidden" id="newImageUrl" value="">
+                <div class="flex items-center gap-4">
+                    <div id="productImagePreview" class="w-20 h-20 bg-gray-200 rounded-lg flex items-center justify-center text-2xl overflow-hidden flex-shrink-0">
+                        <span id="productImagePlaceholder">🖼️</span>
+                        <img id="productImageThumb" src="" alt="" class="hidden w-full h-full object-cover">
+                    </div>
+                    <div class="flex-1">
+                        <input type="file" id="productImageFile" accept="image/*" class="hidden" onchange="handleProductImageUpload(event)">
+                        <button type="button" onclick="document.getElementById('productImageFile').click()"
+                            class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 font-medium">
+                            📷 Upload Image
+                        </button>
+                        <button type="button" onclick="clearProductImage()" id="clearImageBtn" class="hidden px-3 py-1.5 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 font-medium ml-2">
+                            ✕ Remove
+                        </button>
+                        <p class="text-xs text-gray-500 mt-1">JPG, PNG, WebP. Max 10MB.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dynamic Attributes (Key-Value Pairs) -->
+            <div class="col-span-2 border-2 border-dashed border-indigo-200 rounded-lg p-3 bg-indigo-50">
+                <div class="flex justify-between items-center mb-2">
+                    <label class="text-sm font-medium">Attributes <span class="text-xs text-gray-500">(Color, Size, etc.)</span></label>
+                    <button type="button" onclick="addAttributeRow()"
+                        class="px-2 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700 font-medium">+ Add</button>
+                </div>
+                <div id="attributeRows" class="space-y-2"></div>
+            </div>
+
             <div class="col-span-2 flex gap-3">
                 <button onclick="saveProduct()"
                     class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">💾 Save Product</button>
@@ -2822,8 +2991,9 @@
                 <h4 class="font-bold text-blue-800 mb-2">📋 Required Excel Columns:</h4>
                 <p class="text-sm text-blue-700 font-mono">Barcode | SKU | StyleCode | ProductName | Size | AvgWeight |
                     Purity | MCRate | MetalType</p>
-                <p class="text-sm text-blue-700 mt-2"><strong>MetalType:</strong> Must be "gold", "silver", or "platinum"
-                </p>
+                <p class="text-sm text-blue-700 mt-1"><strong>Optional:</strong> <span class="font-mono">ItemCode | ImageUrl | MCType | PCS | BoxCharges | StoneCharges</span></p>
+                <p class="text-sm text-blue-700 mt-1"><strong>Attributes:</strong> Use <span class="font-mono">Attr:Color</span>, <span class="font-mono">Attr:Stone</span>, etc. columns for dynamic attributes</p>
+                <p class="text-sm text-blue-700 mt-1"><strong>MetalType:</strong> Must be "gold", "silver", or "platinum"</p>
             </div>
             <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-4 bg-gray-50">
                 <input type="file" id="excelFileInput" accept=".xlsx,.xls" class="hidden"
@@ -4823,7 +4993,7 @@ function showInputDialog(title, message, defaultValue = '', placeholder = '', on
                 <input type="text" id="customInputField" 
                     value="${defaultValue}" 
                     placeholder="${placeholder}"
-                    class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-4"
+                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-4"
                     autofocus>
                 <div class="flex justify-end gap-2">
                     <button onclick="closeInputDialog(null)" class="px-6 py-2 bg-gray-500 text-white rounded-lg font-medium hover:bg-gray-600">
@@ -7741,7 +7911,8 @@ async function generateSalesBillPDF() {
                                 'tagsplit': 'Tag Split/Merge',
                                 'tagsearch': 'Tag Search',
                                 'floor': 'Floor',
-                                'reports': 'Reports'
+                                'reports': 'Reports',
+                                'b2b': 'B2B Mode'
                             };
                             const tabDisplayName = tabNames[tab] || tab;
                             showDialog('Access Denied', `You do not have permission to access the "${tabDisplayName}" tab. Please contact your administrator.`, 'error');
@@ -7760,7 +7931,8 @@ async function generateSalesBillPDF() {
                 const allTabs = [
                     'billingTab', 'productsTab', 'customersTab', 'rolTab', 
                     'quotationsTab', 'salesbillTab', 'salesreturnTab', 'billHistoryTab', 
-                    'ledgerTab', 'stylesTab', 'pvTab', 'tagsplitTab', 'tagsearchTab', 'floorTab', 'reportsTab'
+                    'ledgerTab', 'stylesTab', 'pvTab', 'tagsplitTab', 'tagsearchTab', 'floorTab', 'reportsTab',
+                    'b2bTab'
                 ];
                 
                 // Hide all tabs - use display: none to ensure they're completely hidden
@@ -7779,7 +7951,8 @@ async function generateSalesBillPDF() {
                 const allButtons = [
                     'btnBilling', 'btnProducts', 'btnCustomers', 'btnROL',
                     'btnQuotations', 'btnSalesBill', 'btnSalesReturn', 'btnBillHistory',
-                    'btnLedger', 'btnStyles', 'btnPV', 'btnTagSplit', 'btnTagSearch', 'btnFloor', 'btnReports'
+                    'btnLedger', 'btnStyles', 'btnPV', 'btnTagSplit', 'btnTagSearch', 'btnFloor', 'btnReports',
+                    'btnB2B'
                 ];
                 
                 allButtons.forEach(btnId => {
@@ -7884,6 +8057,13 @@ async function generateSalesBillPDF() {
                 } else if (tab === 'reports') {
                     selectedTabElement = document.getElementById('reportsTab');
                     selectedButton = document.getElementById('btnReports');
+                } else if (tab === 'b2b') {
+                    selectedTabElement = document.getElementById('b2bTab');
+                    selectedButton = document.getElementById('btnB2B');
+                    setTimeout(() => {
+                        const scanInput = document.getElementById('b2bBarcodeInput');
+                        if (scanInput) scanInput.focus();
+                    }, 100);
                 }
                 
                 if (selectedTabElement) {
@@ -8884,16 +9064,20 @@ async function generateSalesBillPDF() {
             const styleSelect = document.getElementById('newStyleCode');
             const styleManual = document.getElementById('newStyleCodeManual');
             const skuSelect = document.getElementById('newSku');
+            const itemSelect = document.getElementById('newItemCode');
             const styleCode = styleSelect ? styleSelect.value : '';
+            
+            if (itemSelect) {
+                itemSelect.innerHTML = '<option value="">-- Select Style+SKU first --</option>';
+                itemSelect.disabled = true;
+            }
             
             if (styleCode) {
                 if (styleManual) {
                     styleManual.classList.add('hidden');
                     styleManual.value = '';
                 }
-                // Load and populate SKUs for this style code
                 await loadSKUsForStyle(styleCode);
-                // Ensure SKU dropdown is enabled after loading
                 if (skuSelect) {
                     skuSelect.disabled = false;
                 }
@@ -8901,7 +9085,6 @@ async function generateSalesBillPDF() {
                 if (styleManual) {
                     styleManual.classList.remove('hidden');
                 }
-                // Reset SKU dropdown when no style is selected
                 if (skuSelect) {
                     skuSelect.innerHTML = '<option value="">-- Select Style Code first --</option>';
                     skuSelect.disabled = true;
@@ -9041,6 +9224,42 @@ async function generateSalesBillPDF() {
                     skuManual.classList.remove('hidden');
                 }
             }
+            
+            // Load item codes for selected Style+SKU
+            const styleCodeSelect = document.getElementById('newStyleCode');
+            const styleCodeManual = document.getElementById('newStyleCodeManual');
+            const finalStyleCode = (styleCodeSelect && styleCodeSelect.value) || (styleCodeManual && styleCodeManual.value) || '';
+            const finalSkuCode = skuSelect.value || '';
+            if (finalStyleCode && finalSkuCode) {
+                await loadItemsForSKU(finalStyleCode, finalSkuCode);
+            }
+        }
+        
+        async function loadItemsForSKU(styleCode, skuCode) {
+            const itemSelect = document.getElementById('newItemCode');
+            if (!itemSelect) return;
+            itemSelect.innerHTML = '<option value="">-- Loading Items... --</option>';
+            itemSelect.disabled = true;
+            try {
+                const API_BASE = window.API_BASE_URL || 'http://localhost:3000/api';
+                const res = await fetch(`${API_BASE}/items/${encodeURIComponent(styleCode)}/${encodeURIComponent(skuCode)}`);
+                if (res.ok) {
+                    const items = await res.json();
+                    itemSelect.innerHTML = '<option value="">-- None / New --</option>';
+                    items.forEach(it => {
+                        const opt = document.createElement('option');
+                        opt.value = it.item_code;
+                        opt.textContent = `${it.item_code} - ${it.item_name || ''}`;
+                        itemSelect.appendChild(opt);
+                    });
+                } else {
+                    itemSelect.innerHTML = '<option value="">-- None --</option>';
+                }
+            } catch (e) {
+                console.warn('Could not load items:', e);
+                itemSelect.innerHTML = '<option value="">-- None --</option>';
+            }
+            itemSelect.disabled = false;
         }
         
         function handleSKUManual() {
@@ -9078,6 +9297,13 @@ async function generateSalesBillPDF() {
             document.getElementById('newPurity').value = '100';
             document.getElementById('newMcRate').value = '';
             document.getElementById('newMetalType').value = 'gold';
+            
+            // Reset Phase 4 fields
+            const itemSelect = document.getElementById('newItemCode');
+            if (itemSelect) { itemSelect.innerHTML = '<option value="">-- Select Style+SKU first --</option>'; itemSelect.disabled = true; }
+            clearProductImage();
+            document.getElementById('attributeRows').innerHTML = '';
+            
             document.getElementById('modalOverlay').classList.remove('hidden');
             document.getElementById('modalOverlay').classList.add('flex');
             document.getElementById('addProductModal').classList.remove('hidden');
@@ -9093,7 +9319,74 @@ function toggleMCRateLabel() {
     }
 }
 
-function editProduct(idx) {
+// === Phase 4: Image Upload, Attributes UI ===
+
+async function handleProductImageUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+        showDialog('Error', 'Image too large. Maximum 10MB allowed.', 'error');
+        return;
+    }
+    const formData = new FormData();
+    formData.append('image', file);
+    try {
+        const API_BASE = window.API_BASE_URL || 'http://localhost:3000/api';
+        const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: formData });
+        if (!res.ok) throw new Error('Upload failed');
+        const data = await res.json();
+        const imgUrl = data.url || data.imageUrl || '';
+        if (!imgUrl) throw new Error('No URL returned');
+        document.getElementById('newImageUrl').value = imgUrl;
+        const thumb = document.getElementById('productImageThumb');
+        thumb.src = imgUrl;
+        thumb.classList.remove('hidden');
+        document.getElementById('productImagePlaceholder').classList.add('hidden');
+        document.getElementById('clearImageBtn').classList.remove('hidden');
+        showToast('Image uploaded', 'success');
+    } catch (err) {
+        console.error('Image upload failed:', err);
+        showDialog('Error', 'Image upload failed: ' + err.message, 'error');
+    }
+    event.target.value = '';
+}
+
+function clearProductImage() {
+    document.getElementById('newImageUrl').value = '';
+    const thumb = document.getElementById('productImageThumb');
+    if (thumb) { thumb.src = ''; thumb.classList.add('hidden'); }
+    const placeholder = document.getElementById('productImagePlaceholder');
+    if (placeholder) placeholder.classList.remove('hidden');
+    const clearBtn = document.getElementById('clearImageBtn');
+    if (clearBtn) clearBtn.classList.add('hidden');
+    const fileInput = document.getElementById('productImageFile');
+    if (fileInput) fileInput.value = '';
+}
+
+function addAttributeRow(key, value) {
+    const container = document.getElementById('attributeRows');
+    const row = document.createElement('div');
+    row.className = 'flex gap-2 items-center';
+    row.innerHTML = `
+        <input type="text" placeholder="Key (e.g. Color)" value="${(key || '').replace(/"/g, '&quot;')}" class="flex-1 px-2 py-1.5 border rounded text-sm attr-key">
+        <input type="text" placeholder="Value (e.g. Rose Gold)" value="${(value || '').replace(/"/g, '&quot;')}" class="flex-1 px-2 py-1.5 border rounded text-sm attr-val">
+        <button type="button" onclick="this.parentElement.remove()" class="text-red-500 hover:text-red-700 text-lg font-bold px-1" title="Remove">&times;</button>
+    `;
+    container.appendChild(row);
+}
+
+function collectAttributes() {
+    const attrs = {};
+    document.querySelectorAll('#attributeRows .attr-key').forEach((keyEl, i) => {
+        const k = keyEl.value.trim();
+        const v = keyEl.parentElement.querySelector('.attr-val').value.trim();
+        if (k) attrs[k] = v;
+    });
+    return attrs;
+}
+
+async function editProduct(idx) {
     const product = products[idx];
     document.getElementById('productModalTitle').textContent = 'Edit Product';
     document.getElementById('editProductIndex').value = idx;
@@ -9107,12 +9400,43 @@ function editProduct(idx) {
     document.getElementById('newMcRate').value = product.mcRate;
     document.getElementById('newMetalType').value = product.metalType;
     
-    // ✅ ADD THESE 4 NEW LINES:
     document.getElementById('newMcType').value = product.mcType || 'MC/GM';
     document.getElementById('newPcs').value = product.pcs || 1;
     document.getElementById('newBoxCharges').value = product.boxCharges || 0;
     document.getElementById('newStoneCharges').value = product.stoneCharges || 0;
-    toggleMCRateLabel(); // Update label
+    toggleMCRateLabel();
+    
+    // Load categories and styles for dropdowns
+    loadStyleCategories();
+    loadStyleCodes();
+    
+    // Image: show existing if present
+    clearProductImage();
+    const imgUrl = product.imageUrl || product.image_url || '';
+    if (imgUrl) {
+        document.getElementById('newImageUrl').value = imgUrl;
+        const thumb = document.getElementById('productImageThumb');
+        thumb.src = imgUrl;
+        thumb.classList.remove('hidden');
+        document.getElementById('productImagePlaceholder').classList.add('hidden');
+        document.getElementById('clearImageBtn').classList.remove('hidden');
+    }
+    
+    // Attributes: populate from product.attributes
+    document.getElementById('attributeRows').innerHTML = '';
+    const attrs = product.attributes || {};
+    if (typeof attrs === 'object' && Object.keys(attrs).length > 0) {
+        Object.entries(attrs).forEach(([key, val]) => addAttributeRow(key, String(val)));
+    }
+    
+    // Item Code: load items for this style+SKU, then select
+    const itemSelect = document.getElementById('newItemCode');
+    if (product.styleCode && product.sku) {
+        await loadItemsForSKU(product.styleCode, product.sku);
+        if (itemSelect && product.itemCode) itemSelect.value = product.itemCode;
+    } else {
+        if (itemSelect) { itemSelect.innerHTML = '<option value="">-- Select Style+SKU first --</option>'; itemSelect.disabled = true; }
+    }
     
     document.getElementById('modalOverlay').classList.remove('hidden');
     document.getElementById('modalOverlay').classList.add('flex');
@@ -9153,7 +9477,7 @@ async function saveProduct() {
             sku: sku,
             styleCode: styleCode,
             shortName: document.getElementById('newShortName').value.trim(),
-            itemName: document.getElementById('newShortName').value.trim(), // Same as shortName for now
+            itemName: document.getElementById('newShortName').value.trim(),
             size: document.getElementById('newSize').value.trim(),
             weight: parseFloat(document.getElementById('newAvgWt').value) || 0,
             avgWt: parseFloat(document.getElementById('newAvgWt').value) || 0,
@@ -9166,8 +9490,11 @@ async function saveProduct() {
             stoneCharges: parseFloat(document.getElementById('newStoneCharges').value) || 0,
             metalType: document.getElementById('newMetalType').value,
             hsnCode: document.getElementById('newHSNCode').value.trim() || '7113',
-            floor: 'Main Floor', // Default floor
-            isSold: false
+            floor: 'Main Floor',
+            isSold: false,
+            itemCode: document.getElementById('newItemCode') ? document.getElementById('newItemCode').value.trim() : '',
+            imageUrl: document.getElementById('newImageUrl').value.trim(),
+            attributes: collectAttributes()
         };
         
         if (!product.barcode || !product.shortName) {
@@ -9369,7 +9696,11 @@ async function deleteProduct(idx) {
                     PCS: 1,
                     BoxCharges: 0,
                     StoneCharges: 0,
-                    MetalType: 'gold'
+                    MetalType: 'gold',
+                    ItemCode: 'RING-001',
+                    ImageUrl: '',
+                    'Attr:Color': 'Yellow Gold',
+                    'Attr:Stone': 'None'
                 },
                 {
                     Barcode: '2002',
@@ -9384,7 +9715,11 @@ async function deleteProduct(idx) {
                     PCS: 1,
                     BoxCharges: 50,
                     StoneCharges: 0,
-                    MetalType: 'gold'
+                    MetalType: 'gold',
+                    ItemCode: 'BNG-001',
+                    ImageUrl: '',
+                    'Attr:Color': 'Rose Gold',
+                    'Attr:Stone': 'CZ'
                 },
                 {
                     Barcode: '2003',
@@ -9399,7 +9734,11 @@ async function deleteProduct(idx) {
                     PCS: 1,
                     BoxCharges: 100,
                     StoneCharges: 200,
-                    MetalType: 'gold'
+                    MetalType: 'gold',
+                    ItemCode: 'CHN-001',
+                    ImageUrl: '',
+                    'Attr:Color': 'White Gold',
+                    'Attr:Stone': 'Diamond'
                 }
             ];
             const ws = XLSX.utils.json_to_sheet(sampleData);
@@ -9500,23 +9839,35 @@ async function deleteProduct(idx) {
                         alert('Excel file is empty!');
                         return;
                     }
-                    bulkUploadData = jsonData.map((row, idx) => ({
-                        id: Date.now() + idx,
-                        barcode: String(row.Barcode || row.barcode || '').trim(),
-                        sku: String(row.SKU || row.sku || '').trim(),
-                        styleCode: String(row.StyleCode || row.styleCode || '').trim(),
-                        shortName: String(row.ProductName || row.productName || row.shortName || '').trim(),
-                        size: String(row.Size || row.size || '').trim(),
-                        avgWt: parseFloat(row.AvgWeight || row.avgWeight || row.avgWt || 0),
-                        purity: parseFloat(row.Purity || row.purity || 100),
-                        mcRate: parseFloat(row.MCRate || row.mcRate || 0),
-                        mcType: String(row.MCType || row.mcType || 'MC/GM').trim(), // NEW
-                        pcs: parseInt(row.PCS || row.pcs || 1), // NEW
-                        boxCharges: parseFloat(row.BoxCharges || row.boxCharges || 0), // NEW
-                        stoneCharges: parseFloat(row.StoneCharges || row.stoneCharges || 0), // NEW
-                        metalType: String(row.MetalType || row.metalType || 'gold').toLowerCase().trim(),
-                        isSold: false // NEW
-                    }));
+                    bulkUploadData = jsonData.map((row, idx) => {
+                        const attributes = {};
+                        Object.keys(row).forEach(col => {
+                            if (col.startsWith('Attr:') || col.startsWith('attr:')) {
+                                const attrKey = col.substring(5).trim();
+                                if (attrKey) attributes[attrKey] = String(row[col] || '').trim();
+                            }
+                        });
+                        return {
+                            id: Date.now() + idx,
+                            barcode: String(row.Barcode || row.barcode || '').trim(),
+                            sku: String(row.SKU || row.sku || '').trim(),
+                            styleCode: String(row.StyleCode || row.styleCode || '').trim(),
+                            shortName: String(row.ProductName || row.productName || row.shortName || '').trim(),
+                            size: String(row.Size || row.size || '').trim(),
+                            avgWt: parseFloat(row.AvgWeight || row.avgWeight || row.avgWt || 0),
+                            purity: parseFloat(row.Purity || row.purity || 100),
+                            mcRate: parseFloat(row.MCRate || row.mcRate || 0),
+                            mcType: String(row.MCType || row.mcType || 'MC/GM').trim(),
+                            pcs: parseInt(row.PCS || row.pcs || 1),
+                            boxCharges: parseFloat(row.BoxCharges || row.boxCharges || 0),
+                            stoneCharges: parseFloat(row.StoneCharges || row.stoneCharges || 0),
+                            metalType: String(row.MetalType || row.metalType || 'gold').toLowerCase().trim(),
+                            itemCode: String(row.ItemCode || row.itemCode || '').trim(),
+                            imageUrl: String(row.ImageUrl || row.imageUrl || row.ImageURL || '').trim(),
+                            attributes: attributes,
+                            isSold: false
+                        };
+                    });
                     const tbody = document.getElementById('previewTableBody');
                     tbody.innerHTML = '';
                     bulkUploadData.slice(0, 5).forEach(item => {
@@ -9587,8 +9938,11 @@ async function deleteProduct(idx) {
                     pcs: parseInt(product.pcs) || 1,
                     boxCharges: parseFloat(product.boxCharges) || 0,
                     stoneCharges: parseFloat(product.stoneCharges) || 0,
-                    floor: selectedFloor, // Use selected floor for all products
-                    isSold: false
+                    floor: selectedFloor,
+                    isSold: false,
+                    itemCode: product.itemCode || '',
+                    imageUrl: product.imageUrl || '',
+                    attributes: product.attributes || {}
                 }));
                 
                 // Use bulk insert endpoint for fast upload
@@ -12411,6 +12765,9 @@ function clearAll() {
                             }
 
                             function editQuotation(id) {
+                                // Force-hide loader to prevent "Resetting Quotation..." from lingering
+                                if (typeof hideLoader === 'function') hideLoader();
+
                                 // Try to find by dbId first (for database quotations), then by id
                                 let quotation = savedQuotations.find(q => q.dbId === id || q.id === id);
                                 if (!quotation) {
@@ -12420,6 +12777,13 @@ function clearAll() {
 
                                 // Switch to billing tab
                                 showTab('billing');
+
+                                // Update Quotation Number header so PDF and display use correct number
+                                const headerEl = document.getElementById('quotationNo') || document.getElementById('currentQuotationNo');
+                                if (headerEl) {
+                                    headerEl.textContent = `Quotation No: ${quotation.quotationNo}`;
+                                    if (headerEl.value !== undefined) headerEl.value = quotation.quotationNo;
+                                }
 
                                 // Load customer - set the input field value to customer name (handle empty customer gracefully)
                                 if (quotation.customer && quotation.customer.name) {
@@ -12488,18 +12852,28 @@ function clearAll() {
                             }
 
                             async function recycleQuotation(id) {
-                                    const quotation = savedQuotations.find(q => q.id === id);
+                                    const quotation = savedQuotations.find(q => q.dbId === id || q.id === id);
                                     if (!quotation) { showDialog('Error', 'Quotation not found', 'error'); return; }
 
-                                    // Manual Clear Confirmation
-                                    const confirmCode = prompt(`To RESET Quote #${quotation.quotationNo}, please type the number below:\n\n${quotation.quotationNo}`, "");
+                                    // Manual Clear Confirmation - use custom modal instead of raw prompt
+                                    let confirmCode;
+                                    try {
+                                        confirmCode = await showInputDialog(
+                                            'Reset Quotation',
+                                            `To RESET Quote #${quotation.quotationNo}, please type the quotation number below:`,
+                                            '',
+                                            quotation.quotationNo
+                                        );
+                                    } catch (e) {
+                                        return; // User cancelled
+                                    }
                                     if (confirmCode !== quotation.quotationNo) {
-                                        if (confirmCode !== null) showDialog('Error', 'Incorrect Quotation Number', 'error');
+                                        if (confirmCode != null && confirmCode !== '') showDialog('Error', 'Incorrect Quotation Number', 'error');
                                         return;
                                     }
 
                                     // --- FIX: OPTIMISTIC UPDATE (Clear Local Data First) ---
-                                    const index = savedQuotations.findIndex(q => q.id === id);
+                                    const index = savedQuotations.findIndex(q => q.dbId === id || q.id === id);
                                     if (index !== -1) {
                                         // Reset the local object to empty state immediately
                                         savedQuotations[index] = {
@@ -12533,7 +12907,13 @@ function clearAll() {
                                     // Switch to billing tab 
                                     showTab('billing');
                                     // Load the (now empty) quotation into the editor
-                                    editQuotation(quotation.id);
+                                    editQuotation(quotation.dbId || quotation.id);
+
+                                    const headerEl = document.getElementById('quotationNo') || document.getElementById('currentQuotationNo');
+                                    if (headerEl) {
+                                        headerEl.textContent = `Quotation No: ${quotation.quotationNo}`;
+                                        if (headerEl.value !== undefined) headerEl.value = quotation.quotationNo;
+                                    }
                                     // Refresh background data safely
                                     loadQuotations();
                                     loadQuotationsHistory();
@@ -16250,23 +16630,35 @@ function closePaymentModal() {
                                     return;
                                 }
 
-                                bulkUploadPVData = jsonData.map((row, idx) => ({
-                                    id: Date.now() + idx,
-                                    barcode: String(row.Barcode || row.barcode || '').trim(),
-                                    sku: String(row.SKU || row.sku || '').trim(),
-                                    styleCode: String(row.StyleCode || row.styleCode || '').trim(),
-                                    shortName: String(row.ProductName || row.productName || row.shortName || '').trim(),
-                                    size: String(row.Size || row.size || '').trim(),
-                                    avgWt: parseFloat(row.AvgWeight || row.avgWeight || row.avgWt || 0),
-                                    purity: parseFloat(row.Purity || row.purity || 100),
-                                    mcRate: parseFloat(row.MCRate || row.mcRate || 0),
-                                    mcType: String(row.MCType || row.mcType || 'MC/GM').trim(),
-                                    pcs: parseInt(row.PCS || row.pcs || 1),
-                                    boxCharges: parseFloat(row.BoxCharges || row.boxCharges || 0),
-                                    stoneCharges: parseFloat(row.StoneCharges || row.stoneCharges || 0),
-                                    metalType: String(row.MetalType || row.metalType || 'gold').toLowerCase().trim(),
-                                    isSold: false
-                                }));
+                                bulkUploadPVData = jsonData.map((row, idx) => {
+                                    const attributes = {};
+                                    Object.keys(row).forEach(col => {
+                                        if (col.startsWith('Attr:') || col.startsWith('attr:')) {
+                                            const attrKey = col.substring(5).trim();
+                                            if (attrKey) attributes[attrKey] = String(row[col] || '').trim();
+                                        }
+                                    });
+                                    return {
+                                        id: Date.now() + idx,
+                                        barcode: String(row.Barcode || row.barcode || '').trim(),
+                                        sku: String(row.SKU || row.sku || '').trim(),
+                                        styleCode: String(row.StyleCode || row.styleCode || '').trim(),
+                                        shortName: String(row.ProductName || row.productName || row.shortName || '').trim(),
+                                        size: String(row.Size || row.size || '').trim(),
+                                        avgWt: parseFloat(row.AvgWeight || row.avgWeight || row.avgWt || 0),
+                                        purity: parseFloat(row.Purity || row.purity || 100),
+                                        mcRate: parseFloat(row.MCRate || row.mcRate || 0),
+                                        mcType: String(row.MCType || row.mcType || 'MC/GM').trim(),
+                                        pcs: parseInt(row.PCS || row.pcs || 1),
+                                        boxCharges: parseFloat(row.BoxCharges || row.boxCharges || 0),
+                                        stoneCharges: parseFloat(row.StoneCharges || row.stoneCharges || 0),
+                                        metalType: String(row.MetalType || row.metalType || 'gold').toLowerCase().trim(),
+                                        itemCode: String(row.ItemCode || row.itemCode || '').trim(),
+                                        imageUrl: String(row.ImageUrl || row.imageUrl || row.ImageURL || '').trim(),
+                                        attributes: attributes,
+                                        isSold: false
+                                    };
+                                });
 
                                 // Preview
                                 const tbody = document.getElementById('pvPreviewTableBody');
@@ -19205,6 +19597,267 @@ function updateBulkUploadFloorDropdown() {
         floorSelect.value = currentValue;
     } else {
         floorSelect.value = floors.includes('estimation floor') ? 'estimation floor' : (floors[0] || 'estimation floor');
+    }
+}
+
+// ==========================================
+// B2B MODE FUNCTIONS
+// ==========================================
+
+const b2bSession = [];
+let b2bCurrentProduct = null;
+
+async function b2bScanBarcode() {
+    const input = document.getElementById('b2bBarcodeInput');
+    const barcode = input.value.trim();
+    if (!barcode) return;
+
+    input.value = '';
+
+    // Reset preview
+    document.getElementById('b2bImageLarge').classList.add('hidden');
+    document.getElementById('b2bImageNone').classList.add('hidden');
+    document.getElementById('b2bImagePlaceholder').classList.remove('hidden');
+
+    try {
+        const res = await fetch(`/api/products?barcode=${encodeURIComponent(barcode)}`, {
+            credentials: 'include'
+        });
+        const data = await res.json();
+        const prod = data.products && data.products.length > 0 ? data.products[0] : null;
+
+        if (!prod) {
+            showToast(`Barcode "${barcode}" not found`, 'error');
+            input.focus();
+            return;
+        }
+
+        b2bCurrentProduct = prod;
+
+        // Fill product info
+        document.getElementById('b2bInfoBarcode').textContent = prod.barcode || '-';
+        document.getElementById('b2bInfoStyle').textContent = prod.style_code || '-';
+        document.getElementById('b2bInfoSku').textContent = prod.sku || '-';
+        document.getElementById('b2bInfoName').textContent = prod.short_name || prod.item_name || '-';
+        document.getElementById('b2bInfoSize').textContent = prod.size || '-';
+        document.getElementById('b2bInfoWeight').textContent = prod.weight ? `${prod.weight}g` : '-';
+
+        // Attributes badges
+        const attrs = prod.attributes && typeof prod.attributes === 'object' ? prod.attributes : {};
+        const attrsContainer = document.getElementById('b2bInfoAttrsContainer');
+        const attrsDiv = document.getElementById('b2bInfoAttrs');
+        attrsDiv.innerHTML = '';
+        const attrEntries = Object.entries(attrs).filter(([k, v]) => v);
+        if (attrEntries.length > 0) {
+            attrsContainer.classList.remove('hidden');
+            attrEntries.forEach(([k, v]) => {
+                const badge = document.createElement('span');
+                badge.className = 'px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-xs font-medium';
+                badge.textContent = `${k}: ${v}`;
+                attrsDiv.appendChild(badge);
+            });
+        } else {
+            attrsContainer.classList.add('hidden');
+        }
+
+        document.getElementById('b2bProductInfo').classList.remove('hidden');
+
+        // Resolve image via cascade
+        const imgRes = await fetch(`/api/product-image/${encodeURIComponent(barcode)}`, { credentials: 'include' });
+        const imgData = await imgRes.json();
+
+        document.getElementById('b2bImagePlaceholder').classList.add('hidden');
+
+        if (imgData.imageUrl) {
+            const imgEl = document.getElementById('b2bImageLarge');
+            imgEl.src = imgData.imageUrl;
+            imgEl.classList.remove('hidden');
+            document.getElementById('b2bImageNone').classList.add('hidden');
+        } else {
+            document.getElementById('b2bImageLarge').classList.add('hidden');
+            document.getElementById('b2bImageNone').classList.remove('hidden');
+        }
+
+        // Show qty panel and focus
+        document.getElementById('b2bQtyPanel').classList.remove('hidden');
+        const qtyInput = document.getElementById('b2bQtyInput');
+        qtyInput.value = 1;
+        qtyInput.select();
+        qtyInput.focus();
+
+    } catch (err) {
+        console.error('B2B scan error:', err);
+        showToast('Error fetching product: ' + err.message, 'error');
+        input.focus();
+    }
+}
+
+function b2bAddToSession() {
+    if (!b2bCurrentProduct) return;
+    const qty = parseInt(document.getElementById('b2bQtyInput').value) || 1;
+    const barcode = b2bCurrentProduct.barcode;
+
+    // Check if already in session - update qty
+    const existing = b2bSession.find(s => s.barcode === barcode);
+    if (existing) {
+        existing.qty += qty;
+        showToast(`Updated ${barcode} qty to ${existing.qty}`, 'info');
+    } else {
+        // Resolve image URL (already fetched in DOM)
+        const imgEl = document.getElementById('b2bImageLarge');
+        const imageUrl = imgEl.classList.contains('hidden') ? null : imgEl.src;
+
+        b2bSession.push({
+            barcode,
+            styleCode: b2bCurrentProduct.style_code || '',
+            sku: b2bCurrentProduct.sku || '',
+            name: b2bCurrentProduct.short_name || b2bCurrentProduct.item_name || '',
+            size: b2bCurrentProduct.size || '',
+            weight: b2bCurrentProduct.weight || 0,
+            attributes: b2bCurrentProduct.attributes || {},
+            imageUrl: imageUrl,
+            qty
+        });
+        showToast(`Added ${b2bCurrentProduct.short_name || barcode} x${qty}`, 'success');
+    }
+
+    b2bCurrentProduct = null;
+    b2bRenderSession();
+
+    // Reset for next scan
+    document.getElementById('b2bBarcodeInput').focus();
+}
+
+function b2bUpdateQty(index, newQty) {
+    const val = parseInt(newQty);
+    if (val > 0) {
+        b2bSession[index].qty = val;
+    } else if (val <= 0 || isNaN(val)) {
+        b2bSession.splice(index, 1);
+    }
+    b2bRenderSession();
+}
+
+function b2bRemoveItem(index) {
+    b2bSession.splice(index, 1);
+    b2bRenderSession();
+}
+
+function b2bClearSession() {
+    if (b2bSession.length === 0) return;
+    if (!confirm('Clear all items from the B2B selection?')) return;
+    b2bSession.length = 0;
+    b2bCurrentProduct = null;
+    b2bRenderSession();
+    // Reset preview
+    document.getElementById('b2bImageLarge').classList.add('hidden');
+    document.getElementById('b2bImageNone').classList.add('hidden');
+    document.getElementById('b2bImagePlaceholder').classList.remove('hidden');
+    document.getElementById('b2bProductInfo').classList.add('hidden');
+    document.getElementById('b2bQtyPanel').classList.add('hidden');
+    showToast('Selection cleared', 'info');
+}
+
+function b2bRenderSession() {
+    const grid = document.getElementById('b2bSessionGrid');
+    const empty = document.getElementById('b2bEmptyState');
+    const countEl = document.getElementById('b2bSessionCount');
+    const totalQtyEl = document.getElementById('b2bTotalQty');
+    const exportBtn = document.getElementById('b2bExportBtn');
+
+    const totalQty = b2bSession.reduce((s, item) => s + item.qty, 0);
+    countEl.textContent = `${b2bSession.length} items`;
+    totalQtyEl.textContent = `Total Qty: ${totalQty}`;
+    exportBtn.disabled = b2bSession.length === 0;
+
+    if (b2bSession.length === 0) {
+        grid.classList.add('hidden');
+        empty.classList.remove('hidden');
+        return;
+    }
+
+    empty.classList.add('hidden');
+    grid.classList.remove('hidden');
+    grid.innerHTML = '';
+
+    b2bSession.forEach((item, idx) => {
+        const attrs = item.attributes || {};
+        const attrBadges = Object.entries(attrs)
+            .filter(([k, v]) => v)
+            .map(([k, v]) => `<span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[10px] font-medium">${k}: ${v}</span>`)
+            .join('');
+
+        const imgHtml = item.imageUrl
+            ? `<img src="${item.imageUrl}" alt="${item.name}" class="w-full h-28 object-contain bg-gray-50 rounded-t-lg">`
+            : `<div class="w-full h-28 bg-gray-100 rounded-t-lg flex items-center justify-center text-3xl opacity-30">🖼️</div>`;
+
+        const card = document.createElement('div');
+        card.className = 'border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition group relative';
+        card.innerHTML = `
+            ${imgHtml}
+            <button onclick="b2bRemoveItem(${idx})" class="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition flex items-center justify-center" title="Remove">✕</button>
+            <div class="p-2">
+                <p class="font-bold text-xs text-gray-800 truncate" title="${item.name}">${item.name || item.barcode}</p>
+                <p class="text-[10px] text-gray-500 truncate">${item.styleCode}${item.sku ? ' / ' + item.sku : ''}</p>
+                ${item.size ? `<p class="text-[10px] text-gray-400">Size: ${item.size} | ${item.weight}g</p>` : ''}
+                ${attrBadges ? `<div class="flex flex-wrap gap-0.5 mt-1">${attrBadges}</div>` : ''}
+                <div class="mt-2 flex items-center gap-1">
+                    <label class="text-[10px] text-gray-500 font-medium">Qty:</label>
+                    <input type="number" min="0" value="${item.qty}"
+                        onchange="b2bUpdateQty(${idx}, this.value)"
+                        class="w-16 px-1.5 py-1 text-sm text-center font-bold border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                </div>
+            </div>
+        `;
+        grid.appendChild(card);
+    });
+}
+
+async function b2bExportExcel() {
+    if (b2bSession.length === 0) {
+        showToast('No items to export', 'error');
+        return;
+    }
+
+    const exportBtn = document.getElementById('b2bExportBtn');
+    const origText = exportBtn.textContent;
+    exportBtn.disabled = true;
+    exportBtn.textContent = '⏳ Generating...';
+
+    try {
+        const payload = {
+            items: b2bSession.map(s => ({ barcode: s.barcode, qty: s.qty }))
+        };
+
+        const res = await fetch('/api/exports/b2b-excel', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || 'Export failed');
+        }
+
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `B2B_Selection_${new Date().toISOString().split('T')[0]}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+
+        showToast(`Excel exported with ${b2bSession.length} items!`, 'success');
+    } catch (err) {
+        console.error('B2B export error:', err);
+        showToast('Export failed: ' + err.message, 'error');
+    } finally {
+        exportBtn.disabled = false;
+        exportBtn.textContent = origText;
     }
 }
 
