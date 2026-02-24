@@ -4,6 +4,9 @@ Complete jewelry estimation and billing software for single-tenant VPS deploymen
 taskkill /F /IM node.exe 
 command to kill ghost
 ---
+ssh root@159.65.145.59
+command to access terminal
+---
 command to access database 
 psql "postgresql://postgres:GauravSolanki56789__g@localhost:5432/gauravsoftwares?sslmode=disable"
 

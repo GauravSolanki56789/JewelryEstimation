@@ -14,17 +14,47 @@ class TallyIntegration {
     }
 
     /**
-     * Generate Tally XML for Sales Invoice
+     * Aggregate bill items by Name, Purity, HSN (GST tax invoice standards)
+     */
+    aggregateBillItems(items) {
+        const HSN = { gold: '7113', silver: '7114', platinum: '7112', diamond: '7113', imitation: '7117' };
+        const arr = Array.isArray(items) ? items : JSON.parse(items || '[]');
+        const map = {};
+        arr.forEach(item => {
+            const metal = (item.metalType || 'silver').toLowerCase();
+            const isManual = item.isManual === true || !item.barcode;
+            const name = isManual ? `${metal.charAt(0).toUpperCase() + metal.slice(1)} Article` : `${metal.charAt(0).toUpperCase() + metal.slice(1)} Jewellery`;
+            const purity = parseFloat(item.purity) || 100;
+            const hsn = item.hsn || HSN[metal] || '7114';
+            const key = `${name}|${purity}|${hsn}`;
+            if (!map[key]) {
+                map[key] = { name, purity, hsn, totalPcs: 0, totalWeight: 0, totalAmount: 0 };
+            }
+            map[key].totalPcs += (item.pcs || 1);
+            map[key].totalWeight += parseFloat(item.weight || item.net_wt || 0);
+            map[key].totalAmount += parseFloat(item.amount || ((item.rate || 0) * (item.weight || item.net_wt || 0)));
+        });
+        return Object.values(map).map(m => ({
+            ...m,
+            averageRate: m.totalWeight > 0 ? m.totalAmount / m.totalWeight : 0
+        }));
+    }
+
+    /**
+     * Generate Tally XML for Sales Invoice (uses aggregated items for GST compliance)
      */
     generateSalesInvoiceXML(bill) {
-        const items = Array.isArray(bill.items) ? bill.items : JSON.parse(bill.items || '[]');
+        const rawItems = Array.isArray(bill.items) ? bill.items : JSON.parse(bill.items || '[]');
+        const items = bill.aggregatedItems && bill.aggregatedItems.length > 0
+            ? bill.aggregatedItems
+            : this.aggregateBillItems(rawItems);
         
-        // Calculate item details
-        const invoiceItems = items.map((item, index) => {
-            const itemName = item.itemName || item.shortName || 'Jewelry Item';
-            const quantity = item.pcs || item.quantity || 1;
-            const rate = item.rate || 0;
-            const amount = item.total || (rate * quantity);
+        // Inventory entries from aggregated items (Silver Jewellery, Silver Article, etc.)
+        const invoiceItems = items.map((item) => {
+            const itemName = item.Name || item.name || 'Jewellery';
+            const quantity = item.totalPcs || item.pcs || 1;
+            const rate = item.averageRate || item.rate || 0;
+            const amount = item.totalAmount || item.total || (rate * quantity);
             
             return `
                         <INVENTORYENTRIES.LIST>
@@ -34,8 +64,8 @@ class TallyIntegration {
                             <ACTUALQTY>${quantity}</ACTUALQTY>
                             <BILLEDQTY>${quantity}</BILLEDQTY>
                             <UNIT>PCS</UNIT>
-                            ${item.gst ? `<GSTAPPLICABLE>Yes</GSTAPPLICABLE>` : ''}
-                            ${item.hsn ? `<HSNCODE>${item.hsn}</HSNCODE>` : ''}
+                            <GSTAPPLICABLE>Yes</GSTAPPLICABLE>
+                            <HSNCODE>${item.HSN || item.hsn || '7114'}</HSNCODE>
                         </INVENTORYENTRIES.LIST>`;
         }).join('');
 
@@ -71,7 +101,7 @@ class TallyIntegration {
                     <PARTYNAME>${this.escapeXML(customerName)}</PARTYNAME>
                     <NARRATION>Sales Invoice - ${invoiceNumber}</NARRATION>
                     <ALLLEDGERENTRIES.LIST>
-                        <LEDGERNAME>Sales</LEDGERNAME>
+                        <LEDGERNAME>Sales @ 3%</LEDGERNAME>
                         <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
                         <AMOUNT>${netTotal}</AMOUNT>
                     </ALLLEDGERENTRIES.LIST>

@@ -379,6 +379,36 @@ app.post('/api/upload/multiple', checkAuth, upload.array('images', 10), (req, re
     res.json({ success: true, images });
 });
 
+// Bulk barcode images: filename (without ext) = barcode; update products SET image_url WHERE barcode = ?
+const bulkBarcodeStorage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadsDir),
+    filename: (req, file, cb) => {
+        const barcode = path.basename(file.originalname, path.extname(file.originalname)); // e.g. 32074195.jpg -> 32074195
+        const ext = (path.extname(file.originalname) || '.jpg').toLowerCase();
+        cb(null, `${barcode}${ext}`);
+    }
+});
+const bulkBarcodeUpload = multer({ storage: bulkBarcodeStorage, fileFilter: imageFilter, limits: { fileSize: 5 * 1024 * 1024 } });
+
+app.post('/api/upload/bulk-barcode-images', checkAuth, hasPermission('products'), bulkBarcodeUpload.array('images', 200), async (req, res) => {
+    try {
+        if (!req.files || req.files.length === 0) {
+            return res.status(400).json({ error: 'No image files provided' });
+        }
+        let matched = 0;
+        for (const f of req.files) {
+            const barcode = path.basename(f.originalname, path.extname(f.originalname));
+            if (!barcode) continue;
+            const imageUrl = `/uploads/products/${f.filename}`;
+            const result = await query('UPDATE products SET image_url = $1 WHERE barcode = $2 RETURNING id', [imageUrl, barcode]);
+            if (result.length > 0) matched++;
+        }
+        res.json({ success: true, matched, total: req.files.length });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // ==========================================
 // IMAGE CASCADE HELPER
 // Resolves the best image for a product by walking up the hierarchy:
@@ -494,6 +524,20 @@ async function checkAndUpdateProductsSchema() {
                     ALTER TABLE quotations ADD COLUMN is_deleted BOOLEAN DEFAULT false;
                     UPDATE quotations SET is_deleted = false WHERE is_deleted IS NULL;
                     RAISE NOTICE 'Added is_deleted column to quotations';
+                END IF;
+            END $$;
+        `);
+        
+        // Check and add 'item_code' column to products table (required for B2B feature)
+        await dbPool.query(`
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'products' AND column_name = 'item_code'
+                ) THEN
+                    ALTER TABLE products ADD COLUMN item_code VARCHAR(100);
+                    RAISE NOTICE 'Added item_code column to products';
                 END IF;
             END $$;
         `);
@@ -971,8 +1015,9 @@ app.get('/api/products', checkAuth, hasPermission('products'), async (req, res) 
         // Order by created_at DESC (most recent first)
         queryText += ' ORDER BY created_at DESC';
         
-        // Apply limit (default 50 for search, 5 for recent, no limit if not specified and no search)
-        const limitValue = recent === 'true' ? 5 : (limit ? Math.min(parseInt(limit), 50) : (search ? 50 : null));
+        // Apply limit (default 20 for no search/limit, 50 for search, 5 for recent)
+        // CRITICAL: Default to 20 to prevent browser crash with large datasets
+        const limitValue = recent === 'true' ? 5 : (limit ? Math.min(parseInt(limit), 50) : (search ? 50 : 20));
         if (limitValue) {
             queryText += ` LIMIT $${paramCount++}`;
             params.push(limitValue);
@@ -986,9 +1031,9 @@ app.get('/api/products', checkAuth, hasPermission('products'), async (req, res) 
         
         const result = await query(queryText, params);
         
-        // Get total count for pagination (only if limit is applied)
+        // Get total count for pagination (always when limit is applied)
         let totalCount = null;
-        if (limitValue || search) {
+        if (limitValue) {
             let countQuery = 'SELECT COUNT(*) as total FROM products WHERE 1=1';
             const countParams = [];
             let countParamCount = 1;
@@ -1076,7 +1121,7 @@ app.put('/api/products/:id', checkAuth, hasPermission('products'), async (req, r
         const attrs = product.attributes && typeof product.attributes === 'object' ? JSON.stringify(product.attributes) : undefined;
 
         const queryText = `UPDATE products SET
-            barcode = $1, sku = $2, style_code = $3, item_code = COALESCE($4, item_code),
+            barcode = $1, sku = COALESCE($2, sku), style_code = COALESCE($3, style_code), item_code = COALESCE($4, item_code),
             short_name = $5, item_name = $6,
             metal_type = $7, size = $8, weight = $9, purity = $10, rate = $11,
             mc_rate = $12, mc_type = $13, pcs = $14, box_charges = $15, stone_charges = $16,
@@ -1085,8 +1130,12 @@ app.put('/api/products/:id', checkAuth, hasPermission('products'), async (req, r
             updated_at = CURRENT_TIMESTAMP
         WHERE id = $22 RETURNING *`;
         
+        // Preserve style_code and sku if they are undefined/null/empty (pass null so COALESCE preserves existing value)
         const params = [
-            product.barcode, product.sku, product.styleCode, product.itemCode || null,
+            product.barcode, 
+            (product.sku && product.sku.trim()) || null, 
+            (product.styleCode && product.styleCode.trim()) || null, 
+            product.itemCode || null,
             product.shortName, product.itemName,
             product.metalType, product.size, product.weight, product.purity, product.rate,
             product.mcRate, product.mcType, product.pcs || 1, product.boxCharges || 0,
@@ -1109,6 +1158,25 @@ app.post('/api/products/bulk', checkAuth, hasPermission('products'), async (req,
         if (!Array.isArray(productsArray) || productsArray.length === 0) {
             return res.status(400).json({ error: 'Products array is required' });
         }
+        
+        // Fetch valid style_code + sku_code + purity + mc_type + mc_value (exclude ROOT) - Style Master is source of truth
+        const stylesResult = await query(
+            'SELECT style_code, sku_code, purity, mc_type, mc_value FROM styles WHERE UPPER(sku_code) != \'ROOT\''
+        );
+        const styleSkuMap = new Map(); // normStyle -> { exactStyle, skus: Map(normSku -> { exactSku, purity, mc_type, mc_value }) }
+        stylesResult.forEach(s => {
+            const ns = (s.style_code || '').trim().toUpperCase();
+            const nk = (s.sku_code || '').trim().toUpperCase();
+            if (!styleSkuMap.has(ns)) {
+                styleSkuMap.set(ns, { exactStyle: s.style_code, skus: new Map() });
+            }
+            styleSkuMap.get(ns).skus.set(nk, {
+                exactSku: s.sku_code,
+                purity: s.purity,
+                mc_type: s.mc_type,
+                mc_value: s.mc_value
+            });
+        });
         
         const dbPool = getPool();
         const client = await dbPool.connect();
@@ -1133,6 +1201,26 @@ app.post('/api/products/bulk', checkAuth, hasPermission('products'), async (req,
                         errors.push({ barcode: product.barcode, error: 'Barcode already exists' });
                         continue;
                     }
+                    
+                    // Strict hierarchy validation: styleCode and sku must exist in DB
+                    const rawStyle = (product.styleCode || product.style_code || '').trim().toUpperCase();
+                    const rawSku = (product.sku || '').trim().toUpperCase();
+                    const styleEntry = styleSkuMap.get(rawStyle);
+                    if (!rawStyle || !styleEntry) {
+                        errors.push({ barcode: product.barcode, error: 'STYLE_NOT_FOUND: ' + (product.styleCode || product.style_code || '') });
+                        continue;
+                    }
+                    const skuEntry = styleEntry.skus.get(rawSku);
+                    if (!rawSku || !skuEntry) {
+                        errors.push({ barcode: product.barcode, error: 'SKU_NOT_FOUND: ' + (product.sku || '') + ' under style ' + styleEntry.exactStyle });
+                        continue;
+                    }
+                    // Auto-correct: use exact DB values; OVERRIDE purity/mc from Style Master (ignore Excel columns)
+                    product.styleCode = styleEntry.exactStyle;
+                    product.sku = skuEntry.exactSku;
+                    product.purity = parseFloat(skuEntry.purity) || 91.6;
+                    product.mcType = skuEntry.mc_type || 'PER_GRAM';
+                    product.mcRate = parseFloat(skuEntry.mc_value) || 0;
 
                     const attrs = product.attributes && typeof product.attributes === 'object' ? JSON.stringify(product.attributes) : '{}';
                     
@@ -1375,6 +1463,12 @@ app.put('/api/styles/:styleCode/:skuCode', checkAuth, hasPermission('products'),
 app.delete('/api/styles/:styleCode/:skuCode', checkAuth, hasPermission('products'), async (req, res) => {
     try {
         const { styleCode, skuCode } = req.params;
+        
+        // Prevent deletion of ROOT SKU (placeholder that keeps style visible)
+        if ((skuCode || '').toUpperCase() === 'ROOT') {
+            return res.status(400).json({ error: 'Cannot delete ROOT SKU. This is a system placeholder that ensures the style remains visible.' });
+        }
+        
         const result = await query(
             'DELETE FROM styles WHERE style_code = $1 AND sku_code = $2 RETURNING *',
             [styleCode, skuCode]
@@ -2156,6 +2250,154 @@ app.delete('/api/bills/:id', checkAuth, hasPermission('billing'), async (req, re
         res.status(500).json({ error: error.message });
     }
 });
+
+// ==========================================
+// INVOICE SETTINGS API (Company Details)
+// ==========================================
+app.get('/api/invoice-settings', checkAuth, async (req, res) => {
+    try {
+        let result;
+        try {
+            result = await query('SELECT * FROM invoice_settings ORDER BY id DESC LIMIT 1');
+        } catch (err) {
+            if (err.message && err.message.includes('invoice_settings')) {
+                return res.json({ companyName: '', companyAddress: '', gstin: '', bankName: '', accountName: '', accountNo: '', ifscCode: '' });
+            }
+            throw err;
+        }
+        if (!result || result.length === 0) {
+            return res.json({ companyName: '', companyAddress: '', gstin: '', bankName: '', accountName: '', accountNo: '', ifscCode: '' });
+        }
+        const row = result[0];
+        res.json({
+            companyName: row.company_name || '',
+            companyAddress: row.company_address || '',
+            gstin: row.gstin || '',
+            bankName: row.bank_name || '',
+            accountName: row.account_name || '',
+            accountNo: row.account_no || '',
+            ifscCode: row.ifsc_code || ''
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.put('/api/invoice-settings', checkAuth, async (req, res) => {
+    try {
+        const { companyName, companyAddress, gstin, bankName, accountName, accountNo, ifscCode } = req.body;
+        let result = await query('SELECT id FROM invoice_settings LIMIT 1');
+        if (!result || result.length === 0) {
+            await query(`INSERT INTO invoice_settings (company_name, company_address, gstin, bank_name, account_name, account_no, ifsc_code)
+                VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+                [companyName || '', companyAddress || '', gstin || '', bankName || '', accountName || '', accountNo || '', ifscCode || '']);
+        } else {
+            await query(`UPDATE invoice_settings SET company_name=$1, company_address=$2, gstin=$3, bank_name=$4, account_name=$5, account_no=$6, ifsc_code=$7, updated_at=CURRENT_TIMESTAMP WHERE id=$8`,
+                [companyName || '', companyAddress || '', gstin || '', bankName || '', accountName || '', accountNo || '', ifscCode || '', result[0].id]);
+        }
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ==========================================
+// E-INVOICE API (GSP Mock - Awaiting API Key)
+// ==========================================
+app.post('/api/einvoice/generate/:billNo', checkAuth, hasPermission('billing'), async (req, res) => {
+    try {
+        const { billNo } = req.params;
+        const billResult = await query('SELECT * FROM bills WHERE bill_no = $1', [billNo]);
+        if (!billResult || billResult.length === 0) {
+            return res.status(404).json({ error: 'Bill not found' });
+        }
+        const bill = billResult[0];
+        const items = typeof bill.items === 'string' ? JSON.parse(bill.items) : (bill.items || []);
+        const aggregatedItems = aggregateBillItems(items);
+
+        const invoiceSettings = await (async () => {
+            try {
+                const r = await query('SELECT * FROM invoice_settings ORDER BY id DESC LIMIT 1');
+                return r && r.length ? r[0] : {};
+            } catch (_) { return {}; }
+        })();
+
+        const eInvoiceJson = {
+            Version: '1.1',
+            TranDtls: { TaxSch: 'GST', SupTyp: 'B2C' },
+            DocDtls: { Typ: 'INV', No: billNo, Dt: (bill.date || new Date()).toISOString().split('T')[0] },
+            SellerDtls: {
+                Gstin: invoiceSettings.gstin || '',
+                LglNm: invoiceSettings.company_name || '',
+                Addr1: (invoiceSettings.company_address || '').split(',')[0] || '',
+                Addr2: (invoiceSettings.company_address || '').split(',').slice(1).join(',') || '',
+                Loc: '',
+                Stcd: '33',
+                Ph: '',
+                Em: ''
+            },
+            BuyerDtls: {
+                Gstin: '',
+                LglNm: bill.customer_name || 'Cash Customer',
+                Addr1: '',
+                Addr2: '',
+                Loc: '',
+                Stcd: '',
+                Ph: bill.customer_mobile || '',
+                Em: ''
+            },
+            ItemList: aggregatedItems.map((it, i) => ({
+                SlNo: String(i + 1),
+                PrdDesc: it.Name,
+                HsnCd: it.HSN,
+                Qty: it.totalPcs,
+                Unit: 'PCS',
+                UnitPrice: it.averageRate,
+                TotAmt: it.totalAmount,
+                GstRt: 3,
+                Txval: it.totalAmount,
+                IaGstRt: 0,
+                IaGstAmt: 0,
+                CgstRt: 1.5,
+                CgstAmt: (it.totalAmount * 0.015),
+                SgstRt: 1.5,
+                SgstAmt: (it.totalAmount * 0.015)
+            }))
+        };
+
+        res.json({
+            success: true,
+            message: 'GSP API Setup Ready. Payload generated. Awaiting API Key activation.',
+            payload: eInvoiceJson
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Helper: aggregate bill items for GST (used by E-Invoice and Tally)
+function aggregateBillItems(items) {
+    const HSN = { gold: '7113', silver: '7114', platinum: '7112', diamond: '7113', imitation: '7117' };
+    const metalMap = {};
+    (items || []).forEach(item => {
+        const metal = (item.metalType || 'silver').toLowerCase();
+        const isManual = item.isManual === true || !item.barcode;
+        const name = isManual ? `${metal.charAt(0).toUpperCase() + metal.slice(1)} Article` : `${metal.charAt(0).toUpperCase() + metal.slice(1)} Jewellery`;
+        const purity = parseFloat(item.purity) || 100;
+        const hsn = item.hsn || HSN[metal] || '7114';
+        const key = `${name}|${purity}|${hsn}`;
+        if (!metalMap[key]) {
+            metalMap[key] = { Name: name, Purity: purity, HSN: hsn, totalPcs: 0, totalWeight: 0, totalAmount: 0 };
+        }
+        metalMap[key].totalPcs += (item.pcs || 1);
+        metalMap[key].totalWeight += parseFloat(item.weight || item.net_wt || 0);
+        metalMap[key].totalAmount += parseFloat(item.amount || (item.rate || 0) * (item.weight || item.net_wt || 0));
+    });
+    return Object.values(metalMap).map(m => ({
+        ...m,
+        averageRate: m.totalWeight > 0 ? m.totalAmount / m.totalWeight : 0
+    }));
+}
 
 // ==========================================
 // ADMIN PANEL API
@@ -3313,9 +3555,25 @@ app.post('/api/purchase-vouchers/validate', checkAuth, async (req, res) => {
         const ratesResult = await query('SELECT * FROM rates ORDER BY updated_at DESC LIMIT 1');
         const rates = ratesResult[0] || { gold: 7500, silver: 156 };
         
-        // Get existing styles
-        const stylesResult = await query('SELECT style_code FROM styles WHERE is_active = true');
-        const validStyles = new Set(stylesResult.map(s => s.style_code.toUpperCase()));
+        // Get valid style_code + sku_code + purity + mc_type + mc_value (exclude ROOT) - Style Master is source of truth
+        const stylesResult = await query(
+            'SELECT style_code, sku_code, purity, mc_type, mc_value FROM styles WHERE UPPER(sku_code) != \'ROOT\''
+        );
+        const styleSkuMap = new Map();
+        stylesResult.forEach(s => {
+            const ns = (s.style_code || '').trim().toUpperCase();
+            const nk = (s.sku_code || '').trim().toUpperCase();
+            if (!styleSkuMap.has(ns)) {
+                styleSkuMap.set(ns, { exactStyle: s.style_code, skus: new Map() });
+            }
+            styleSkuMap.get(ns).skus.set(nk, {
+                exactSku: s.sku_code,
+                purity: s.purity,
+                mc_type: s.mc_type,
+                mc_value: s.mc_value
+            });
+        });
+        const validStyles = new Set(stylesResult.map(s => (s.style_code || '').toUpperCase()));
         
         // Get existing tags
         const tagsResult = await query('SELECT tag_no FROM products WHERE tag_no IS NOT NULL');
@@ -3327,12 +3585,16 @@ app.post('/api/purchase-vouchers/validate', checkAuth, async (req, res) => {
             const errors = [];
             let status = 'VALID';
             
-            const styleCode = (row.style_code || '').toUpperCase().trim();
+            let styleCode = (row.style_code || row.styleCode || '').trim().toUpperCase();
+            const skuRaw = (row.sku || row.sku_code || '').trim().toUpperCase();
+            let finalStyleCode = styleCode;
+            let finalSku = (row.sku || row.sku_code || '').trim();
+            let purity = parseFloat(row.purity) || 91.6;
+            let mcValue = parseFloat(row.mc_value) || 0;
+            let mcType = row.mc_type || 'PER_GRAM';
             const tagNo = (row.tag_no || '').toUpperCase().trim();
             const grossWt = parseFloat(row.gross_wt) || 0;
             const netWt = parseFloat(row.net_wt) || grossWt;
-            const purity = parseFloat(row.purity) || 91.6;
-            const mcValue = parseFloat(row.mc_value) || 0;
             const cost = parseFloat(row.cost) || 0;
             const metalType = (row.metal_type || 'gold').toLowerCase();
             
@@ -3340,6 +3602,23 @@ app.post('/api/purchase-vouchers/validate', checkAuth, async (req, res) => {
             if (styleCode && !validStyles.has(styleCode)) {
                 errors.push(`Style '${styleCode}' not found`);
                 status = 'STYLE_NOT_FOUND';
+            }
+            // SKU validation and auto-correct; OVERRIDE purity/mc from Style Master (ignore Excel columns)
+            if (styleCode && skuRaw) {
+                const styleEntry = styleSkuMap.get(styleCode);
+                if (styleEntry) {
+                    const skuEntry = styleEntry.skus.get(skuRaw);
+                    if (!skuEntry) {
+                        errors.push(`SKU '${skuRaw}' not found under style '${styleEntry.exactStyle}'`);
+                        status = 'SKU_NOT_FOUND';
+                    } else {
+                        finalStyleCode = styleEntry.exactStyle;
+                        finalSku = skuEntry.exactSku;
+                        purity = parseFloat(skuEntry.purity) || 91.6;
+                        mcValue = parseFloat(skuEntry.mc_value) || 0;
+                        mcType = skuEntry.mc_type || 'PER_GRAM';
+                    }
+                }
             }
             
             // Tag duplicate check
@@ -3368,7 +3647,7 @@ app.post('/api/purchase-vouchers/validate', checkAuth, async (req, res) => {
             if (cost > 0 && grossWt > 0) {
                 const metalRate = metalType === 'gold' ? rates.gold : rates.silver;
                 const metalValue = netWt * metalRate * (purity / 100);
-                const mcAmount = row.mc_type === 'FIXED' ? mcValue : (netWt * mcValue);
+                const mcAmount = mcType === 'FIXED' ? mcValue : (netWt * mcValue);
                 const expectedCost = metalValue + mcAmount;
                 
                 if (cost < expectedCost * 0.8 || cost > expectedCost * 1.3) {
@@ -3382,7 +3661,7 @@ app.post('/api/purchase-vouchers/validate', checkAuth, async (req, res) => {
                 status,
                 errors,
                 style_found: validStyles.has(styleCode),
-                data: { ...row, style_code: styleCode, tag_no: tagNo, gross_wt: grossWt, net_wt: netWt, purity, mc_value: mcValue, cost }
+                data: { ...row, style_code: finalStyleCode, sku: finalSku, tag_no: tagNo, gross_wt: grossWt, net_wt: netWt, purity, mc_value: mcValue, mc_type: mcType, cost }
             };
         });
         
@@ -3405,6 +3684,25 @@ app.post('/api/purchase-vouchers', checkAuth, async (req, res) => {
         if (!pv_no || !items || items.length === 0) {
             return res.status(400).json({ error: 'PV number and items required' });
         }
+        
+        // Fetch valid style_code + sku_code + purity + mc_type + mc_value (exclude ROOT) - Style Master is source of truth
+        const stylesResult = await query(
+            'SELECT style_code, sku_code, purity, mc_type, mc_value FROM styles WHERE UPPER(sku_code) != \'ROOT\''
+        );
+        const styleSkuMap = new Map(); // normStyle -> { exactStyle, skus: Map(normSku -> { exactSku, purity, mc_type, mc_value }) }
+        stylesResult.forEach(s => {
+            const ns = (s.style_code || '').trim().toUpperCase();
+            const nk = (s.sku_code || '').trim().toUpperCase();
+            if (!styleSkuMap.has(ns)) {
+                styleSkuMap.set(ns, { exactStyle: s.style_code, skus: new Map() });
+            }
+            styleSkuMap.get(ns).skus.set(nk, {
+                exactSku: s.sku_code,
+                purity: s.purity,
+                mc_type: s.mc_type,
+                mc_value: s.mc_value
+            });
+        });
         
         const dbPool = getPool();
         const client = await dbPool.connect();
@@ -3432,6 +3730,24 @@ app.post('/api/purchase-vouchers', checkAuth, async (req, res) => {
                 
                 const pvAttrs = item.attributes && typeof item.attributes === 'object' ? JSON.stringify(item.attributes) : '{}';
 
+                // Auto-fetch purity & MC from Style Master (ignore Excel values)
+                let finalPurity = item.purity || 91.6;
+                let finalMcValue = item.mc_value || 0;
+                let finalMcType = item.mc_type || 'PER_GRAM';
+                
+                const rawStyle = (item.style_code || '').trim().toUpperCase();
+                const rawSku = (item.sku || item.sku_code || '').trim().toUpperCase();
+                const styleEntry = styleSkuMap.get(rawStyle);
+                if (styleEntry) {
+                    const skuEntry = styleEntry.skus.get(rawSku);
+                    if (skuEntry) {
+                        // OVERRIDE with Style Master values (absolute source of truth)
+                        finalPurity = parseFloat(skuEntry.purity) || 91.6;
+                        finalMcValue = parseFloat(skuEntry.mc_value) || 0;
+                        finalMcType = skuEntry.mc_type || 'PER_GRAM';
+                    }
+                }
+
                 await client.query(`
                     INSERT INTO products (barcode, tag_no, style_code, item_code, short_name, item_name, metal_type, gross_wt, net_wt, weight, purity, rate, mc_rate, mc_type, purchase_cost, vendor_code, pv_id, bin_location, attributes, image_url)
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
@@ -3439,7 +3755,7 @@ app.post('/api/purchase-vouchers', checkAuth, async (req, res) => {
                     barcode, tagNo, item.style_code, item.item_code || null,
                     item.item_name || item.style_code, item.item_name || item.style_code,
                     item.metal_type || 'gold', item.gross_wt, item.net_wt || item.gross_wt, item.net_wt || item.gross_wt,
-                    item.purity || 91.6, item.rate || 0, item.mc_value || 0, item.mc_type || 'PER_GRAM',
+                    finalPurity, item.rate || 0, finalMcValue, finalMcType,
                     item.cost || 0, vendor_code, pvId, item.bin_location || '',
                     pvAttrs, item.image_url || null
                 ]);
@@ -4036,6 +4352,136 @@ function broadcast(event, data) {
 }
 
 global.broadcast = broadcast;
+
+// ==========================================
+// FLOORS API
+// ==========================================
+
+app.get('/api/floors', checkAuth, hasPermission('products'), async (req, res) => {
+    try {
+        // Ensure floors table exists first
+        await query(`
+            CREATE TABLE IF NOT EXISTS floors (
+                id SERIAL PRIMARY KEY,
+                floor_name VARCHAR(100) UNIQUE NOT NULL,
+                description TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        
+        // Add updated_at column if it doesn't exist (for existing tables)
+        await query(`
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'floors' AND column_name = 'updated_at'
+                ) THEN
+                    ALTER TABLE floors ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+                    RAISE NOTICE 'Added updated_at column to floors table';
+                END IF;
+            END $$;
+        `);
+        
+        // Insert default floor if it doesn't exist
+        await query(`
+            INSERT INTO floors (floor_name, description) 
+            VALUES ('estimation floor', 'Default floor for products')
+            ON CONFLICT (floor_name) DO NOTHING
+        `);
+        
+        // Get all floors with dynamic product count calculation
+        // Only select columns that exist, handle updated_at gracefully
+        const result = await query(`
+            SELECT 
+                f.id,
+                f.floor_name,
+                f.description,
+                f.created_at,
+                COALESCE(COUNT(p.id), 0) as product_count
+            FROM floors f
+            LEFT JOIN products p ON p.floor = f.floor_name AND (p.is_deleted IS NULL OR p.is_deleted = false) AND (p.status IS NULL OR p.status != 'deleted')
+            GROUP BY f.id, f.floor_name, f.description, f.created_at
+            ORDER BY f.floor_name
+        `);
+        
+        res.json(result);
+    } catch (error) {
+        console.error('Error fetching floors:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/floors', checkAuth, hasPermission('products'), async (req, res) => {
+    try {
+        const { floor_name, description } = req.body;
+        
+        if (!floor_name || !floor_name.trim()) {
+            return res.status(400).json({ error: 'Floor name is required' });
+        }
+        
+        // Ensure floors table exists
+        await query(`
+            CREATE TABLE IF NOT EXISTS floors (
+                id SERIAL PRIMARY KEY,
+                floor_name VARCHAR(100) UNIQUE NOT NULL,
+                description TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        
+        const result = await query(
+            'INSERT INTO floors (floor_name, description) VALUES ($1, $2) RETURNING *',
+            [floor_name.trim(), description || null]
+        );
+        
+        broadcast('floor-created', result[0]);
+        res.json(result[0]);
+    } catch (error) {
+        if (error.message.includes('unique') || error.message.includes('duplicate')) {
+            res.status(409).json({ error: `Floor "${req.body.floor_name}" already exists` });
+        } else {
+            res.status(500).json({ error: error.message });
+        }
+    }
+});
+
+app.delete('/api/floors/:id', checkAuth, hasPermission('products'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        // Get floor details first
+        const floorResult = await query('SELECT * FROM floors WHERE id = $1', [id]);
+        
+        if (floorResult.length === 0) {
+            return res.status(404).json({ error: 'Floor not found' });
+        }
+        
+        const floorName = floorResult[0].floor_name;
+        
+        // Prevent deletion of default floor
+        if (floorName.toLowerCase() === 'estimation floor') {
+            return res.status(400).json({ error: 'Cannot delete estimation floor' });
+        }
+        
+        // Move all products from this floor to estimation floor
+        await query(`
+            UPDATE products 
+            SET floor = 'estimation floor' 
+            WHERE floor = $1
+        `, [floorName]);
+        
+        // Delete the floor
+        await query('DELETE FROM floors WHERE id = $1', [id]);
+        
+        broadcast('floor-deleted', { id: parseInt(id), floor_name: floorName });
+        res.json({ success: true, message: `Floor "${floorName}" deleted. Products moved to estimation floor.` });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
 // ==========================================
 // ERROR HANDLING
