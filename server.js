@@ -4496,14 +4496,14 @@ app.get('/api/sync/pending', checkAuth, async (req, res) => {
     try {
         const result = await pool.query(`
             SELECT
-                p.barcode, p.item_name, p.net_weight, p.gross_weight,
-                p.purity, p.metal_type, p.style_code, p.sku_code,
+                p.barcode, p.item_name, p.weight, p.avg_wt,
+                p.purity, p.metal_type, p.style_code, p.sku,
                 p.is_web_synced
             FROM products p
             WHERE (p.is_deleted = false OR p.is_deleted IS NULL)
               AND (p.status = 'available' OR p.status IS NULL)
               AND (p.is_web_synced = false OR p.is_web_synced IS NULL)
-            ORDER BY p.style_code, p.sku_code, p.barcode
+            ORDER BY p.style_code, p.sku, p.barcode
         `);
 
         // Filter to only products that have a local image on disk
@@ -4512,18 +4512,18 @@ app.get('/api/sync/pending', checkAuth, async (req, res) => {
             return fs.existsSync(imgPath);
         });
 
-        // Group into hierarchy: styleCode -> skuCode -> [products]
+        // Group into hierarchy: styleCode -> sku -> [products]
         const hierarchy = {};
         for (const p of productsWithImages) {
             const style = p.style_code || 'UNKNOWN';
-            const sku   = p.sku_code   || 'UNKNOWN';
+            const sku   = p.sku        || 'UNKNOWN';
             if (!hierarchy[style]) hierarchy[style] = {};
             if (!hierarchy[style][sku]) hierarchy[style][sku] = [];
             hierarchy[style][sku].push({
                 barcode:     p.barcode,
                 name:        p.item_name,
-                netWeight:   p.net_weight,
-                grossWeight: p.gross_weight,
+                netWeight:   p.weight,        // DB col: weight  → API key: netWeight
+                grossWeight: p.avg_wt,        // DB col: avg_wt  → API key: grossWeight
                 purity:      p.purity,
                 metalType:   p.metal_type
             });
@@ -4547,7 +4547,7 @@ app.post('/api/sync/execute', checkAuth, async (req, res) => {
         // Fetch full product details for requested barcodes
         const placeholders = barcodes.map((_, i) => `$${i + 1}`).join(',');
         const result = await pool.query(
-            `SELECT barcode, item_name, net_weight, gross_weight, purity, metal_type, style_code, sku_code
+            `SELECT barcode, item_name, weight, avg_wt, purity, metal_type, style_code, sku, mc_rate
              FROM products
              WHERE barcode IN (${placeholders})
                AND (is_deleted = false OR is_deleted IS NULL)`,
@@ -4559,17 +4559,20 @@ app.post('/api/sync/execute', checkAuth, async (req, res) => {
         for (const p of result.rows) {
             const imgPath = path.join(__dirname, 'public', 'uploads', 'products', `${p.barcode}.jpg`);
             if (!fs.existsSync(imgPath)) continue;
-            const imageBase64 = fs.readFileSync(imgPath).toString('base64');
+            const rawBase64 = fs.readFileSync(imgPath).toString('base64');
+            // Strip any accidental data URI prefix so the receiver gets a clean Base64 string
+            const cleanBase64 = rawBase64.replace(/^data:image\/\w+;base64,/, '');
             products.push({
-                styleCode:   p.style_code   || '',
-                sku:         p.sku_code      || '',
+                styleCode:   p.style_code        || '',
+                sku:         p.sku               || '',
                 barcode:     p.barcode,
-                name:        p.item_name     || '',
-                netWeight:   p.net_weight    || 0,
-                grossWeight: p.gross_weight  || 0,
-                purity:      p.purity        || '',
-                metalType:   p.metal_type    || '',
-                imageBase64
+                name:        p.item_name         || '',
+                netWeight:   parseFloat(p.weight)   || 0,  // DB col: weight  → API key: netWeight
+                grossWeight: parseFloat(p.avg_wt)   || 0,  // DB col: avg_wt  → API key: grossWeight
+                purity:      p.purity            || '',
+                metalType:   p.metal_type        || '',
+                mcRate:      parseFloat(p.mc_rate)  || 0,  // DB col: mc_rate → API key: mcRate
+                imageBase64: cleanBase64
             });
         }
 
