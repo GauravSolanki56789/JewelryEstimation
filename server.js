@@ -43,11 +43,11 @@ app.use(session({
     resave: false,
     saveUninitialized: true,
     name: 'jp.sid', // Custom session name (not default 'connect.sid')
-    cookie: { 
-        secure: false,
-        httpOnly: true, // Prevent XSS access to cookie
-        sameSite: 'lax', // CSRF protection
-        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    cookie: {
+        secure: process.env.NODE_ENV === 'production', // Must be true for live HTTPS
+        httpOnly: true,
+        sameSite: 'lax',
+        maxAge: 24 * 60 * 60 * 1000
     }
 }));
 app.use(passport.initialize());
