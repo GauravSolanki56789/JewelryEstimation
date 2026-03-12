@@ -612,12 +612,14 @@ const UserManagement = {
     // ==========================================
 
     async init() {
-        await this.fetchPermissionModules();
+        // fetchPermissionModules deferred until after auth - called from index.html auth success block
         this.setupModal();
         console.log('👥 User Management Module initialized');
     },
 
     async fetchPermissionModules() {
+        // Only fetch when user is authenticated (avoids 401 on login screen)
+        if (!window.currentUser) return;
         try {
             const response = await fetch(`${this.API_BASE}/admin/permission-modules`);
             if (response.ok) {
@@ -829,7 +831,12 @@ const UserManagement = {
     // MODAL ACTIONS
     // ==========================================
 
-    openAddModal() {
+    async openAddModal() {
+        // Lazy-load permission modules if not yet fetched (e.g. page refresh, failed preload)
+        if (this.modules.length === 0 && window.currentUser) {
+            await this.fetchPermissionModules();
+            this.renderModuleCheckboxes();
+        }
         this.editingUserId = null;
         this.resetForm();
         
@@ -845,7 +852,12 @@ const UserManagement = {
         document.getElementById('userEmail').focus();
     },
 
-    openEditModal(user) {
+    async openEditModal(user) {
+        // Lazy-load permission modules if not yet fetched
+        if (this.modules.length === 0 && window.currentUser) {
+            await this.fetchPermissionModules();
+            this.renderModuleCheckboxes();
+        }
         this.editingUserId = user.id;
         this.resetForm();
         

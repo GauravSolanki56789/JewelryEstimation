@@ -830,6 +830,10 @@
                     Product</button>
                 <button onclick="showBulkUpdateModal()"
                     class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-bold text-sm">⚙️ Bulk Update MC</button>
+                <button onclick="openKCSyncModal()"
+                    class="px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 font-bold text-sm flex items-center gap-1">
+                    🌐 Push to KC Jewellers
+                </button>
             </div>
         </div>
 
@@ -4886,7 +4890,7 @@
                         }
                     }
                 }
-                if (typeof loadInvoiceSettings === 'function') loadInvoiceSettings();
+                // loadInvoiceSettings moved to auth success block - only fetch when logged in
 
                 // Add Enter key listener to quotation number input for search
                 const quotationInput = document.getElementById('quotationNo');
@@ -6308,6 +6312,13 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
             if (typeof loadProducts === 'function') {
                 await loadProducts();
+            }
+            
+            // Load protected data only after successful auth
+            if (typeof loadInvoiceSettings === 'function') loadInvoiceSettings();
+            if (typeof UserManagement !== 'undefined' && UserManagement.fetchPermissionModules && (currentUser.role === 'admin' || currentUser.role === 'super_admin')) {
+                await UserManagement.fetchPermissionModules();
+                if (typeof UserManagement.renderModuleCheckboxes === 'function') UserManagement.renderModuleCheckboxes();
             }
             
             // Update user info display
@@ -21513,6 +21524,337 @@ document.addEventListener('keydown', function(event) {
     <script src="js/tag-ops.js"></script>
     <script src="js/reports.js"></script>
     <script src="js/dashboard.js"></script>
+
+    <!-- =====================================================
+         KC JEWELLERS WEBSITE SYNC MODAL
+         ===================================================== -->
+
+    <!-- Modal Overlay -->
+    <div id="kcSyncModal" class="fixed inset-0 bg-black bg-opacity-60 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+
+            <!-- Header -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-rose-600 to-pink-600 rounded-t-2xl">
+                <div>
+                    <h2 class="text-xl font-bold text-white">🌐 Push to KC Jewellers</h2>
+                    <p id="kcSyncSubtitle" class="text-rose-100 text-sm mt-0.5">Loading un-synced products…</p>
+                </div>
+                <button onclick="closeKCSyncModal()" class="text-white hover:text-rose-200 text-2xl font-bold leading-none">✕</button>
+            </div>
+
+            <!-- Loading State -->
+            <div id="kcSyncLoading" class="flex flex-col items-center justify-center py-20 px-6">
+                <div class="animate-spin rounded-full h-12 w-12 border-4 border-rose-500 border-t-transparent mb-4"></div>
+                <p class="text-gray-600 font-medium">Checking for products ready to sync…</p>
+            </div>
+
+            <!-- Empty State -->
+            <div id="kcSyncEmpty" class="hidden flex flex-col items-center justify-center py-20 px-6 text-center">
+                <div class="text-6xl mb-4">✅</div>
+                <h3 class="text-xl font-bold text-gray-700 mb-2">All Caught Up!</h3>
+                <p class="text-gray-500">All products with images have already been pushed to the website.</p>
+            </div>
+
+            <!-- Product Tree -->
+            <div id="kcSyncTree" class="hidden flex-1 overflow-y-auto p-5 space-y-3"></div>
+
+            <!-- Footer -->
+            <div id="kcSyncFooter" class="hidden items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+                <div class="text-sm text-gray-600">
+                    <span id="kcSyncSelectedCount" class="font-bold text-rose-600">0</span> product(s) selected
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="closeKCSyncModal()"
+                        class="px-5 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium text-sm">
+                        Cancel
+                    </button>
+                    <button onclick="executeKCSync()" id="kcSyncConfirmBtn"
+                        class="px-6 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 font-bold text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                        🚀 Sync Selected to Website
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // =====================================================
+    // KC JEWELLERS SYNC MODULE
+    // =====================================================
+    (function () {
+        const API = window.API_BASE_URL || '/api';
+
+        // State
+        let _hierarchy   = {};   // { styleCode: { skuCode: [products] } }
+        let _selected    = new Set(); // selected barcodes
+
+        // ── Open / Close ──────────────────────────────────
+        window.openKCSyncModal = async function () {
+            _selected.clear();
+            _hierarchy = {};
+            document.getElementById('kcSyncModal').classList.remove('hidden');
+            document.getElementById('kcSyncLoading').classList.remove('hidden');
+            document.getElementById('kcSyncEmpty').classList.add('hidden');
+            document.getElementById('kcSyncTree').classList.add('hidden');
+            document.getElementById('kcSyncFooter').classList.add('hidden');
+            document.getElementById('kcSyncSubtitle').textContent = 'Loading un-synced products…';
+
+            try {
+                const resp = await fetch(`${API}/sync/pending`, { credentials: 'include' });
+                const data = await resp.json();
+                if (!data.success) throw new Error(data.error || 'Failed to load products');
+
+                _hierarchy = data.hierarchy || {};
+                const total = data.totalCount || 0;
+
+                document.getElementById('kcSyncLoading').classList.add('hidden');
+
+                if (total === 0) {
+                    document.getElementById('kcSyncEmpty').classList.remove('hidden');
+                    document.getElementById('kcSyncSubtitle').textContent = 'Nothing to sync right now.';
+                    return;
+                }
+
+                document.getElementById('kcSyncSubtitle').textContent =
+                    `${total} product(s) with images are ready to push.`;
+                _renderTree();
+                document.getElementById('kcSyncTree').classList.remove('hidden');
+                document.getElementById('kcSyncFooter').classList.remove('flex');
+                document.getElementById('kcSyncFooter').classList.remove('hidden');
+                document.getElementById('kcSyncFooter').style.display = 'flex';
+                _updateCount();
+            } catch (err) {
+                document.getElementById('kcSyncLoading').classList.add('hidden');
+                document.getElementById('kcSyncSubtitle').textContent = '⚠️ Error loading products';
+                document.getElementById('kcSyncTree').innerHTML =
+                    `<p class="text-red-500 text-center py-8">${err.message}</p>`;
+                document.getElementById('kcSyncTree').classList.remove('hidden');
+                document.getElementById('kcSyncFooter').style.display = 'flex';
+                document.getElementById('kcSyncFooter').classList.remove('hidden');
+            }
+        };
+
+        window.closeKCSyncModal = function () {
+            document.getElementById('kcSyncModal').classList.add('hidden');
+        };
+
+        // ── Render hierarchy tree ─────────────────────────
+        function _renderTree() {
+            const container = document.getElementById('kcSyncTree');
+            container.innerHTML = '';
+
+            for (const [styleCode, skus] of Object.entries(_hierarchy)) {
+                const styleProducts = Object.values(skus).flat();
+                const styleBarcodes = styleProducts.map(p => p.barcode);
+
+                const styleDiv = document.createElement('div');
+                styleDiv.className = 'border border-gray-200 rounded-xl overflow-hidden';
+                styleDiv.innerHTML = `
+                    <div class="flex items-center gap-3 px-4 py-3 bg-rose-50 cursor-pointer select-none"
+                         onclick="_kcToggleStyle('${styleCode}', this)">
+                        <input type="checkbox" id="chk_style_${styleCode}"
+                               class="w-4 h-4 accent-rose-600 pointer-events-none"
+                               onchange="_kcStyleCheck(event,'${styleCode}')">
+                        <span class="font-bold text-rose-700 text-sm flex-1">🏷 Style: ${styleCode}</span>
+                        <span class="text-xs text-gray-500">${styleProducts.length} product(s)</span>
+                        <span class="text-gray-400 text-xs kcChevron">▼</span>
+                    </div>
+                    <div class="kcSkuContainer divide-y divide-gray-100"></div>
+                `;
+
+                const skuContainer = styleDiv.querySelector('.kcSkuContainer');
+
+                for (const [skuCode, products] of Object.entries(skus)) {
+                    const skuBarcodes = products.map(p => p.barcode);
+
+                    const skuDiv = document.createElement('div');
+                    skuDiv.innerHTML = `
+                        <div class="flex items-center gap-3 px-6 py-2 bg-amber-50 cursor-pointer select-none"
+                             onclick="_kcToggleSku('${styleCode}','${skuCode}', this)">
+                            <input type="checkbox" id="chk_sku_${styleCode}_${skuCode}"
+                                   class="w-4 h-4 accent-amber-500 pointer-events-none"
+                                   onchange="_kcSkuCheck(event,'${styleCode}','${skuCode}')">
+                            <span class="font-semibold text-amber-700 text-sm flex-1">📦 SKU: ${skuCode}</span>
+                            <span class="text-xs text-gray-500">${products.length} item(s)</span>
+                            <span class="text-gray-400 text-xs kcChevron">▼</span>
+                        </div>
+                        <div class="kcProductContainer bg-white divide-y divide-gray-50"></div>
+                    `;
+
+                    const productContainer = skuDiv.querySelector('.kcProductContainer');
+
+                    for (const p of products) {
+                        const pDiv = document.createElement('div');
+                        pDiv.className = 'flex items-center gap-3 px-10 py-2 hover:bg-gray-50';
+                        pDiv.innerHTML = `
+                            <input type="checkbox" id="chk_p_${p.barcode}"
+                                   class="w-4 h-4 accent-gray-600"
+                                   onchange="_kcProductCheck(event,'${p.barcode}','${styleCode}','${skuCode}')">
+                            <label for="chk_p_${p.barcode}" class="flex-1 cursor-pointer">
+                                <span class="font-mono text-xs text-gray-700 font-semibold">${p.barcode}</span>
+                                <span class="text-gray-500 text-xs ml-2">${p.name || ''}</span>
+                            </label>
+                            <span class="text-xs text-gray-400">${p.metalType || ''} ${p.purity || ''} | ${p.netWeight || 0}g</span>
+                        `;
+                        productContainer.appendChild(pDiv);
+                    }
+
+                    skuContainer.appendChild(skuDiv);
+                }
+
+                container.appendChild(styleDiv);
+            }
+        }
+
+        // ── Toggle collapse ───────────────────────────────
+        window._kcToggleStyle = function (styleCode, headerEl) {
+            const container = headerEl.nextElementSibling;
+            const chevron   = headerEl.querySelector('.kcChevron');
+            const isHidden  = container.style.display === 'none';
+            container.style.display = isHidden ? '' : 'none';
+            chevron.textContent = isHidden ? '▼' : '▶';
+        };
+
+        window._kcToggleSku = function (styleCode, skuCode, headerEl) {
+            const container = headerEl.nextElementSibling;
+            const chevron   = headerEl.querySelector('.kcChevron');
+            const isHidden  = container.style.display === 'none';
+            container.style.display = isHidden ? '' : 'none';
+            chevron.textContent = isHidden ? '▼' : '▶';
+        };
+
+        // ── Smart checkboxes ──────────────────────────────
+
+        // Style checkbox → toggles all SKUs + products under it
+        window._kcStyleCheck = function (event, styleCode) {
+            const checked = event.target.checked;
+            const skus    = _hierarchy[styleCode] || {};
+            for (const [skuCode, products] of Object.entries(skus)) {
+                _setSkuCheck(styleCode, skuCode, checked);
+                for (const p of products) {
+                    _setProductCheck(p.barcode, checked);
+                }
+            }
+            _updateCount();
+        };
+
+        // SKU checkbox → toggles all products under it + updates style
+        window._kcSkuCheck = function (event, styleCode, skuCode) {
+            const checked  = event.target.checked;
+            const products = (_hierarchy[styleCode] || {})[skuCode] || [];
+            for (const p of products) {
+                _setProductCheck(p.barcode, checked);
+            }
+            _syncStyleCheckbox(styleCode);
+            _updateCount();
+        };
+
+        // Product checkbox → update parent SKU + style checkboxes
+        window._kcProductCheck = function (event, barcode, styleCode, skuCode) {
+            if (event.target.checked) {
+                _selected.add(barcode);
+            } else {
+                _selected.delete(barcode);
+            }
+            _syncSkuCheckbox(styleCode, skuCode);
+            _syncStyleCheckbox(styleCode);
+            _updateCount();
+        };
+
+        function _setProductCheck(barcode, checked) {
+            const el = document.getElementById(`chk_p_${barcode}`);
+            if (el) el.checked = checked;
+            if (checked) { _selected.add(barcode); } else { _selected.delete(barcode); }
+        }
+
+        function _setSkuCheck(styleCode, skuCode, checked) {
+            const el = document.getElementById(`chk_sku_${styleCode}_${skuCode}`);
+            if (el) { el.checked = checked; el.indeterminate = false; }
+        }
+
+        function _syncSkuCheckbox(styleCode, skuCode) {
+            const products = (_hierarchy[styleCode] || {})[skuCode] || [];
+            const checkedCount = products.filter(p => _selected.has(p.barcode)).length;
+            const el = document.getElementById(`chk_sku_${styleCode}_${skuCode}`);
+            if (!el) return;
+            if (checkedCount === 0)               { el.checked = false; el.indeterminate = false; }
+            else if (checkedCount === products.length) { el.checked = true;  el.indeterminate = false; }
+            else                                  { el.checked = false; el.indeterminate = true; }
+        }
+
+        function _syncStyleCheckbox(styleCode) {
+            const allProducts = Object.values(_hierarchy[styleCode] || {}).flat();
+            const checkedCount = allProducts.filter(p => _selected.has(p.barcode)).length;
+            const el = document.getElementById(`chk_style_${styleCode}`);
+            if (!el) return;
+            if (checkedCount === 0)                 { el.checked = false; el.indeterminate = false; }
+            else if (checkedCount === allProducts.length) { el.checked = true;  el.indeterminate = false; }
+            else                                    { el.checked = false; el.indeterminate = true; }
+        }
+
+        function _updateCount() {
+            document.getElementById('kcSyncSelectedCount').textContent = _selected.size;
+            document.getElementById('kcSyncConfirmBtn').disabled = _selected.size === 0;
+        }
+
+        // ── Execute Sync ──────────────────────────────────
+        window.executeKCSync = async function () {
+            if (_selected.size === 0) return;
+
+            const btn = document.getElementById('kcSyncConfirmBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="animate-spin inline-block mr-1">⏳</span> Syncing…';
+
+            try {
+                const resp = await fetch(`${API}/sync/execute`, {
+                    method:      'POST',
+                    credentials: 'include',
+                    headers:     { 'Content-Type': 'application/json' },
+                    body:        JSON.stringify({ barcodes: Array.from(_selected) })
+                });
+                const data = await resp.json();
+
+                closeKCSyncModal();
+
+                if (data.success) {
+                    _showToast(`✅ ${data.message}`, 'success');
+                } else {
+                    _showToast(`❌ Sync failed: ${data.error}`, 'error');
+                }
+            } catch (err) {
+                closeKCSyncModal();
+                _showToast(`❌ Network error: ${err.message}`, 'error');
+            }
+        };
+
+        // ── Toast helper (uses existing showToast if present) ──
+        function _showToast(message, type) {
+            if (typeof showToast === 'function') {
+                showToast(message, type);
+                return;
+            }
+            // Fallback minimal toast
+            const toast = document.createElement('div');
+            const color = type === 'success' ? '#16a34a' : '#dc2626';
+            toast.style.cssText = `
+                position:fixed; bottom:24px; right:24px; z-index:9999;
+                background:${color}; color:#fff; padding:14px 22px;
+                border-radius:12px; font-weight:600; font-size:14px;
+                box-shadow:0 4px 20px rgba(0,0,0,0.25);
+                max-width:400px; animation:fadeInUp .3s ease;
+            `;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 4500);
+        }
+
+        // Close on overlay click
+        document.getElementById('kcSyncModal').addEventListener('click', function (e) {
+            if (e.target === this) closeKCSyncModal();
+        });
+    })();
+    </script>
+
     </body>
     
     </html>  

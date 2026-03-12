@@ -4487,6 +4487,152 @@ app.delete('/api/floors/:id', checkAuth, hasPermission('products'), async (req, 
 // ERROR HANDLING
 // ==========================================
 
+// ==========================================
+// KC JEWELLERS WEBSITE SYNC ROUTES
+// ==========================================
+
+// GET /api/sync/pending — Returns un-synced products that have a local image
+app.get('/api/sync/pending', checkAuth, async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT
+                p.barcode, p.item_name, p.net_weight, p.gross_weight,
+                p.purity, p.metal_type, p.style_code, p.sku_code,
+                p.is_web_synced
+            FROM products p
+            WHERE (p.is_deleted = false OR p.is_deleted IS NULL)
+              AND (p.status = 'available' OR p.status IS NULL)
+              AND (p.is_web_synced = false OR p.is_web_synced IS NULL)
+            ORDER BY p.style_code, p.sku_code, p.barcode
+        `);
+
+        // Filter to only products that have a local image on disk
+        const productsWithImages = result.rows.filter(p => {
+            const imgPath = path.join(__dirname, 'public', 'uploads', 'products', `${p.barcode}.jpg`);
+            return fs.existsSync(imgPath);
+        });
+
+        // Group into hierarchy: styleCode -> skuCode -> [products]
+        const hierarchy = {};
+        for (const p of productsWithImages) {
+            const style = p.style_code || 'UNKNOWN';
+            const sku   = p.sku_code   || 'UNKNOWN';
+            if (!hierarchy[style]) hierarchy[style] = {};
+            if (!hierarchy[style][sku]) hierarchy[style][sku] = [];
+            hierarchy[style][sku].push({
+                barcode:     p.barcode,
+                name:        p.item_name,
+                netWeight:   p.net_weight,
+                grossWeight: p.gross_weight,
+                purity:      p.purity,
+                metalType:   p.metal_type
+            });
+        }
+
+        res.json({ success: true, hierarchy, totalCount: productsWithImages.length });
+    } catch (error) {
+        console.error('GET /api/sync/pending error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// POST /api/sync/execute — Syncs selected barcodes to KC Jewellers website
+app.post('/api/sync/execute', checkAuth, async (req, res) => {
+    const { barcodes } = req.body;
+    if (!Array.isArray(barcodes) || barcodes.length === 0) {
+        return res.status(400).json({ success: false, error: 'No barcodes provided.' });
+    }
+
+    try {
+        // Fetch full product details for requested barcodes
+        const placeholders = barcodes.map((_, i) => `$${i + 1}`).join(',');
+        const result = await pool.query(
+            `SELECT barcode, item_name, net_weight, gross_weight, purity, metal_type, style_code, sku_code
+             FROM products
+             WHERE barcode IN (${placeholders})
+               AND (is_deleted = false OR is_deleted IS NULL)`,
+            barcodes
+        );
+
+        // Build payload objects with Base64 images
+        const products = [];
+        for (const p of result.rows) {
+            const imgPath = path.join(__dirname, 'public', 'uploads', 'products', `${p.barcode}.jpg`);
+            if (!fs.existsSync(imgPath)) continue;
+            const imageBase64 = fs.readFileSync(imgPath).toString('base64');
+            products.push({
+                styleCode:   p.style_code   || '',
+                sku:         p.sku_code      || '',
+                barcode:     p.barcode,
+                name:        p.item_name     || '',
+                netWeight:   p.net_weight    || 0,
+                grossWeight: p.gross_weight  || 0,
+                purity:      p.purity        || '',
+                metalType:   p.metal_type    || '',
+                imageBase64
+            });
+        }
+
+        if (products.length === 0) {
+            return res.status(400).json({ success: false, error: 'No products with valid images found.' });
+        }
+
+        // Chunk into batches of 20
+        const CHUNK_SIZE = 20;
+        const chunks = [];
+        for (let i = 0; i < products.length; i += CHUNK_SIZE) {
+            chunks.push(products.slice(i, i + CHUNK_SIZE));
+        }
+
+        const KC_API_KEY  = process.env.KC_API_KEY  || 'PASTE_YOUR_API_KEY_HERE';
+        const KC_SYNC_URL = process.env.KC_SYNC_URL || 'https://api.kc.gauravsoftwares.tech/api/sync/receive';
+
+        const syncedBarcodes = [];
+
+        for (const chunk of chunks) {
+            let response;
+            try {
+                response = await fetch(KC_SYNC_URL, {
+                    method:  'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-api-key':    KC_API_KEY
+                    },
+                    body: JSON.stringify({ products: chunk })
+                });
+            } catch (fetchErr) {
+                console.error('KC sync fetch error:', fetchErr.message);
+                throw new Error(`Could not reach KC Jewellers server: ${fetchErr.message}`);
+            }
+
+            if (response.ok) {
+                chunk.forEach(p => syncedBarcodes.push(p.barcode));
+            } else {
+                const errText = await response.text();
+                throw new Error(`KC server returned ${response.status}: ${errText}`);
+            }
+        }
+
+        // Mark synced barcodes as is_web_synced = true
+        if (syncedBarcodes.length > 0) {
+            const syncPlaceholders = syncedBarcodes.map((_, i) => `$${i + 1}`).join(',');
+            await pool.query(
+                `UPDATE products SET is_web_synced = true WHERE barcode IN (${syncPlaceholders})`,
+                syncedBarcodes
+            );
+        }
+
+        res.json({
+            success: true,
+            syncedCount: syncedBarcodes.length,
+            message:     `Successfully pushed ${syncedBarcodes.length} product(s) to KC Jewellers website.`
+        });
+    } catch (error) {
+        console.error('POST /api/sync/execute error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 app.use((err, req, res, next) => {
     if (req.path.startsWith('/api/')) {
         console.error('API Error:', err);

@@ -425,6 +425,17 @@ async function initSchema() {
                 END IF;
             END $$;
         `);
+
+        // KC Jewellers web sync tracking column
+        await pool.query(`
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_name='products' AND column_name='is_web_synced') THEN
+                    ALTER TABLE products ADD COLUMN is_web_synced BOOLEAN DEFAULT false;
+                END IF;
+            END $$;
+        `);
     } catch (error) {
         console.warn('Migration warning (may be expected):', error.message);
     }
