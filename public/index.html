@@ -21653,7 +21653,8 @@ document.addEventListener('keydown', function(event) {
                     <div class="flex items-center gap-3 px-4 py-3 bg-rose-50 cursor-pointer select-none"
                          onclick="_kcToggleStyle('${styleCode}', this)">
                         <input type="checkbox" id="chk_style_${styleCode}"
-                               class="w-4 h-4 accent-rose-600 pointer-events-none"
+                               class="w-4 h-4 accent-rose-600 cursor-pointer"
+                               onclick="event.stopPropagation()"
                                onchange="_kcStyleCheck(event,'${styleCode}')">
                         <span class="font-bold text-rose-700 text-sm flex-1">🏷 Style: ${styleCode}</span>
                         <span class="text-xs text-gray-500">${styleProducts.length} product(s)</span>
@@ -21672,7 +21673,8 @@ document.addEventListener('keydown', function(event) {
                         <div class="flex items-center gap-3 px-6 py-2 bg-amber-50 cursor-pointer select-none"
                              onclick="_kcToggleSku('${styleCode}','${skuCode}', this)">
                             <input type="checkbox" id="chk_sku_${styleCode}_${skuCode}"
-                                   class="w-4 h-4 accent-amber-500 pointer-events-none"
+                                   class="w-4 h-4 accent-amber-500 cursor-pointer"
+                                   onclick="event.stopPropagation()"
                                    onchange="_kcSkuCheck(event,'${styleCode}','${skuCode}')">
                             <span class="font-semibold text-amber-700 text-sm flex-1">📦 SKU: ${skuCode}</span>
                             <span class="text-xs text-gray-500">${products.length} item(s)</span>

@@ -21,6 +21,9 @@ const TallySyncService = require('./config/tally-sync-service');
 const multer = require('multer');
 const fs = require('fs');
 const ExcelJS = require('exceljs');
+const sharp = require('sharp');
+const axios = require('axios');
+const FormData = require('form-data');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -4544,7 +4547,7 @@ app.post('/api/sync/execute', checkAuth, async (req, res) => {
     }
 
     try {
-        // Fetch full product details for requested barcodes
+        // Fetch full product details for the requested barcodes
         const placeholders = barcodes.map((_, i) => `$${i + 1}`).join(',');
         const result = await pool.query(
             `SELECT barcode, item_name, weight, avg_wt, purity, metal_type, style_code, sku, mc_rate
@@ -4554,34 +4557,52 @@ app.post('/api/sync/execute', checkAuth, async (req, res) => {
             barcodes
         );
 
-        // Build payload objects with Base64 images
+        // Build payload — compress with sharp, keep raw buffers for multipart/form-data
         const products = [];
+        const MAX_IMAGE_WIDTH = 1200;   // web-optimized; sharp preserves aspect ratio
+        const JPEG_QUALITY = 85;
+
         for (const p of result.rows) {
             const imgPath = path.join(__dirname, 'public', 'uploads', 'products', `${p.barcode}.jpg`);
-            if (!fs.existsSync(imgPath)) continue;
-            const rawBase64 = fs.readFileSync(imgPath).toString('base64');
-            // Strip any accidental data URI prefix so the receiver gets a clean Base64 string
-            const cleanBase64 = rawBase64.replace(/^data:image\/\w+;base64,/, '');
-            products.push({
-                styleCode:   p.style_code        || '',
-                sku:         p.sku               || '',
+
+            if (!fs.existsSync(imgPath)) {
+                console.warn(`KC Sync: no image for barcode ${p.barcode}, skipping.`);
+                continue;
+            }
+
+            let compressedBuffer;
+            try {
+                compressedBuffer = await sharp(imgPath)
+                    .trim()  // crop out plain white/transparent borders
+                    .resize(MAX_IMAGE_WIDTH, null, { withoutEnlargement: true })  // shrink only, no upscale
+                    .webp({ quality: 80 })
+                    .toBuffer();
+                console.log(`KC Sync: ${p.barcode} compressed ${fs.statSync(imgPath).size} → ${compressedBuffer.length} bytes`);
+            } catch (sharpErr) {
+                console.warn(`KC Sync: sharp failed for ${p.barcode}, skipping:`, sharpErr.message);
+                continue;
+            }
+
+            const productInfo = {
+                styleCode:   p.style_code          || '',
+                sku:         p.sku                 || '',
                 barcode:     p.barcode,
-                name:        p.item_name         || '',
-                netWeight:   parseFloat(p.weight)   || 0,  // DB col: weight  → API key: netWeight
-                grossWeight: parseFloat(p.avg_wt)   || 0,  // DB col: avg_wt  → API key: grossWeight
-                purity:      p.purity            || '',
-                metalType:   p.metal_type        || '',
-                mcRate:      parseFloat(p.mc_rate)  || 0,  // DB col: mc_rate → API key: mcRate
-                imageBase64: cleanBase64
-            });
+                name:        p.item_name           || '',
+                netWeight:   parseFloat(p.weight)  || 0,
+                grossWeight: parseFloat(p.avg_wt)   || 0,
+                purity:      p.purity              || '',
+                metalType:   p.metal_type         || '',
+                mcRate:      parseFloat(p.mc_rate) || 0
+            };
+            products.push({ productInfo, compressedBuffer, barcode: p.barcode });
         }
 
         if (products.length === 0) {
             return res.status(400).json({ success: false, error: 'No products with valid images found.' });
         }
 
-        // Chunk into batches of 20
-        const CHUNK_SIZE = 20;
+        // Chunk into batches of 10 — compressed images are smaller; axios handles large payloads
+        const CHUNK_SIZE = 10;
         const chunks = [];
         for (let i = 0; i < products.length; i += CHUNK_SIZE) {
             chunks.push(products.slice(i, i + CHUNK_SIZE));
@@ -4592,31 +4613,46 @@ app.post('/api/sync/execute', checkAuth, async (req, res) => {
 
         const syncedBarcodes = [];
 
-        for (const chunk of chunks) {
-            let response;
-            try {
-                response = await fetch(KC_SYNC_URL, {
-                    method:  'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'x-api-key':    KC_API_KEY
-                    },
-                    body: JSON.stringify({ products: chunk })
-                });
-            } catch (fetchErr) {
-                console.error('KC sync fetch error:', fetchErr.message);
-                throw new Error(`Could not reach KC Jewellers server: ${fetchErr.message}`);
+        for (let ci = 0; ci < chunks.length; ci++) {
+            const chunk = chunks[ci];
+            const chunkProducts = chunk.map(({ productInfo }) => productInfo);
+            const form = new FormData();
+
+            form.append('payload', JSON.stringify(chunkProducts));
+
+            for (const { compressedBuffer, barcode } of chunk) {
+                form.append('images', compressedBuffer, { filename: `${barcode}.webp` });
             }
 
-            if (response.ok) {
-                chunk.forEach(p => syncedBarcodes.push(p.barcode));
+            const payloadSize = Buffer.byteLength(JSON.stringify(chunkProducts), 'utf8');
+            const totalImages = chunk.length;
+            console.log(`KC Sync: sending chunk ${ci + 1}/${chunks.length} — ${chunk.length} product(s), payload ${payloadSize} bytes, ${totalImages} image(s)`);
+
+            let response;
+            try {
+                response = await axios.post(KC_SYNC_URL, form, {
+                    headers: {
+                        ...form.getHeaders(),
+                        'x-api-key': KC_API_KEY
+                    },
+                    maxContentLength: Infinity,
+                    maxBodyLength: Infinity,
+                    timeout: 60000
+                });
+            } catch (netErr) {
+                const msg = netErr.response ? `${netErr.response.status}: ${JSON.stringify(netErr.response.data)}` : netErr.message;
+                throw new Error(`Could not reach KC Jewellers server: ${msg}`);
+            }
+
+            if (response.status >= 200 && response.status < 300) {
+                chunk.forEach(({ barcode }) => syncedBarcodes.push(barcode));
+                console.log(`KC Sync: chunk ${ci + 1} accepted — ${chunk.map(({ barcode }) => barcode).join(', ')}`);
             } else {
-                const errText = await response.text();
-                throw new Error(`KC server returned ${response.status}: ${errText}`);
+                throw new Error(`KC server returned ${response.status}: ${JSON.stringify(response.data)}`);
             }
         }
 
-        // Mark synced barcodes as is_web_synced = true
+        // Mark successfully synced barcodes
         if (syncedBarcodes.length > 0) {
             const syncPlaceholders = syncedBarcodes.map((_, i) => `$${i + 1}`).join(',');
             await pool.query(
