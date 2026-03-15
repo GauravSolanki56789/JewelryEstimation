@@ -1874,6 +1874,7 @@
                         <option value="gold">Gold</option>
                         <option value="silver">Silver</option>
                         <option value="platinum">Platinum</option>
+                        <option value="diamond">Diamond</option>
                     </select>
                 </div>
                 <div>
@@ -2685,7 +2686,7 @@
                     <p class="text-sm text-blue-700 font-mono">Barcode | SKU | StyleCode | ProductName | Size | AvgWeight | Purity |
                         MCRate | MCType | PCS | BoxCharges | StoneCharges | MetalType</p>
                     <p class="text-sm text-blue-700 mt-2"><strong>MCType:</strong> "MC/GM" or "PieceCost"</p>
-                    <p class="text-sm text-blue-700"><strong>MetalType:</strong> Must be "gold", "silver", or "platinum"</p>
+                    <p class="text-sm text-blue-700"><strong>MetalType:</strong> Must be "gold", "silver", "platinum", or "diamond"</p>
                 </div>
 
                 <!-- PV Number Link Section -->
@@ -3007,6 +3008,7 @@
                     <option value="gold">Gold</option>
                     <option value="silver">Silver</option>
                     <option value="platinum">Platinum</option>
+                    <option value="diamond">Diamond</option>
                 </select>
             </div>
             <div class="md:col-span-2">
@@ -3115,7 +3117,7 @@
                     Purity | MCRate | MetalType</p>
                 <p class="text-sm text-blue-700 mt-1"><strong>Optional:</strong> <span class="font-mono">ItemCode | ImageUrl | MCType | PCS | BoxCharges | StoneCharges</span></p>
                 <p class="text-sm text-blue-700 mt-1"><strong>Attributes:</strong> Use <span class="font-mono">Attr:Color</span>, <span class="font-mono">Attr:Stone</span>, etc. columns for dynamic attributes</p>
-                <p class="text-sm text-blue-700 mt-1"><strong>MetalType:</strong> Must be "gold", "silver", or "platinum"</p>
+                <p class="text-sm text-blue-700 mt-1"><strong>MetalType:</strong> Must be "gold", "silver", "platinum", or "diamond"</p>
             </div>
             <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-4 bg-gray-50">
                 <input type="file" id="excelFileInput" accept=".xlsx,.xls" class="hidden"
@@ -3742,6 +3744,7 @@
                 <option value="gold">Gold Only</option>
                 <option value="silver">Silver Only</option>
                 <option value="platinum">Platinum Only</option>
+                <option value="diamond">Diamond Only</option>
             </select>
         </div>
 
@@ -10224,6 +10227,12 @@ async function deleteProductRecord(idx) {
                 alert(`Error: ${invalidItems.length} items missing Barcode or Name.`);
                 return;
             }
+            const validMetalTypes = ['gold', 'silver', 'platinum', 'diamond'];
+            const invalidMetalItems = bulkUploadData.filter(item => !validMetalTypes.includes((item.metalType || '').toLowerCase()));
+            if (invalidMetalItems.length > 0) {
+                alert(`Error: ${invalidMetalItems.length} item(s) have invalid MetalType. Must be "gold", "silver", "platinum", or "diamond".\n\nFirst invalid: Barcode ${invalidMetalItems[0].barcode || '?'} - MetalType "${invalidMetalItems[0].metalType || ''}"`);
+                return;
+            }
             
             // Show loading message
             const loadingMsg = document.createElement('div');
@@ -11000,7 +11009,8 @@ function updateMCTypeLabel() {
             const metalColors = {
                 'gold': 'bg-yellow-100 text-yellow-800',
                 'silver': 'bg-gray-200 text-gray-800',
-                'platinum': 'bg-purple-100 text-purple-800'
+                'platinum': 'bg-purple-100 text-purple-800',
+                'diamond': 'bg-cyan-100 text-cyan-800'
             };
             
             // Create double-scanned set for O(1) lookup instead of O(n) array search
@@ -15453,6 +15463,7 @@ function closeManualTransactionModal() {
                         <option value="gold">Gold</option>
                         <option value="silver">Silver</option>
                         <option value="platinum">Platinum</option>
+                        <option value="diamond">Diamond</option>
                     </select>
                     <select id="purchaseDateFilter" onchange="filterPurchases()"
                         class="px-4 py-2 border rounded-lg">
@@ -15536,7 +15547,8 @@ function closeManualTransactionModal() {
                         const metalColors = {
                             'gold': 'bg-yellow-100 text-yellow-800',
                             'silver': 'bg-gray-100 text-gray-800',
-                            'platinum': 'bg-purple-100 text-purple-800'
+                            'platinum': 'bg-purple-100 text-purple-800',
+                            'diamond': 'bg-cyan-100 text-cyan-800'
                         };
 
                         row.innerHTML = `
@@ -15632,6 +15644,7 @@ function closeManualTransactionModal() {
                         <option value="gold">Gold</option>
                         <option value="silver">Silver</option>
                         <option value="platinum">Platinum</option>
+                        <option value="diamond">Diamond</option>
                     </select>
                 </div>
                 <div>
@@ -18742,7 +18755,8 @@ function uploadStockForPendingPV(pvNo) {
                             const metalColors = {
                                 'gold': 'bg-yellow-100 text-yellow-800',
                                 'silver': 'bg-gray-100 text-gray-800',
-                                'platinum': 'bg-purple-100 text-purple-800'
+                                'platinum': 'bg-purple-100 text-purple-800',
+                                'diamond': 'bg-cyan-100 text-cyan-800'
                             };
 
                             row.innerHTML = `
