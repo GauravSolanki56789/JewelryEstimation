@@ -15,15 +15,17 @@ module.exports = {
         // Node.js arguments
         node_args: '--max-old-space-size=512',
         
-        // Environment variables for production
+        // Production environment — used by: pm2 start ecosystem.config.js --env production
         env_production: {
             NODE_ENV: 'production',
             PORT: 3000
         },
-        
-        // Default environment
+
+        // Default environment (fallback when --env flag is omitted).
+        // Kept as 'production' so an accidental `pm2 restart` without
+        // the --env flag never activates the dev bypass or unsets secure cookies.
         env: {
-            NODE_ENV: 'development',
+            NODE_ENV: 'production',
             PORT: 3000
         },
         

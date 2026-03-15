@@ -5,6 +5,7 @@ const cors = require('cors');
 const bcrypt = require('bcrypt');
 const http = require('http');
 const session = require('express-session');
+const pgSession = require('connect-pg-simple')(session);
 const passport = require('./config/passport');
 const { Server } = require('socket.io');
 const { exec } = require('child_process');
@@ -26,6 +27,10 @@ const axios = require('axios');
 const FormData = require('form-data');
 
 const app = express();
+
+// Trust exactly one proxy hop (Nginx → Node). This makes Express read
+// X-Forwarded-Proto so secure cookies work behind SSL-terminating Nginx.
+// If your stack is: CDN → Nginx → Node, change this to 2.
 app.set('trust proxy', 1);
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -41,16 +46,32 @@ app.use(cors());
 app.use(express.json());
 
 // Session and Passport Middleware
+// Sessions are persisted in PostgreSQL so they survive PM2 restarts/crashes.
+// Without a persistent store, every restart wipes all sessions and causes a
+// redirect loop (valid cookie → session not found → isAuthenticated() false → redirect).
+const isProduction = process.env.NODE_ENV === 'production';
+
 app.use(session({
+    store: new pgSession({
+        pool,                           // Reuse the existing pg pool
+        tableName: 'session',           // Table created automatically on first run
+        createTableIfMissing: true,
+        pruneSessionInterval: 60 * 60   // Purge expired rows every hour (seconds)
+    }),
     secret: process.env.SESSION_SECRET || 'jewelry_estimation_secret_change_me',
     resave: false,
-    saveUninitialized: true,
-    name: 'jp.sid', // Custom session name (not default 'connect.sid')
+    // false = only write the session when something actually changed;
+    // true would create an empty session for every unauthenticated visitor,
+    // filling the store and evicting live sessions → redirect loop.
+    saveUninitialized: false,
+    name: 'jp.sid',
     cookie: {
-        secure: process.env.NODE_ENV === 'production', // Must be true for live HTTPS
+        // secure:true → browser only sends cookie over HTTPS.
+        // Relies on trust proxy + Nginx forwarding X-Forwarded-Proto: https.
+        secure: isProduction,
         httpOnly: true,
         sameSite: 'lax',
-        maxAge: 24 * 60 * 60 * 1000
+        maxAge: 24 * 60 * 60 * 1000    // 24 hours
     }
 }));
 app.use(passport.initialize());
@@ -204,7 +225,7 @@ app.get('/auth/google/callback',
                 if (err) { console.error('Logout error:', err); }
                 req.session.destroy((err) => {
                     if (err) { console.error('Session destroy error:', err); }
-                    res.clearCookie('jp.sid');
+                    res.clearCookie('jp.sid', { path: '/', httpOnly: true, sameSite: 'lax', secure: isProduction });
                     res.redirect('/unauth.html?reason=suspended&email=' + encodeURIComponent(req.user?.email || ''));
                 });
             });
@@ -276,55 +297,61 @@ app.post('/api/users/complete-profile', async (req, res) => {
 // ==========================================
 
 app.get('/api/auth/logout', (req, res) => {
-    const performLogout = () => {
-        req.logout((err) => {
-            if (err) { console.error('Logout error:', err); }
-            
-            // Destroy the session completely
-            req.session.destroy((sessionErr) => {
-                if (sessionErr) { console.error('Session destroy error:', sessionErr); }
-                
-                // Clear all cookies
-                res.clearCookie('jp.sid', { path: '/' });
-                res.clearCookie('connect.sid', { path: '/' }); // Legacy fallback
-                
-                // Set cache control to prevent back button access
-                res.set({
-                    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-                    'Pragma': 'no-cache',
-                    'Expires': '0'
-                });
-                
-                res.redirect('/');
-            });
-        });
+    // Cookie attributes must exactly match those used when the cookie was set
+    // otherwise some browsers silently refuse to delete it.
+    const sessionCookieOpts = {
+        path: '/',
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: isProduction
     };
-    
-    performLogout();
+
+    req.logout((err) => {
+        if (err) { console.error('Logout error:', err); }
+
+        req.session.destroy((sessionErr) => {
+            if (sessionErr) { console.error('Session destroy error:', sessionErr); }
+
+            res.clearCookie('jp.sid', sessionCookieOpts);
+            res.clearCookie('connect.sid', { path: '/' }); // Legacy fallback
+
+            res.set({
+                'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            });
+
+            res.redirect('/');
+        });
+    });
 });
 
 app.post('/api/auth/logout', (req, res) => {
+    const sessionCookieOpts = {
+        path: '/',
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: isProduction
+    };
+
     req.logout((err) => {
-        if (err) { 
+        if (err) {
             console.error('Logout error:', err);
-            return res.status(500).json({ error: 'Logout failed' }); 
+            return res.status(500).json({ error: 'Logout failed' });
         }
-        
-        // Destroy the session completely
+
         req.session.destroy((sessionErr) => {
             if (sessionErr) { console.error('Session destroy error:', sessionErr); }
-            
-            // Clear all cookies
-            res.clearCookie('jp.sid', { path: '/' });
+
+            res.clearCookie('jp.sid', sessionCookieOpts);
             res.clearCookie('connect.sid', { path: '/' });
-            
-            // Set cache control headers
+
             res.set({
                 'Cache-Control': 'no-store, no-cache, must-revalidate',
                 'Pragma': 'no-cache',
                 'Expires': '0'
             });
-            
+
             res.json({ success: true, message: 'Logged out successfully' });
         });
     });
