@@ -9563,9 +9563,6 @@ function toggleMCRateLabel() {
 }
 
 // === Phase 4: Image Upload, Attributes UI ===
-// Pending file for single product edit: uploaded at save time and renamed to <barcode>.jpg
-let pendingProductImageFile = null;
-let pendingProductImageObjectUrl = null;
 
 async function handleProductImageUpload(event) {
     const file = event.target.files[0];
@@ -9575,30 +9572,37 @@ async function handleProductImageUpload(event) {
         showDialog('Error', 'Image too large. Maximum 10MB allowed.', 'error');
         return;
     }
-    // Revoke previous object URL if any
-    if (pendingProductImageObjectUrl) {
-        URL.revokeObjectURL(pendingProductImageObjectUrl);
-        pendingProductImageObjectUrl = null;
+    const formData = new FormData();
+    formData.append('image', file);
+    // Edit Product: pass barcode so image is renamed to barcode.jpg
+    const editIndex = document.getElementById('editProductIndex').value;
+    const barcode = document.getElementById('newBarcode').value.trim();
+    if (editIndex !== '' && barcode) {
+        formData.append('barcode', barcode);
     }
-    pendingProductImageFile = file;
-    pendingProductImageObjectUrl = URL.createObjectURL(file);
-    document.getElementById('newImageUrl').value = ''; // Will be set at save time
-    const thumb = document.getElementById('productImageThumb');
-    thumb.src = pendingProductImageObjectUrl;
-    thumb.classList.remove('hidden');
-    document.getElementById('productImagePlaceholder').classList.add('hidden');
-    document.getElementById('clearImageBtn').classList.remove('hidden');
-    showToast('Image selected. Will be saved as barcode.jpg when you save the product.', 'success');
+    try {
+        const API_BASE = window.API_BASE_URL || 'http://localhost:3000/api';
+        const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: formData });
+        if (!res.ok) throw new Error('Upload failed');
+        const data = await res.json();
+        const imgUrl = data.url || data.imageUrl || '';
+        if (!imgUrl) throw new Error('No URL returned');
+        document.getElementById('newImageUrl').value = imgUrl;
+        const thumb = document.getElementById('productImageThumb');
+        thumb.src = imgUrl;
+        thumb.classList.remove('hidden');
+        document.getElementById('productImagePlaceholder').classList.add('hidden');
+        document.getElementById('clearImageBtn').classList.remove('hidden');
+        showToast('Image uploaded', 'success');
+    } catch (err) {
+        console.error('Image upload failed:', err);
+        showDialog('Error', 'Image upload failed: ' + err.message, 'error');
+    }
     event.target.value = '';
 }
 
 function clearProductImage() {
     document.getElementById('newImageUrl').value = '';
-    pendingProductImageFile = null;
-    if (pendingProductImageObjectUrl) {
-        URL.revokeObjectURL(pendingProductImageObjectUrl);
-        pendingProductImageObjectUrl = null;
-    }
     const thumb = document.getElementById('productImageThumb');
     if (thumb) { thumb.src = ''; thumb.classList.add('hidden'); }
     const placeholder = document.getElementById('productImagePlaceholder');
@@ -9795,31 +9799,6 @@ async function saveProduct() {
         if (!product.barcode || !product.shortName) {
             showDialog('Error', 'Please fill Barcode and Product Name', 'error');
             return;
-        }
-        
-        // If a new image file was selected, rename to <barcode>.jpg and upload before saving product
-        if (pendingProductImageFile && product.barcode) {
-            const barcode = product.barcode;
-            const renamedFile = new File([pendingProductImageFile], barcode + '.jpg', { type: 'image/jpeg' });
-            const formData = new FormData();
-            formData.append('image', renamedFile);
-            const API_BASE = window.API_BASE_URL || 'http://localhost:3000/api';
-            const uploadRes = await fetch(`${API_BASE}/upload/product-image?barcode=${encodeURIComponent(barcode)}`, {
-                method: 'POST',
-                body: formData,
-                credentials: 'include'
-            });
-            if (!uploadRes.ok) {
-                const errData = await uploadRes.json().catch(() => ({}));
-                throw new Error(errData.error || 'Image upload failed');
-            }
-            const uploadData = await uploadRes.json();
-            product.imageUrl = uploadData.imageUrl || uploadData.url || '';
-            pendingProductImageFile = null;
-            if (pendingProductImageObjectUrl) {
-                URL.revokeObjectURL(pendingProductImageObjectUrl);
-                pendingProductImageObjectUrl = null;
-            }
         }
         
         // Check for duplicate barcode in local products array (quick check)

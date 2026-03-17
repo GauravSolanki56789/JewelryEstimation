@@ -389,12 +389,28 @@ const imageFilter = (req, file, cb) => {
 const upload = multer({ storage, fileFilter: imageFilter, limits: { fileSize: 10 * 1024 * 1024 } });
 
 // POST /api/upload - Single image upload
+// When barcode is provided (Edit Product flow), renames file to barcode.jpg and overwrites existing
 app.post('/api/upload', checkAuth, upload.single('image'), (req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: 'No image file provided' });
     }
-    const imageUrl = `/uploads/products/${req.file.filename}`;
-    res.json({ success: true, imageUrl, filename: req.file.filename });
+    let imageUrl = `/uploads/products/${req.file.filename}`;
+    let finalFilename = req.file.filename;
+    const barcode = req.body && req.body.barcode ? String(req.body.barcode).trim() : null;
+    if (barcode && /^[a-zA-Z0-9_-]+$/.test(barcode)) {
+        const newFilename = `${barcode}.jpg`;
+        const oldPath = path.join(uploadsDir, req.file.filename);
+        const newPath = path.join(uploadsDir, newFilename);
+        try {
+            if (fs.existsSync(newPath)) fs.unlinkSync(newPath);
+            fs.renameSync(oldPath, newPath);
+            imageUrl = `/uploads/products/${newFilename}`;
+            finalFilename = newFilename;
+        } catch (err) {
+            console.error('Failed to rename product image to barcode.jpg:', err);
+        }
+    }
+    res.json({ success: true, imageUrl, filename: finalFilename });
 });
 
 // POST /api/upload/multiple - Multiple image upload
@@ -407,27 +423,6 @@ app.post('/api/upload/multiple', checkAuth, upload.array('images', 10), (req, re
         filename: f.filename
     }));
     res.json({ success: true, images });
-});
-
-// POST /api/upload/product-image - Single product edit flow: save image as <barcode>.jpg (overwrites existing)
-const productImageStorage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, uploadsDir),
-    filename: (req, file, cb) => {
-        const barcode = (req.query.barcode || '').trim();
-        if (!barcode || !/^[a-zA-Z0-9_-]+$/.test(barcode)) {
-            return cb(new Error('Valid barcode required for product image upload'), null);
-        }
-        cb(null, `${barcode}.jpg`);
-    }
-});
-const productImageUpload = multer({ storage: productImageStorage, fileFilter: imageFilter, limits: { fileSize: 10 * 1024 * 1024 } });
-
-app.post('/api/upload/product-image', checkAuth, hasPermission('products'), productImageUpload.single('image'), (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ error: 'No image file provided' });
-    }
-    const imageUrl = `/uploads/products/${req.file.filename}`;
-    res.json({ success: true, imageUrl, filename: req.file.filename });
 });
 
 // Bulk barcode images: filename (without ext) = barcode; update products SET image_url WHERE barcode = ?
