@@ -9260,35 +9260,37 @@ async function generateSalesBillPDF() {
         }
         
         async function loadSKUsForStyle(styleCode) {
+            const skuSelect = document.getElementById('newSku');
+            if (!skuSelect) return;
+            
             try {
-                if (!styleCode) {
-                    const skuSelect = document.getElementById('newSku');
-                    if (skuSelect) {
-                        skuSelect.innerHTML = '<option value="">-- Select Style Code first --</option>';
-                        skuSelect.disabled = true;
-                    }
+                if (!styleCode || !styleCode.trim()) {
+                    skuSelect.innerHTML = '<option value="">-- Select Style Code first --</option>';
+                    skuSelect.disabled = true;
                     return;
                 }
                 
-                currentStyleSKUs = await api.getStyleSKUs(styleCode);
-                const skuSelect = document.getElementById('newSku');
-                if (skuSelect) {
-                    skuSelect.innerHTML = '<option value="">-- Select SKU --</option>';
-                    currentStyleSKUs.forEach(sku => {
-                        const option = document.createElement('option');
-                        option.value = sku.sku_code;
-                        option.textContent = `${sku.sku_code} - ${sku.item_name || ''}`;
-                        option.dataset.skuData = JSON.stringify(sku);
-                        skuSelect.appendChild(option);
-                    });
-                    skuSelect.disabled = false;
-                }
+                // Clear SKU dropdown first, then fetch
+                skuSelect.innerHTML = '<option value="">-- Select SKU --</option>';
+                skuSelect.disabled = false;
+                
+                const skus = await api.getStyleSKUs(styleCode.trim());
+                // Filter out ROOT placeholder (same as Style Master)
+                currentStyleSKUs = Array.isArray(skus) ? skus.filter(s => (s.sku_code || '').toUpperCase() !== 'ROOT') : [];
+                
+                skuSelect.innerHTML = '<option value="">-- Select SKU --</option>';
+                currentStyleSKUs.forEach(sku => {
+                    const option = document.createElement('option');
+                    option.value = sku.sku_code || '';
+                    option.textContent = `${sku.sku_code || ''} - ${sku.item_name || ''}`.trim() || sku.sku_code || '';
+                    option.dataset.skuData = JSON.stringify(sku);
+                    skuSelect.appendChild(option);
+                });
+                skuSelect.disabled = false;
             } catch (error) {
                 console.error('Error loading SKUs:', error);
-                const skuSelect = document.getElementById('newSku');
-                if (skuSelect) {
-                    skuSelect.disabled = false;
-                }
+                skuSelect.innerHTML = '<option value="">-- Select Style Code first --</option>';
+                skuSelect.disabled = false;
             }
         }
         
@@ -9561,6 +9563,9 @@ function toggleMCRateLabel() {
 }
 
 // === Phase 4: Image Upload, Attributes UI ===
+// Pending file for single product edit: uploaded at save time and renamed to <barcode>.jpg
+let pendingProductImageFile = null;
+let pendingProductImageObjectUrl = null;
 
 async function handleProductImageUpload(event) {
     const file = event.target.files[0];
@@ -9570,31 +9575,30 @@ async function handleProductImageUpload(event) {
         showDialog('Error', 'Image too large. Maximum 10MB allowed.', 'error');
         return;
     }
-    const formData = new FormData();
-    formData.append('image', file);
-    try {
-        const API_BASE = window.API_BASE_URL || 'http://localhost:3000/api';
-        const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: formData });
-        if (!res.ok) throw new Error('Upload failed');
-        const data = await res.json();
-        const imgUrl = data.url || data.imageUrl || '';
-        if (!imgUrl) throw new Error('No URL returned');
-        document.getElementById('newImageUrl').value = imgUrl;
-        const thumb = document.getElementById('productImageThumb');
-        thumb.src = imgUrl;
-        thumb.classList.remove('hidden');
-        document.getElementById('productImagePlaceholder').classList.add('hidden');
-        document.getElementById('clearImageBtn').classList.remove('hidden');
-        showToast('Image uploaded', 'success');
-    } catch (err) {
-        console.error('Image upload failed:', err);
-        showDialog('Error', 'Image upload failed: ' + err.message, 'error');
+    // Revoke previous object URL if any
+    if (pendingProductImageObjectUrl) {
+        URL.revokeObjectURL(pendingProductImageObjectUrl);
+        pendingProductImageObjectUrl = null;
     }
+    pendingProductImageFile = file;
+    pendingProductImageObjectUrl = URL.createObjectURL(file);
+    document.getElementById('newImageUrl').value = ''; // Will be set at save time
+    const thumb = document.getElementById('productImageThumb');
+    thumb.src = pendingProductImageObjectUrl;
+    thumb.classList.remove('hidden');
+    document.getElementById('productImagePlaceholder').classList.add('hidden');
+    document.getElementById('clearImageBtn').classList.remove('hidden');
+    showToast('Image selected. Will be saved as barcode.jpg when you save the product.', 'success');
     event.target.value = '';
 }
 
 function clearProductImage() {
     document.getElementById('newImageUrl').value = '';
+    pendingProductImageFile = null;
+    if (pendingProductImageObjectUrl) {
+        URL.revokeObjectURL(pendingProductImageObjectUrl);
+        pendingProductImageObjectUrl = null;
+    }
     const thumb = document.getElementById('productImageThumb');
     if (thumb) { thumb.src = ''; thumb.classList.add('hidden'); }
     const placeholder = document.getElementById('productImagePlaceholder');
@@ -9673,10 +9677,13 @@ async function editProduct(idx) {
     }
     
     // Load SKUs for the style code, then set SKU value
-    if (styleCode) {
-        await loadSKUsForStyle(styleCodeSelect ? styleCodeSelect.value : styleCode);
+    // Use styleCodeSelect.value only if it matched; otherwise use product's styleCode (handles case mismatch)
+    const effectiveStyleCode = (styleCodeSelect && styleCodeSelect.value) || styleCode;
+    if (effectiveStyleCode) {
+        await loadSKUsForStyle(effectiveStyleCode);
         const skuSelect = document.getElementById('newSku');
         if (skuSelect && sku) {
+            skuSelect.disabled = false;
             // Try exact match first
             skuSelect.value = sku;
             
@@ -9788,6 +9795,31 @@ async function saveProduct() {
         if (!product.barcode || !product.shortName) {
             showDialog('Error', 'Please fill Barcode and Product Name', 'error');
             return;
+        }
+        
+        // If a new image file was selected, rename to <barcode>.jpg and upload before saving product
+        if (pendingProductImageFile && product.barcode) {
+            const barcode = product.barcode;
+            const renamedFile = new File([pendingProductImageFile], barcode + '.jpg', { type: 'image/jpeg' });
+            const formData = new FormData();
+            formData.append('image', renamedFile);
+            const API_BASE = window.API_BASE_URL || 'http://localhost:3000/api';
+            const uploadRes = await fetch(`${API_BASE}/upload/product-image?barcode=${encodeURIComponent(barcode)}`, {
+                method: 'POST',
+                body: formData,
+                credentials: 'include'
+            });
+            if (!uploadRes.ok) {
+                const errData = await uploadRes.json().catch(() => ({}));
+                throw new Error(errData.error || 'Image upload failed');
+            }
+            const uploadData = await uploadRes.json();
+            product.imageUrl = uploadData.imageUrl || uploadData.url || '';
+            pendingProductImageFile = null;
+            if (pendingProductImageObjectUrl) {
+                URL.revokeObjectURL(pendingProductImageObjectUrl);
+                pendingProductImageObjectUrl = null;
+            }
         }
         
         // Check for duplicate barcode in local products array (quick check)
@@ -10096,59 +10128,72 @@ async function deleteProductRecord(idx) {
             document.getElementById('bulkUpdateModal').classList.remove('hidden');
         }
 
-        function saveBulkUpdate() {
+        async function saveBulkUpdate() {
             const styleCode = document.getElementById('bulkStyleCode').value.trim();
             const mcRate = document.getElementById('bulkMcRate').value;
             const boxCharges = document.getElementById('bulkBoxCharges').value;
             const stoneCharges = document.getElementById('bulkStoneCharges').value;
 
             if (!styleCode) {
-                alert('Please enter a Style Code');
+                showDialog('Error', 'Please enter a Style Code', 'error');
                 return;
             }
 
-            const matchingProducts = products.filter(p => p.styleCode && p.styleCode.toLowerCase() === styleCode.toLowerCase());
-            
-            if (matchingProducts.length === 0) {
-                alert(`No products found with Style Code: ${styleCode}`);
+            const hasMcRate = mcRate !== undefined && mcRate !== null && mcRate !== '';
+            const hasBoxCharges = boxCharges !== undefined && boxCharges !== null && boxCharges !== '';
+            const hasStoneCharges = stoneCharges !== undefined && stoneCharges !== null && stoneCharges !== '';
+
+            if (!hasMcRate && !hasBoxCharges && !hasStoneCharges) {
+                showDialog('Error', 'Please enter at least one value (MC Rate, Box Charges, or Stone Charges)', 'error');
                 return;
             }
 
-            let updatedCount = 0;
-            matchingProducts.forEach(product => {
-                let updated = false;
-                
-                if (mcRate && mcRate.trim() !== '') {
-                    product.mcRate = parseFloat(mcRate);
-                    updated = true;
-                }
-                
-                if (boxCharges && boxCharges.trim() !== '') {
-                    product.boxCharges = parseFloat(boxCharges);
-                    updated = true;
-                }
-                
-                if (stoneCharges && stoneCharges.trim() !== '') {
-                    product.stoneCharges = parseFloat(stoneCharges);
-                    updated = true;
+            if (hasMcRate && (isNaN(parseFloat(mcRate)) || parseFloat(mcRate) < 0)) {
+                showDialog('Error', 'MC Rate must be a valid positive number', 'error');
+                return;
+            }
+
+            const API_BASE = window.API_BASE_URL || 'http://localhost:3000/api';
+            const updateButton = document.querySelector('#bulkUpdateModal button[onclick="saveBulkUpdate()"]');
+            const originalText = updateButton ? updateButton.textContent : 'Update';
+            if (updateButton) {
+                updateButton.disabled = true;
+                updateButton.textContent = 'Updating...';
+            }
+
+            try {
+                const body = { styleCode };
+                if (hasMcRate) body.mcRate = parseFloat(mcRate);
+                if (hasBoxCharges) body.boxCharges = parseFloat(boxCharges);
+                if (hasStoneCharges) body.stoneCharges = parseFloat(stoneCharges);
+
+                const response = await fetch(`${API_BASE}/products/bulk-update`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                    credentials: 'same-origin'
+                });
+
+                const data = await response.json().catch(() => ({}));
+
+                if (!response.ok) {
+                    const msg = data.error || response.statusText || 'Update failed';
+                    showDialog('Error', msg, 'error');
+                    return;
                 }
 
-                if (updated) {
-                    const productIndex = products.findIndex(p => p.id === product.id);
-                    if (productIndex >= 0) {
-                        products[productIndex] = product;
-                        updatedCount++;
-                    }
-                }
-            });
-
-            if (updatedCount > 0) {
-                localStorage.setItem('products', JSON.stringify(products));
-                updateProductsTable();
                 closeModals();
-                alert(`✅ Updated ${updatedCount} product(s) with Style Code: ${styleCode}`);
-            } else {
-                alert('No fields were updated. Please enter at least one value.');
+                const updated = data.updated || 0;
+                showDialog('Success', `Updated ${updated} product(s) with Style Code: ${styleCode}`, 'success');
+                await loadProducts();
+                updateProductsTable();
+            } catch (err) {
+                showDialog('Error', err.message || 'Network error. Please try again.', 'error');
+            } finally {
+                if (updateButton) {
+                    updateButton.disabled = false;
+                    updateButton.textContent = originalText;
+                }
             }
         }
 
@@ -17580,7 +17625,7 @@ async function loadStyles() {
         if (uniqueStyles.length === 0) {
             resetStyleSelection();
         } else if (selectedStyleCode) {
-            await loadSKUsForStyle(selectedStyleCode);
+            await loadSKUsForStyleMaster(selectedStyleCode);
         }
     } catch (error) {
         console.error('Error loading styles:', error);
@@ -17672,10 +17717,10 @@ async function selectStyle(styleCode) {
     selectedItemCode = null;
     currentItems = [];
     updateStylesList();
-    await loadSKUsForStyle(styleCode);
+    await loadSKUsForStyleMaster(styleCode);
 }
 
-async function loadSKUsForStyle(styleCode) {
+async function loadSKUsForStyleMaster(styleCode) {
     try {
         const API_BASE = window.API_BASE_URL || 'http://localhost:3000/api';
         const response = await fetch(`${API_BASE}/styles/${encodeURIComponent(styleCode)}/skus`);
@@ -18087,7 +18132,7 @@ async function saveSku(event) {
         form.dataset.skuCode = '';
         document.getElementById('skuCode').readOnly = false;
         
-        await loadSKUsForStyle(styleCode);
+        await loadSKUsForStyleMaster(styleCode);
         await loadStyles(); // Refresh styles list to update SKU count
         showDialog('Success', `SKU ${isEditMode ? 'updated' : 'added'} successfully!`, 'success');
     } catch (error) {
@@ -18172,7 +18217,7 @@ async function deleteSkuRecord(styleCode, skuCode) {
                 console.log('Delete successful:', result);
                 
                 // Refresh the UI
-                await loadSKUsForStyle(styleCode);
+                await loadSKUsForStyleMaster(styleCode);
                 await loadStyles(); // Refresh styles list
                 showDialog('Success', 'SKU deleted successfully!', 'success');
             } catch (error) {

@@ -409,6 +409,27 @@ app.post('/api/upload/multiple', checkAuth, upload.array('images', 10), (req, re
     res.json({ success: true, images });
 });
 
+// POST /api/upload/product-image - Single product edit flow: save image as <barcode>.jpg (overwrites existing)
+const productImageStorage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadsDir),
+    filename: (req, file, cb) => {
+        const barcode = (req.query.barcode || '').trim();
+        if (!barcode || !/^[a-zA-Z0-9_-]+$/.test(barcode)) {
+            return cb(new Error('Valid barcode required for product image upload'), null);
+        }
+        cb(null, `${barcode}.jpg`);
+    }
+});
+const productImageUpload = multer({ storage: productImageStorage, fileFilter: imageFilter, limits: { fileSize: 10 * 1024 * 1024 } });
+
+app.post('/api/upload/product-image', checkAuth, hasPermission('products'), productImageUpload.single('image'), (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ error: 'No image file provided' });
+    }
+    const imageUrl = `/uploads/products/${req.file.filename}`;
+    res.json({ success: true, imageUrl, filename: req.file.filename });
+});
+
 // Bulk barcode images: filename (without ext) = barcode; update products SET image_url WHERE barcode = ?
 const bulkBarcodeStorage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, uploadsDir),
@@ -1143,6 +1164,115 @@ app.post('/api/products', checkAuth, hasPermission('products'), async (req, res)
     }
 });
 
+// Bulk Update MC Rate - MUST be before /api/products/:id to avoid "bulk-update" being parsed as id
+const bulkUpdateMcHandler = async (req, res) => {
+    try {
+        const { styleCode, mcRate, boxCharges, stoneCharges } = req.body;
+        
+        if (!styleCode || !(styleCode || '').trim()) {
+            return res.status(400).json({ error: 'Style Code is required' });
+        }
+        
+        const styleCodeTrimmed = String(styleCode).trim();
+        const hasMcRate = mcRate !== undefined && mcRate !== null && mcRate !== '';
+        const hasBoxCharges = boxCharges !== undefined && boxCharges !== null && boxCharges !== '';
+        const hasStoneCharges = stoneCharges !== undefined && stoneCharges !== null && stoneCharges !== '';
+        
+        if (!hasMcRate && !hasBoxCharges && !hasStoneCharges) {
+            return res.status(400).json({ error: 'Please enter at least one value (MC Rate, Box Charges, or Stone Charges)' });
+        }
+        
+        // When MC Rate is provided: validate against Style Master (styles table)
+        let styleSkuMcMap = null; // Map: normSku -> { exactSku, mc_value }
+        if (hasMcRate) {
+            const mcRateNum = parseFloat(mcRate);
+            if (isNaN(mcRateNum) || mcRateNum < 0) {
+                return res.status(400).json({ error: 'MC Rate must be a valid positive number' });
+            }
+            
+            const stylesResult = await query(
+                `SELECT style_code, sku_code, mc_value FROM styles 
+                 WHERE UPPER(TRIM(style_code)) = UPPER(TRIM($1)) AND UPPER(TRIM(sku_code)) != 'ROOT'`,
+                [styleCodeTrimmed]
+            );
+            
+            if (!stylesResult || stylesResult.length === 0) {
+                return res.status(400).json({ error: `Style Code "${styleCodeTrimmed}" not found in Style Master. Please add it first.` });
+            }
+            
+            // Build map: normalized sku -> { exactSku, mc_value }
+            styleSkuMcMap = new Map();
+            let mcRateFoundInMaster = false;
+            for (const s of stylesResult) {
+                const nk = (s.sku_code || '').trim().toUpperCase();
+                const mcVal = parseFloat(s.mc_value) || 0;
+                styleSkuMcMap.set(nk, { exactSku: s.sku_code, mc_value: mcVal });
+                if (Math.abs(mcVal - mcRateNum) < 0.01) {
+                    mcRateFoundInMaster = true;
+                }
+            }
+            
+            if (!mcRateFoundInMaster) {
+                const masterRates = [...new Set(stylesResult.map(s => parseFloat(s.mc_value) || 0))].join(', ');
+                return res.status(400).json({ 
+                    error: `MC Rate ₹${mcRateNum} is not in Style Master for "${styleCodeTrimmed}". Style Master has: ₹${masterRates}. Please update Style Master first.` 
+                });
+            }
+        }
+        
+        // Fetch products matching style_code (case-insensitive)
+        const productsResult = await query(
+            `SELECT id, barcode, style_code, sku, mc_rate, box_charges, stone_charges 
+             FROM products 
+             WHERE UPPER(TRIM(style_code)) = UPPER(TRIM($1)) 
+               AND (is_deleted IS NULL OR is_deleted = false) 
+               AND (status IS NULL OR status != 'deleted')`,
+            [styleCodeTrimmed]
+        );
+        
+        if (!productsResult || productsResult.length === 0) {
+            return res.status(404).json({ error: `No products found with Style Code: ${styleCodeTrimmed}` });
+        }
+        
+        const dbPool = getPool();
+        const client = await dbPool.connect();
+        let updatedCount = 0;
+        
+        try {
+            for (const p of productsResult) {
+                let newMcRate = p.mc_rate;
+                let newBoxCharges = p.box_charges;
+                let newStoneCharges = p.stone_charges;
+                
+                if (hasMcRate && styleSkuMcMap) {
+                    const rawSku = (p.sku || '').trim().toUpperCase();
+                    const skuEntry = styleSkuMcMap.get(rawSku);
+                    if (skuEntry) {
+                        newMcRate = skuEntry.mc_value;
+                    }
+                }
+                if (hasBoxCharges) newBoxCharges = parseFloat(boxCharges) || 0;
+                if (hasStoneCharges) newStoneCharges = parseFloat(stoneCharges) || 0;
+                
+                await client.query(
+                    `UPDATE products SET mc_rate = $1, box_charges = $2, stone_charges = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4`,
+                    [newMcRate, newBoxCharges, newStoneCharges, p.id]
+                );
+                updatedCount++;
+                broadcast('product-updated', { id: p.id, barcode: p.barcode, mc_rate: newMcRate, box_charges: newBoxCharges, stone_charges: newStoneCharges });
+            }
+            
+            res.json({ success: true, updated: updatedCount, styleCode: styleCodeTrimmed });
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+app.post('/api/products/bulk-update', checkAuth, hasPermission('products'), bulkUpdateMcHandler);
+
 app.put('/api/products/:id', checkAuth, hasPermission('products'), async (req, res) => {
     try {
         const { id } = req.params;
@@ -1391,12 +1521,12 @@ app.get('/api/styles/all', checkAuth, hasPermission('products'), async (req, res
     }
 });
 
-// Get SKUs for a specific style code
+// Get SKUs for a specific style code (case-insensitive match for style_code)
 app.get('/api/styles/:styleCode/skus', checkAuth, hasPermission('products'), async (req, res) => {
     try {
         const { styleCode } = req.params;
         const result = await query(
-            'SELECT sku_code, item_name, metal_type, purity, mc_type, mc_value, hsn_code FROM styles WHERE style_code = $1 ORDER BY sku_code',
+            'SELECT sku_code, item_name, metal_type, purity, mc_type, mc_value, hsn_code FROM styles WHERE UPPER(TRIM(style_code)) = UPPER(TRIM($1)) ORDER BY sku_code',
             [styleCode]
         );
         res.json(result);
@@ -4298,6 +4428,8 @@ oldRoutes.forEach(route => {
 });
 
 // Also handle individual resource routes
+// IMPORTANT: products/bulk-update must be before products/:id to prevent "bulk-update" being parsed as id
+app.post('/api/:tenant/products/bulk-update', checkAuth, hasPermission('products'), bulkUpdateMcHandler);
 app.get('/api/:tenant/products/:id', (req, res) => res.redirect(`/api/products/${req.params.id}`));
 app.put('/api/:tenant/products/:id', checkAuth, async (req, res) => {
     req.params.tenant = undefined;
@@ -4537,10 +4669,21 @@ app.get('/api/sync/pending', checkAuth, async (req, res) => {
         `);
 
         // Filter to only products that have a local image on disk
-        const productsWithImages = result.rows.filter(p => {
-            const imgPath = path.join(__dirname, 'public', 'uploads', 'products', `${p.barcode}.jpg`);
-            return fs.existsSync(imgPath);
-        });
+        // Use resolveProductImage to support cascade (product → item → style) and any extension
+        const productsWithImages = [];
+        for (const p of result.rows) {
+            const imageUrl = await resolveProductImage(p.barcode);
+            let imgPath = null;
+            if (imageUrl) {
+                imgPath = path.join(__dirname, 'public', imageUrl.replace(/^\//, ''));
+            }
+            if (!imgPath || !fs.existsSync(imgPath)) {
+                imgPath = path.join(__dirname, 'public', 'uploads', 'products', `${p.barcode}.jpg`);
+            }
+            if (fs.existsSync(imgPath)) {
+                productsWithImages.push(p);
+            }
+        }
 
         // Group into hierarchy: styleCode -> sku -> [products]
         const hierarchy = {};
@@ -4590,8 +4733,13 @@ app.post('/api/sync/execute', checkAuth, async (req, res) => {
         const JPEG_QUALITY = 85;
 
         for (const p of result.rows) {
-            const imgPath = path.join(__dirname, 'public', 'uploads', 'products', `${p.barcode}.jpg`);
-
+            let imageUrl = await resolveProductImage(p.barcode);
+            let imgPath = imageUrl
+                ? path.join(__dirname, 'public', imageUrl.replace(/^\//, ''))
+                : path.join(__dirname, 'public', 'uploads', 'products', `${p.barcode}.jpg`);
+            if (!fs.existsSync(imgPath)) {
+                imgPath = path.join(__dirname, 'public', 'uploads', 'products', `${p.barcode}.jpg`);
+            }
             if (!fs.existsSync(imgPath)) {
                 console.warn(`KC Sync: no image for barcode ${p.barcode}, skipping.`);
                 continue;

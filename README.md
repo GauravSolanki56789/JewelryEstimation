@@ -9,8 +9,8 @@ command to access terminal
 ---
 command to access database 
 psql "postgresql://postgres:GauravSolanki56789__g@localhost:5432/gauravsoftwares?sslmode=disable"
-
-
+UPDATE products SET is_web_synced = false;
+UPDATE products SET is_web_synced = false WHERE barcode = '100001';
 ## ?? Quick Start
 
 ### Production Deployment (DigitalOcean VPS)
