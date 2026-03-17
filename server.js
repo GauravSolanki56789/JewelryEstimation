@@ -371,9 +371,15 @@ if (!fs.existsSync(uploadsDir)) {
 const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, uploadsDir),
     filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E6);
-        const ext = path.extname(file.originalname).toLowerCase();
-        cb(null, `img_${uniqueSuffix}${ext}`);
+        // Edit Product flow: when barcode is provided, save as <barcode>.jpg (overwrites existing)
+        const barcode = (req.body && req.body.barcode || '').toString().trim();
+        if (barcode && /^[a-zA-Z0-9_-]+$/.test(barcode)) {
+            cb(null, `${barcode}.jpg`);
+        } else {
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E6);
+            const ext = path.extname(file.originalname).toLowerCase();
+            cb(null, `img_${uniqueSuffix}${ext}`);
+        }
     }
 });
 
@@ -386,31 +392,50 @@ const imageFilter = (req, file, cb) => {
     }
 };
 
-const upload = multer({ storage, fileFilter: imageFilter, limits: { fileSize: 10 * 1024 * 1024 } });
+// Single product edit upload: allow HEIC/HEIF (iPhone) in addition to standard formats
+const imageFilterForSingle = (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|gif|webp|heic|heif/;
+    const ext = path.extname(file.originalname).toLowerCase().replace(/^\./, '');
+    const mimeOk = allowed.test(file.mimetype) || /^image\/(heic|heif)$/i.test(file.mimetype);
+    const extOk = !ext || allowed.test(ext) || /^(heic|heif)$/i.test(ext);
+    if (mimeOk || extOk) {
+        cb(null, true);
+    } else {
+        cb(new Error('Only image files (jpg, png, gif, webp, heic) are allowed'), false);
+    }
+};
 
-// POST /api/upload - Single image upload
-// When barcode is provided (Edit Product flow), renames file to barcode.jpg and overwrites existing
-app.post('/api/upload', checkAuth, upload.single('image'), (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ error: 'No image file provided' });
-    }
-    let imageUrl = `/uploads/products/${req.file.filename}`;
-    let finalFilename = req.file.filename;
-    const barcode = req.body && req.body.barcode ? String(req.body.barcode).trim() : null;
-    if (barcode && /^[a-zA-Z0-9_-]+$/.test(barcode)) {
-        const newFilename = `${barcode}.jpg`;
-        const oldPath = path.join(uploadsDir, req.file.filename);
-        const newPath = path.join(uploadsDir, newFilename);
-        try {
-            if (fs.existsSync(newPath)) fs.unlinkSync(newPath);
-            fs.renameSync(oldPath, newPath);
-            imageUrl = `/uploads/products/${newFilename}`;
-            finalFilename = newFilename;
-        } catch (err) {
-            console.error('Failed to rename product image to barcode.jpg:', err);
+const upload = multer({ storage, fileFilter: imageFilter, limits: { fileSize: 10 * 1024 * 1024 } });
+const uploadSingleProduct = multer({ storage, fileFilter: imageFilterForSingle, limits: { fileSize: 10 * 1024 * 1024 } });
+
+// POST /api/upload - Single image upload (Edit Product: renames to <barcode>.jpg when barcode provided)
+app.post('/api/upload', checkAuth, uploadSingleProduct.single('image'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No image file provided' });
         }
+        const filePath = path.join(uploadsDir, req.file.filename);
+        const barcode = (req.body && req.body.barcode || '').toString().trim();
+        const isHeic = /hei(c|f)/i.test(req.file.mimetype || '') || /\.hei(c|f)$/i.test(req.file.originalname || '');
+        // Convert HEIC to JPEG when saving as barcode.jpg (for Edit Product flow)
+        if (isHeic && barcode && /^[a-zA-Z0-9_-]+$/.test(barcode)) {
+            const jpegPath = path.join(uploadsDir, `${barcode}.jpg`);
+            try {
+                await sharp(filePath).jpeg({ quality: 90 }).toFile(jpegPath);
+                if (path.resolve(filePath) !== path.resolve(jpegPath)) fs.unlinkSync(filePath);
+                const imageUrl = `/uploads/products/${barcode}.jpg`;
+                return res.json({ success: true, imageUrl, filename: `${barcode}.jpg` });
+            } catch (sharpErr) {
+                if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+                return res.status(400).json({ error: 'Could not convert HEIC image. Try saving as JPEG on your phone (Settings > Camera > Formats > Most Compatible).' });
+            }
+        }
+        const imageUrl = `/uploads/products/${req.file.filename}`;
+        res.json({ success: true, imageUrl, filename: req.file.filename });
+    } catch (err) {
+        console.error('Upload error:', err);
+        res.status(500).json({ error: err.message || 'Upload failed' });
     }
-    res.json({ success: true, imageUrl, filename: finalFilename });
 });
 
 // POST /api/upload/multiple - Multiple image upload

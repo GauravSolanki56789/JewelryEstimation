@@ -9573,17 +9573,34 @@ async function handleProductImageUpload(event) {
         return;
     }
     const formData = new FormData();
-    formData.append('image', file);
-    // Edit Product: pass barcode so image is renamed to barcode.jpg
+    // Edit Product: pass barcode first so backend saves as <barcode>.jpg (overwrites existing)
     const editIndex = document.getElementById('editProductIndex').value;
     const barcode = document.getElementById('newBarcode').value.trim();
     if (editIndex !== '' && barcode) {
         formData.append('barcode', barcode);
     }
+    formData.append('image', file);
     try {
         const API_BASE = window.API_BASE_URL || 'http://localhost:3000/api';
-        const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: formData });
-        if (!res.ok) throw new Error('Upload failed');
+        const token = (typeof currentUser !== 'undefined' && currentUser?.token) ? currentUser.token : (localStorage.getItem('token') || '');
+        const headers = {};
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        const res = await fetch(`${API_BASE}/upload`, {
+            method: 'POST',
+            body: formData,
+            headers,
+            credentials: 'include'
+        });
+        let errMsg = 'Upload failed';
+        if (!res.ok) {
+            try {
+                const errData = await res.json();
+                errMsg = errData.error || errData.message || `Server error (${res.status})`;
+            } catch (_) {
+                errMsg = res.status === 401 ? 'Session expired. Please login again.' : `Upload failed (${res.status})`;
+            }
+            throw new Error(errMsg);
+        }
         const data = await res.json();
         const imgUrl = data.url || data.imageUrl || '';
         if (!imgUrl) throw new Error('No URL returned');
