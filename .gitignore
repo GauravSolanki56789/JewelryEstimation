@@ -1,4 +1,5 @@
 node_modules/
+public/uploads/products/
 jewelry.db
 .env
 .vercel
