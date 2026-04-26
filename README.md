@@ -12,7 +12,20 @@ psql "postgresql://postgres:GauravSolanki56789__g@localhost:5432/gauravsoftwares
 UPDATE products SET is_web_synced = false;
 UPDATE products SET is_web_synced = false WHERE barcode = '100001';
 ## ?? Quick Start
-
+UPDATE products 
+SET is_web_synced = false 
+WHERE barcode IN (
+    'LAKSHMI-PCPHS00148', 
+    'LAKSHMI-PCSHS00119', 
+    'LAKSHMI-PCPHS00142', 
+    'LAKSHMI-PCPHS00144', 
+    'LAKSHMI-PCSHS00144', 
+    'LAKSHMI-PCSHS00153', 
+    'LAKSHMI-PCSHS00181', 
+    'MEENAKSHI-PCPHS00123', 
+    'PEACOCK-PCSHS00129', 
+    'PEACOCK-PCSHS00199'
+);
 ### Production Deployment (DigitalOcean VPS)
 
 1. **Read**: [`DEPLOYMENT.md`](./DEPLOYMENT.md) - Complete deployment guide

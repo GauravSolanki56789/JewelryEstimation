@@ -1357,6 +1357,24 @@ app.post('/api/products/bulk', checkAuth, hasPermission('products'), async (req,
                 mc_value: s.mc_value
             });
         });
+
+        // Optional 3rd-level hierarchy validation:
+        // If itemCode is provided, it must exist under the selected style+sku.
+        // If itemCode is empty, preserve existing 2-level (style -> sku) flow.
+        const itemsResult = await query(
+            'SELECT style_code, sku_code, item_code FROM items WHERE is_active = true'
+        );
+        const styleSkuItemMap = new Map(); // normStyle -> normSku -> normItem -> exactItem
+        itemsResult.forEach(i => {
+            const ns = (i.style_code || '').trim().toUpperCase();
+            const nk = (i.sku_code || '').trim().toUpperCase();
+            const ni = (i.item_code || '').trim().toUpperCase();
+            if (!ns || !nk || !ni) return;
+            if (!styleSkuItemMap.has(ns)) styleSkuItemMap.set(ns, new Map());
+            const skuMap = styleSkuItemMap.get(ns);
+            if (!skuMap.has(nk)) skuMap.set(nk, new Map());
+            skuMap.get(nk).set(ni, i.item_code);
+        });
         
         const dbPool = getPool();
         const client = await dbPool.connect();
@@ -1401,6 +1419,23 @@ app.post('/api/products/bulk', checkAuth, hasPermission('products'), async (req,
                     product.purity = parseFloat(skuEntry.purity) || 91.6;
                     product.mcType = skuEntry.mc_type || 'PER_GRAM';
                     product.mcRate = parseFloat(skuEntry.mc_value) || 0;
+                    // Normalize incoming item code aliases from Excel/API payloads.
+                    const rawItemCode = (product.itemCode || product.item_code || '').trim();
+                    if (rawItemCode) {
+                        const normItem = rawItemCode.toUpperCase();
+                        const skuItems = styleSkuItemMap.get(rawStyle)?.get(rawSku);
+                        const exactItem = skuItems?.get(normItem);
+                        if (!exactItem) {
+                            errors.push({
+                                barcode: product.barcode,
+                                error: 'ITEM_NOT_FOUND: ' + rawItemCode + ' under style ' + styleEntry.exactStyle + ' and sku ' + skuEntry.exactSku
+                            });
+                            continue;
+                        }
+                        product.itemCode = exactItem;
+                    } else {
+                        product.itemCode = null;
+                    }
 
                     const attrs = product.attributes && typeof product.attributes === 'object' ? JSON.stringify(product.attributes) : '{}';
                     
@@ -3883,6 +3918,22 @@ app.post('/api/purchase-vouchers', checkAuth, async (req, res) => {
                 mc_value: s.mc_value
             });
         });
+
+        // Build optional item hierarchy map for 3rd-level validation.
+        const itemsResult = await query(
+            'SELECT style_code, sku_code, item_code FROM items WHERE is_active = true'
+        );
+        const styleSkuItemMap = new Map(); // normStyle -> normSku -> normItem -> exactItem
+        itemsResult.forEach(i => {
+            const ns = (i.style_code || '').trim().toUpperCase();
+            const nk = (i.sku_code || '').trim().toUpperCase();
+            const ni = (i.item_code || '').trim().toUpperCase();
+            if (!ns || !nk || !ni) return;
+            if (!styleSkuItemMap.has(ns)) styleSkuItemMap.set(ns, new Map());
+            const skuMap = styleSkuItemMap.get(ns);
+            if (!skuMap.has(nk)) skuMap.set(nk, new Map());
+            skuMap.get(nk).set(ni, i.item_code);
+        });
         
         const dbPool = getPool();
         const client = await dbPool.connect();
@@ -3915,29 +3966,50 @@ app.post('/api/purchase-vouchers', checkAuth, async (req, res) => {
                 let finalMcValue = item.mc_value || 0;
                 let finalMcType = item.mc_type || 'PER_GRAM';
                 
-                const rawStyle = (item.style_code || '').trim().toUpperCase();
+                const rawStyle = (item.style_code || item.styleCode || '').trim().toUpperCase();
                 const rawSku = (item.sku || item.sku_code || '').trim().toUpperCase();
                 const styleEntry = styleSkuMap.get(rawStyle);
+                let finalStyleCode = item.style_code || item.styleCode || '';
+                let finalSku = item.sku || item.sku_code || '';
                 if (styleEntry) {
                     const skuEntry = styleEntry.skus.get(rawSku);
                     if (skuEntry) {
                         // OVERRIDE with Style Master values (absolute source of truth)
+                        finalStyleCode = styleEntry.exactStyle;
+                        finalSku = skuEntry.exactSku;
                         finalPurity = parseFloat(skuEntry.purity) || 91.6;
                         finalMcValue = parseFloat(skuEntry.mc_value) || 0;
                         finalMcType = skuEntry.mc_type || 'PER_GRAM';
                     }
                 }
 
+                // Accept either item_code or itemCode from Excel/stock-in payloads.
+                const rawItemCode = (item.item_code || item.itemCode || '').trim();
+                let finalItemCode = null;
+                if (rawItemCode) {
+                    const exactItem = styleSkuItemMap
+                        .get((finalStyleCode || '').trim().toUpperCase())
+                        ?.get((finalSku || '').trim().toUpperCase())
+                        ?.get(rawItemCode.toUpperCase());
+                    if (!exactItem) {
+                        throw new Error(`ITEM_NOT_FOUND: ${rawItemCode} under style ${finalStyleCode || ''} and sku ${finalSku || ''}`);
+                    }
+                    finalItemCode = exactItem;
+                }
+
                 await client.query(`
                     INSERT INTO products (barcode, tag_no, style_code, item_code, short_name, item_name, metal_type, gross_wt, net_wt, weight, purity, rate, mc_rate, mc_type, purchase_cost, vendor_code, pv_id, bin_location, attributes, image_url)
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
                 `, [
-                    barcode, tagNo, item.style_code, item.item_code || null,
-                    item.item_name || item.style_code, item.item_name || item.style_code,
-                    item.metal_type || 'gold', item.gross_wt, item.net_wt || item.gross_wt, item.net_wt || item.gross_wt,
+                    barcode, tagNo, finalStyleCode, finalItemCode,
+                    item.item_name || finalStyleCode, item.item_name || finalStyleCode,
+                    item.metal_type || item.metalType || 'gold',
+                    item.gross_wt || item.grossWt || item.avgWt || 0,
+                    item.net_wt || item.netWt || item.gross_wt || item.grossWt || item.avgWt || 0,
+                    item.net_wt || item.netWt || item.gross_wt || item.grossWt || item.avgWt || 0,
                     finalPurity, item.rate || 0, finalMcValue, finalMcType,
-                    item.cost || 0, vendor_code, pvId, item.bin_location || '',
-                    pvAttrs, item.image_url || null
+                    item.cost || 0, vendor_code, pvId, item.bin_location || item.binLocation || '',
+                    pvAttrs, item.image_url || item.imageUrl || null
                 ]);
             }
             
@@ -4740,7 +4812,7 @@ app.post('/api/sync/execute', checkAuth, async (req, res) => {
         // Fetch full product details for the requested barcodes
         const placeholders = barcodes.map((_, i) => `$${i + 1}`).join(',');
         const result = await pool.query(
-            `SELECT barcode, item_name, weight, avg_wt, purity, metal_type, style_code, sku, mc_rate
+            `SELECT barcode, item_name, weight, avg_wt, purity, metal_type, style_code, sku, item_code, mc_rate
              FROM products
              WHERE barcode IN (${placeholders})
                AND (is_deleted = false OR is_deleted IS NULL)`,
@@ -4787,6 +4859,7 @@ app.post('/api/sync/execute', checkAuth, async (req, res) => {
                 grossWeight: parseFloat(p.avg_wt)   || 0,
                 purity:      p.purity              || '',
                 metalType:   p.metal_type         || '',
+                itemCode:    (p.item_code || '').trim() || null,
                 mcRate:      parseFloat(p.mc_rate) || 0
             };
             products.push({ productInfo, compressedBuffer, barcode: p.barcode });
